@@ -1,0 +1,6 @@
+# Configurate the CaNN
+# Contains:
+#   - hyperparameters (epochs, batch size, learning rate, ...)
+#   - loss function selection 
+#   - optimizer and callbacks (early stopping, LR schedule, ...)
+#   - I/O paths (datasets, checkpoints)

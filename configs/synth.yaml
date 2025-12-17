@@ -1,0 +1,5 @@
+# Configuration of the synthetic data generated via the Heston COS solver
+# Contains:
+#   - ranges of the params
+#   - grid of strikes K and maturities T
+#   - validations (Feller?)
