@@ -1,0 +1,48 @@
+# Defines the neural network as a model:
+#   - architecture (layers, units, activations)
+#   - input normalization / scaling (if part of the model)
+#   - regularization (dropout, batch norm, etc.)
+#   - optimizer and loss (model compile configuration)
+#
+# This file is model-specific and independent of datasets
+# or training pipelines.
+
+name: "nn_heston"
+
+input:
+  dim: 7
+  name: "heston_params_m_tau"
+  normalize:
+    method: "standarize"
+    per_feature: true
+
+model:
+  type: "mlp"
+  trunk:
+    dense_layers: [256, 256, 256, 128]
+    activation: "elu"
+    kernel_initializer: "he_normal"     # not used now
+    kernel_regularizer:
+      type: "12"
+      l2: 1.0e-6
+    use_batch_norm: false
+    dropout:
+      enable: false
+
+  output: 
+    dim: 1
+    name: "iv"
+    activation: "linear"
+
+# TODO: from this point, move to traing.yaml
+  compile:
+    optimizer:
+    name: "adam"
+    learning_rate: 1.0e-3
+    beta_1: 0.9
+    beta_2: 0.999
+    epsilon: 1.0e-7
+  loss:
+    name: "mse"
+  metrics:
+    - "mae"
