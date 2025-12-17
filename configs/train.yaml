@@ -1,6 +1,5 @@
-# Configurate the CaNN
-# Contains:
-#   - hyperparameters (epochs, batch size, learning rate, ...)
-#   - loss function selection 
-#   - optimizer and callbacks (early stopping, LR schedule, ...)
-#   - I/O paths (datasets, checkpoints)
+# Defines the orchestration of the training process:
+#   - runtime hyperparameters (epochs, batch size, seed)
+#   - callbacks (early stopping, LR scheduler, checkpoints)
+#   - dataset selection and I/O paths
+#   - reference to the neural network configuration
