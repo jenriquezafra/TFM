@@ -8,11 +8,10 @@ import tensorflow as tf
 
 from tensorflow import keras
 from tensorflow.keras import layers, regularizers
-from scipy.stats import norm
 from pathlib import Path
 
 ######################################## CONFIG LOAD ########################################
-PROJECT_PATH = Path("__file__").resolve().parent
+PROJECT_PATH = Path.cwd().resolve().parent
 config_path = PROJECT_PATH / "configs" / "model.yaml"
 
 
@@ -21,12 +20,12 @@ with open(config_path, "r") as f:
 
 CONFIG_INPUT = config["input"]
 CONFIG_MODEL = config["model"]
-CONFIG_OUTPUT = config["output"]
+CONFIG_OUTPUT = CONFIG_MODEL["output"]
 
 N_input = CONFIG_INPUT["dim"]
 layers_neurons = CONFIG_MODEL["trunk"]["dense_layers"]
 layers_activation = CONFIG_MODEL["trunk"]["activation"]
-layers_kernel_regularizer = CONFIG_MODEL["trunk"]["kernel_regularizer"]
+layers_kernel_regularizer = CONFIG_MODEL["trunk"]["kernel_regularizer"]["l2"]
 
 N_ouput = CONFIG_OUTPUT["dim"]
 output_activation = CONFIG_OUTPUT["activation"]
@@ -45,25 +44,25 @@ def build_heston_pricer_nn():
     x = layers.Dense(
         layers_neurons[0], 
         activation=layers_activation, 
-        kernel_regularizer=regularizers.l2(layers_kernel_regularizer[1])
+        kernel_regularizer=regularizers.l2(layers_kernel_regularizer)
         )(inputs)
     
     x = layers.Dense(
         layers_neurons[1], 
         activation=layers_activation, 
-        kernel_regularizer=regularizers.l2(layers_kernel_regularizer[1])
+        kernel_regularizer=regularizers.l2(layers_kernel_regularizer)
         )(x)
     
     x = layers.Dense(
         layers_neurons[2], 
         activation=layers_activation, 
-        kernel_regularizer=regularizers.l2(layers_kernel_regularizer[1])
+        kernel_regularizer=regularizers.l2(layers_kernel_regularizer)
         )(x)    
     
     x = layers.Dense(
         layers_neurons[3], 
         activation=layers_activation, 
-        kernel_regularizer=regularizers.l2(layers_kernel_regularizer[1])
+        kernel_regularizer=regularizers.l2(layers_kernel_regularizer)
         )(x)    
     
     # output layer
