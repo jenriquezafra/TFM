@@ -7,16 +7,28 @@
 
 name: "nn_heston_training"
 
-compile:
-  optimizer:
+optimizer:
   name: "adam"
   learning_rate: 1.0e-3
-  beta_1: 0.9
-  beta_2: 0.999
-  epsilon: 1.0e-7
 
 loss:
   name: "mse"
 
-metrics:
+metrics: 
   - "mae"
+
+fit:
+  epochs: 100 # cambiar
+  batch_size: 64 # cambiar
+  shuffle: false # cambiar
+
+callbacks:
+  early_stopping:
+    enabled: true
+    monitor: "val_loss"
+    patience: 20
+
+  checkpoints:
+    enabled: true
+    monitor: "val_loss"
+    save_best_only: true
