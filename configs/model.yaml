@@ -33,16 +33,3 @@ model:
     dim: 1
     name: "iv"
     activation: "linear"
-
-# TODO: from this point, move to traing.yaml
-  compile:
-    optimizer:
-    name: "adam"
-    learning_rate: 1.0e-3
-    beta_1: 0.9
-    beta_2: 0.999
-    epsilon: 1.0e-7
-  loss:
-    name: "mse"
-  metrics:
-    - "mae"
