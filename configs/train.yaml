@@ -27,8 +27,11 @@ callbacks:
     enabled: true
     monitor: "val_loss"
     patience: 20
+    restore_best_weights: true
 
   checkpoints:
     enabled: true
     monitor: "val_loss"
     save_best_only: true
+
+output_path: "artifacts/models/pricer_nn/baseline" # cambiar lo de baseline si aplica
