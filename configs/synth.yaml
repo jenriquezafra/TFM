@@ -3,3 +3,43 @@
 #   - ranges of the params
 #   - grid of strikes K and maturities T
 #   - validations (Feller?)
+
+meta:
+  name: heston_synth_data
+  version: "v1"
+  seed: 42
+
+data:
+  n_samples: 1000000
+  heston_params:
+    # ALL DEFAULTS, TO BE TUNED
+    rho: [-0.9, -0.1] 
+    kappa: [0.5, 3.0]
+    gamma: [0.1, 1.0]
+    bar_v: [0.01, 0.1]
+    v0: [0.01, 0.1]
+    sampling:
+      n_params_samples: 10000
+      method: "lhs"
+
+  grid:
+    moneyness: 
+      values: [-0.2, -0.1, 0.0, 0.1, 0.2]
+
+    tau:
+    values: [0.1, 0.5, 1.0, 2.0, 3.0]
+
+  market:
+    S: 1.0
+    r: [0.0, 0.05]
+    q: 0.0 # no lo hemos hablado nunca
+    option_type: "call"
+cos_solver:
+  N: 256
+  L: 10
+
+brent_iv:
+  tol: 1.0e-8
+  max_iter: 100
+  iv_bounds: [1.0e-4, 5.0] #TODO: no tengo claro qué es esto
+

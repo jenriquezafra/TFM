@@ -4,7 +4,13 @@ import numpy as np
 from numpy import exp, pi, sqrt, cos, sin
 
 
-def COS_solver(params_Heston, S0, K_array, tau, COS_params, t0=0, opt_type="call"):
+def COS_solver(params_Heston,
+               S0, 
+               K_array,
+               tau, 
+               COS_params, 
+               t0=0, 
+               opt_type="call"):
     """
     
     Params:
@@ -35,7 +41,6 @@ def COS_solver(params_Heston, S0, K_array, tau, COS_params, t0=0, opt_type="call
 
     # integration range
     a, b = -L*sqrt(T), L*sqrt(T)     # TODO: implement the better version with cumulants    NECESARIO
-    print(a,b)
 
     # define the Characteristic Function of Heston
     def ChF_Heston(u, tau):
@@ -69,7 +74,7 @@ def COS_solver(params_Heston, S0, K_array, tau, COS_params, t0=0, opt_type="call
         if opt_type=="call":
             H = 2/(b-a) * (chi_coeff(0,b) - psi_coeff(0,b))
         elif opt_type == "put":
-            H = 2/(b-a) * (chi_coeff(a,0) - psi_coeff(a,0))
+            H = 2/(b-a) * (psi_coeff(a,0) - chi_coeff(a,0))
 
         return H
     
@@ -81,8 +86,6 @@ def COS_solver(params_Heston, S0, K_array, tau, COS_params, t0=0, opt_type="call
     m_array = np.log(S0/K_array)
     exp_array = np.array([exp(1j*pi*k*(m_array-a)/(b-a)) for k in range(0,N)]) 
 
-    print(np.max(np.abs(U_array)))
-    print(np.any(~np.isfinite(U_array)))
 
     ## the sum
     cos_terms = ChF_array[1:, None] * U_array[1:, None] * exp_array[1:]
