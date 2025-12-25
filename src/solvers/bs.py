@@ -4,7 +4,7 @@ import numpy as np
 from scipy.stats import norm
 
 
-def BS_solver(S0, K_array, tau, sigma, r, t0=0, opt_type="call"):
+def BS_solver(S0, K_array, tau, sigma, r, t0=0, opt_type="put"):
     """
      Docstring para BS_solver
      
@@ -34,3 +34,4 @@ def BS_solver(S0, K_array, tau, sigma, r, t0=0, opt_type="call"):
     elif opt_type == "put":
         V = K_array*np.exp(-r*tau)*norm.cdf(-d2) - S0*norm.cdf(-d1) 
     return V
+

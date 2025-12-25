@@ -10,7 +10,7 @@ def COS_solver(params_Heston,
                tau, 
                COS_params, 
                t0=0, 
-               opt_type="call"):
+               opt_type="put"):
     """
     
     Params:
