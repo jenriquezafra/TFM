@@ -16,7 +16,7 @@ from src.models.pricer_nn import build_heston_pricer_nn
 
 PROJECT_PATH = Path("__file__").resolve().parent
 config_path = PROJECT_PATH / "configs" / "train.yaml"
-output_path = 
+output_path = #TODO:
 
 ######################################## TRAIN MODEL ########################################
 
