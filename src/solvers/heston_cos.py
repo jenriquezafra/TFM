@@ -5,9 +5,9 @@ from numpy import exp, pi, sqrt, cos, sin
 
 
 def COS_solver(params_Heston,
-               S0, 
-               K_array,
+               m,
                tau, 
+               r,
                COS_params, 
                t0=0, 
                opt_type="put"):
@@ -15,13 +15,16 @@ def COS_solver(params_Heston,
     
     Params:
     - params_Heston: array of params
-        [rho, kappa, gamma, bar_nu, nu_0, r]
+        [rho, kappa, gamma, bar_nu, nu_0]
     - S0: float
         Spot price at time t0
-    - K_array: array of strikes
-    - t0: float
+    - K: array of strikes
     - tau: float
         Time left to maturity time
+    - r: float
+        risk-free rate
+    - t0: float
+        current time
     - COS_params: array of params
         [N (terms on the truncation), L (tolerance)]
         L needs to be 6 ≤ L ≤ 12 
@@ -33,11 +36,14 @@ def COS_solver(params_Heston,
     """
 
     # unpack the parameters
-    [rho, kappa, gamma, bar_nu, nu0, r] = params_Heston
+    [rho, kappa, gamma, bar_nu, nu0] = params_Heston
     [N, L] = COS_params
 
     # definition of the maturity time (we will use tau = T)
     T = tau + t0
+
+    K = 1 # taken from Liu
+    S0 = K*m # TODO: implement better on configs
 
     # integration range
     a, b = -L*sqrt(T), L*sqrt(T)     # TODO: implement the better version with cumulants    NECESARIO
@@ -83,7 +89,7 @@ def COS_solver(params_Heston,
     u_array = np.array([pi*k/(b-a) for k in range(0,N)])
     U_array = np.array([payoff_coeff(k) for k in range(0,N)])
     ChF_array = ChF_Heston(u_array, tau)
-    m_array = np.log(S0/K_array)
+    m_array = np.log(S0/K)
     exp_array = np.array([exp(1j*pi*k*(m_array-a)/(b-a)) for k in range(0,N)]) 
 
 
@@ -93,6 +99,6 @@ def COS_solver(params_Heston,
     cos_sum = cos_sum_0 + np.sum(cos_terms, axis=0)
 
     # compute the value of the options
-    V = K_array * exp(-r*tau) * np.real(cos_sum)
+    V = K * exp(-r*tau) * np.real(cos_sum)
 
     return V

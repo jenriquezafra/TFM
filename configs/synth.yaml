@@ -10,7 +10,7 @@ meta:
   seed: 42
 
 data:
-  n_samples: 1000000 
+  n_samples: 10000 # start with 10k, then go with 1M
   batch_size: 1024
   heston_params:    # taken from Liu
     rho: [-0.9, 0.0]  # TODO: no positive correlations?
@@ -18,23 +18,24 @@ data:
     gamma: [0.01, 0.8]
     bar_v: [0.01, 0.5]
     v0: [0.05, 0.5]
+    fixed: true     # TODO: quitar en un futuro
     sampling:
-      n_params_samples: 10000
+      n_params_samples: 5 # like Liu aswell
       method: "lhs"
-      
+
   grid:
   # taken from Liu
     moneyness: [0.6, 1.4] 
     tau: [0.05, 3.0]
     sampling:
-      n_params_samples: 100 # TODO: no se cuantas realmente
+      n_params_samples: 100 # TODO: creo que es 5x7
       method: "lhs"
 
   market:
     r: [0.0, 0.05]
     option_type: "put" # better for COS 
     sampling:
-      n_params_samples: 100
+      n_params_samples: 100 
       method: "lhs"
 
 cos_solver:

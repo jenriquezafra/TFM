@@ -11,9 +11,9 @@ from src.solvers.heston_cos import COS_solver
 
 def IV_Brent(
         params_Heston,
-        S0,
-        K_array, 
+        m, 
         tau,
+        r,
         COS_params,
         opt_type="put",
         iv_bounds=(1e-6, 5.0),
@@ -26,17 +26,19 @@ def IV_Brent(
     :param K_array: array of strikes
     :param tau: float
     """
+    K = 1
+    S0 = K*m    #TODO: implementar esto en las funciones internas y configs
 
     # target price from Heston model
     target_price = COS_solver(params_Heston=params_Heston, 
                               S0=S0, 
                               K_array = K_array,
                               tau=tau,
+                              r=r,
                               COS_params=COS_params,
                               opt_type=opt_type
                               )
     
-    r = params_Heston[-1]
     low_iv, high_iv = iv_bounds
 
     iv = np.empty_like(target_price, dtype=float)
@@ -65,12 +67,14 @@ def IV_Brent(
 
 
 ################################ To compute a IV surface ########################################
+# Deprecated; not used anymore
 
 def IV_surface(
         params_Heston,
         S0,
         K_array,
         tau_array,
+        r,
         COS_params,
         opt_type="put"
         ):
@@ -89,6 +93,7 @@ def IV_surface(
             S0=S0,
             K_array=K_array,
             tau=tau,
+            r=r,
             COS_params=COS_params,
             opt_type=opt_type
         )
