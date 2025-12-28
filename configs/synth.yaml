@@ -46,5 +46,5 @@ cos_solver:       # NOT from Liu
 brent_iv:         # NOT from Liu
   tol: 1.0e-8
   max_iter: 100
-  iv_bounds: [1.0e-4, 3.0]
+  iv_bounds: [1.0e-6, 5.0]
 

@@ -4,15 +4,11 @@ import numpy as np
 from scipy.optimize import brentq
 
 from src.solvers.bs import BS_solver
-from src.solvers.heston_cos import COS_solver
-
-
-
+from src.solvers.heston_cos import COS_solver_scalar
 
 
 ################################### To compute a single IV ########################################
 # NOTE: this is the one we are using 
-
 def IV_Brent(
         params_Heston,
         S0,
@@ -45,9 +41,9 @@ def IV_Brent(
     max_iter = int(max_iter)
 
     # target price from Heston model
-    target_price = COS_solver(params_Heston=params_Heston, 
+    target_price = COS_solver_scalar(params_Heston=params_Heston, 
                               S0=S0, 
-                              K_array = K,
+                              K=K,
                               tau=tau,
                               r=r,
                               COS_params=COS_params,
@@ -57,7 +53,6 @@ def IV_Brent(
     low_iv, high_iv = iv_bounds
 
     V_tgt = np.float64(target_price)
-    print("V_TGT en IV_BRENT:", V_tgt)
 
     def f(sigma):
         sigma=np.float64(sigma)
@@ -71,6 +66,8 @@ def IV_Brent(
         )
         return np.float64(V_bs)-V_tgt
     
+    
+    
     iv = brentq(
         f,
         low_iv,
@@ -82,7 +79,7 @@ def IV_Brent(
     return np.float64(iv)
 
 ################################### To compute a vector of IVs ########################################
-
+# NOTE: deprecated
 def IV_Brent_vect(
         params_Heston,
         S0,
@@ -140,7 +137,7 @@ def IV_Brent_vect(
 
 
 ################################ To compute a IV surface ########################################
-# Deprecated; not used anymore
+# NOTE: Deprecated; not used anymore
 
 def IV_surface(
         params_Heston,

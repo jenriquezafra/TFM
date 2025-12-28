@@ -82,22 +82,23 @@ synth_df = pd.DataFrame(data=np.nan,
                        index=range(N),
                        columns=cols,
                        )
+
 # unpack the tuples
 X_params, X_grid, X_r = all_samples
 X = np.hstack([X_params, X_grid, X_r])
 
 synth_df.iloc[:, :-1] = X
 
-print("N", N)
-print("N type", type(N))
+print(iv_bounds)
 
 ################################# COMPUTE IVs #####################################
 # recorrer el dataset por fila e ir calculando las IVs
 for i in range(0, N):
+    print("CASE:", synth_df.iloc[i,:])
     iv = IV_Brent(
         params_Heston=synth_df.iloc[i,:5],
         S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
-        K= np.float64(K),           # K=1 fixed
+        K= np.float64(K),                        # K=1 fixed
         tau=synth_df.loc[i, "tau"],
         r=synth_df.loc[i,"r"],
         COS_params=cos_params,

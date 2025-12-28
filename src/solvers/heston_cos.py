@@ -3,7 +3,7 @@
 import numpy as np 
 from numpy import exp, pi, sqrt, cos, sin
 
-
+# NOTE: deprecated
 def COS_solver(params_Heston,
                S0, 
                K_array,
@@ -104,6 +104,7 @@ def COS_solver(params_Heston,
 
 
 ###############
+# NOTE: using this right now
 
 def COS_solver_scalar(params_Heston,
                       S0,
@@ -117,8 +118,13 @@ def COS_solver_scalar(params_Heston,
     rho, kappa, gamma, bar_nu, nu0 = params_Heston
     N, L = COS_params
     N = int(N)
+    
+    S0 = np.float64(S0)
+    tau = np.float64(tau)
+    r = np.float64(r)
 
-    T = np.float64(tau + t0)
+    T = tau + t0
+    T = np.float64(T)
 
     a, b = -L * np.sqrt(T), L * np.sqrt(T)
 
