@@ -7,11 +7,86 @@ from src.solvers.bs import BS_solver
 from src.solvers.heston_cos import COS_solver
 
 
-################################### To compute a vector of IVs ########################################
+
+
+
+################################### To compute a single IV ########################################
+# NOTE: this is the one we are using 
 
 def IV_Brent(
         params_Heston,
-        m, 
+        S0,
+        K, 
+        tau,
+        r,
+        COS_params,
+        opt_type="put",
+        iv_bounds=(1e-6, 5.0),
+        tol=1e-6,
+        max_iter=100,
+        ):
+    """
+    From a tau and a K, compute the IV using Brent's method
+    
+    :param K: float
+    :param tau: float
+    """
+    # formatting
+    params_Heston = np.array(params_Heston, dtype=np.float64)
+    COS_params = np.array(COS_params, dtype=int)
+    iv_bounds = np.array(iv_bounds, dtype=np.float64)
+
+    S0 = np.float64(S0)
+    K = np.float64(K)
+    tau = np.float64(tau)
+    r = np.float64(r)
+
+    tol = np.float64(tol)
+    max_iter = int(max_iter)
+
+    # target price from Heston model
+    target_price = COS_solver(params_Heston=params_Heston, 
+                              S0=S0, 
+                              K_array = K,
+                              tau=tau,
+                              r=r,
+                              COS_params=COS_params,
+                              opt_type=opt_type
+                              )
+    
+    low_iv, high_iv = iv_bounds
+
+    V_tgt = np.float64(target_price)
+    print("V_TGT en IV_BRENT:", V_tgt)
+
+    def f(sigma):
+        sigma=np.float64(sigma)
+        V_bs = BS_solver(
+            S0=S0,
+            K=K,
+            tau=tau, 
+            sigma=sigma,
+            r=r,
+            opt_type=opt_type
+        )
+        return np.float64(V_bs)-V_tgt
+    
+    iv = brentq(
+        f,
+        low_iv,
+        high_iv,
+        xtol=tol,
+        maxiter=max_iter
+    )
+    
+    return np.float64(iv)
+
+################################### To compute a vector of IVs ########################################
+
+def IV_Brent_vect(
+        params_Heston,
+        S0,
+        K_array, 
         tau,
         r,
         COS_params,
@@ -26,8 +101,6 @@ def IV_Brent(
     :param K_array: array of strikes
     :param tau: float
     """
-    K = 1
-    S0 = K*m    #TODO: implementar esto en las funciones internas y configs
 
     # target price from Heston model
     target_price = COS_solver(params_Heston=params_Heston, 

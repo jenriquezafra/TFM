@@ -33,18 +33,17 @@ data:
 
   market:
     r: [0.0, 0.05]
-    option_type: "put" # better for COS 
+    K: 1                # fixed as Liu
+    option_type: "put"  # better for COS 
     sampling:
       n_params_samples: 100 
       method: "lhs"
 
-cos_solver:
-  # NOT from Liu
+cos_solver:       # NOT from Liu
   N: 256
   L: 10
 
-brent_iv:
-  # NOT from Liu
+brent_iv:         # NOT from Liu
   tol: 1.0e-8
   max_iter: 100
   iv_bounds: [1.0e-4, 3.0]

@@ -10,12 +10,11 @@ from pathlib import Path
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-print("PROJECT_ROOT:", PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
-config_path = PROJECT_ROOT / "configs" / "synth_df.yaml"
+config_path = PROJECT_ROOT / "configs" / "synth.yaml"
 
 from src.solvers.implied_vol import IV_Brent
-from src.datasets.make_synth_df import generate_all
+from src.datasets.make_synth import generate_all
 
 
 ####################################### LOAD CONFIGS ########################################
@@ -25,7 +24,7 @@ with open(config_path, "r") as f:
 
 seed = config["meta"]["seed"]
 data_cfg = config["data"]
-N = data_cfg["n_samples"]
+N = int(data_cfg["n_samples"])
 
 params_cfg = config["data"]["heston_params"]
 rho_bounds = np.array([params_cfg["rho"][0], params_cfg["rho"][1]])
@@ -42,14 +41,22 @@ r_bounds = np.array([data_cfg["market"]["r"][0], data_cfg["market"]["r"][1]])
 
 
 cos_params_cfg = config["cos_solver"]
-cos_params = np.array(cos_params_cfg["N"], cos_params_cfg["L"])
+cos_params = np.array([
+    np.float64(cos_params_cfg["N"]),
+    np.float64(cos_params_cfg["L"])
+])
+
 opt_type = data_cfg["market"]["option_type"]
 
 brent_params_cfg = config["brent_iv"]
-iv_bounds = np.array(brent_params_cfg["iv_bounds"])
-brent_tol = brent_params_cfg["tol"]
-brent_maxiter = brent_params_cfg["max_iter"]
+iv_bounds = np.array(
+    np.float64(brent_params_cfg["iv_bounds"])
+)
 
+brent_tol = np.float64(brent_params_cfg["tol"])
+brent_maxiter = np.float64(brent_params_cfg["max_iter"])
+
+K = data_cfg["market"]["K"]
 
 ################################# GENERATE ALL THE PARAMS #####################################
 all_samples = generate_all(n_samples=N,
@@ -65,7 +72,6 @@ if params_cfg["fixed"]==True:
 
 ################################# CREATE DATASET #####################################
 
-# crear un dataset de 9 cols [params, m, tau, r, IVs] (IVs vacio ahora)
 cols = [
     "rho", "kappa", "gamma", "bar_v", "v0",
     "moneyness", "tau", "r",
@@ -82,15 +88,18 @@ X = np.hstack([X_params, X_grid, X_r])
 
 synth_df.iloc[:, :-1] = X
 
+print("N", N)
+print("N type", type(N))
+
 ################################# COMPUTE IVs #####################################
-# recorrer el dataset por fila e ir calculando las IVS
+# recorrer el dataset por fila e ir calculando las IVs
 for i in range(0, N):
     iv = IV_Brent(
-        params_Heston=all_samples.loc[i,:5],
-        S0=S0,
-        K_array= ,
-        tau=all_samples.loc[i, "tau"],
-        r=all_samples.loc[i,"r"],
+        params_Heston=synth_df.iloc[i,:5],
+        S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
+        K= np.float64(K),           # K=1 fixed
+        tau=synth_df.loc[i, "tau"],
+        r=synth_df.loc[i,"r"],
         COS_params=cos_params,
         opt_type=opt_type,
         iv_bounds=iv_bounds,
