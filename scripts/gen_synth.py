@@ -1,8 +1,3 @@
-# Entry point: 
-# loads configs/synth_df.yaml
-# call a make_synth_df.py 
-# save in data/synth_df/... (pensar nombres)
-
 import yaml
 import numpy as np
 import pandas as pd
@@ -12,6 +7,7 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 config_path = PROJECT_ROOT / "configs" / "synth.yaml"
+
 
 from src.solvers.implied_vol import IV_Brent
 from src.datasets.make_synth import generate_all
@@ -25,6 +21,12 @@ with open(config_path, "r") as f:
 seed = config["meta"]["seed"]
 data_cfg = config["data"]
 N = int(data_cfg["n_samples"])
+name = config["meta"]["name"]
+out_name = f"{name}.parquet"
+
+OUT_PATH = PROJECT_ROOT / "data" / "synth" / out_name
+OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
 
 params_cfg = config["data"]["heston_params"]
 rho_bounds = np.array([params_cfg["rho"][0], params_cfg["rho"][1]])
@@ -65,10 +67,6 @@ all_samples = generate_all(n_samples=N,
                            r_bounds=r_bounds,
                            seed=seed)
 
-# fijamos kappa y v0 (como hace Liu)
-if params_cfg["fixed"]==True:
-    pass
-
 
 ################################# CREATE DATASET #####################################
 
@@ -89,12 +87,18 @@ X = np.hstack([X_params, X_grid, X_r])
 
 synth_df.iloc[:, :-1] = X
 
-print(iv_bounds)
+# fijamos kappa y v0 (como hace Liu)
+if params_cfg["fixed"]==True:           # NOTE: si no lo fijo, hay probkemas con Brent
+    # the values from the TFG
+    synth_df.loc[:, "kappa"] = 0.9
+    synth_df.loc[:, "v0"] = 0.36
+
+
 
 ################################# COMPUTE IVs #####################################
 # recorrer el dataset por fila e ir calculando las IVs
 for i in range(0, N):
-    print("CASE:", synth_df.iloc[i,:])
+    print(synth_df.iloc[i,:])
     iv = IV_Brent(
         params_Heston=synth_df.iloc[i,:5],
         S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
@@ -113,3 +117,5 @@ for i in range(0, N):
 print(synth_df.head())
 ################################# SAVE DATASET #####################################
 # guardar en parquet
+
+synth_df.to_parquet(OUT_PATH, engine="pyarrow", index=False)
