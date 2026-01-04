@@ -1,12 +1,8 @@
 
-import yaml
 import torch
 import torch.nn as nn
 
-from pathlib import Path
 
-
-######################################## MODEL BUILDING ########################################
 def get_activation(name: str) -> nn.Module:
     name = name.lower()
     if name == "relu":

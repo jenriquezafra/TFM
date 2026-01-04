@@ -1,0 +1,42 @@
+data:
+  dir: "data/synth/heston_synth_data.parquet"
+  shuffle: true
+  splits:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+
+optimizer:
+  name: "adam"
+  learn_rate: 1.0e-3  #NOTE: default for Adam
+  weight_decay: 0.0
+
+loss:
+  name: "mse" # mse | mae | negative log-likelihood loss function (nll) | cross entropy
+
+loop:
+  epochs: 100 # TODO: update
+  batch_size: 1024
+
+callbacks:
+  early_stopping:
+    monitor: "val_loss"
+    patience: 10
+    mode: "min"
+
+  checkpoint:
+    monitor: "val_los"
+    save_best_only: true
+    dir: "artifacts/pricer_nn/baseline/checkpoints"
+
+  lr_scheduler:   # StepLR to update lr as the epochs increases
+    name: "step"
+    step_size: 10
+    gamma: 0.5
+
+  logging:
+
+meta:
+  seed: 42
+  output_dir: # TODO
+  #TODO: creo que Liu tiene un callback cuando el Brent va mal o algo asi?
