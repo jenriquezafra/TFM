@@ -63,7 +63,6 @@ class EarlyStopping:
         return self.counter >= self.patience
     
 
-
     def _is_improvement(self, value: float) -> bool:
         if self.mode == "min":
             return value < (self.best - self.min_delta)

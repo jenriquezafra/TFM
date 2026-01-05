@@ -2,6 +2,7 @@ import yaml
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from datetime import datetime
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,11 +22,6 @@ with open(config_path, "r") as f:
 seed = config["meta"]["seed"]
 data_cfg = config["data"]
 N = int(data_cfg["n_samples"])
-name = config["meta"]["name"]
-out_name = f"{name}.parquet"
-
-OUT_PATH = PROJECT_ROOT / "data" / "synth" / out_name
-OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 params_cfg = config["data"]["heston_params"]
@@ -116,6 +112,24 @@ for i in range(0, N):
 
 print(synth_df.head())
 ################################# SAVE DATASET #####################################
-# guardar en parquet
+name = config["meta"]["name"]
+out_name = f"{name}.parquet"
+run_id = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 
-synth_df.to_parquet(OUT_PATH, engine="pyarrow", index=False)
+OUT_PATH = PROJECT_ROOT / "data" / "synth" / run_id 
+OUT_PATH.mkdir(parents=True, exist_ok=True)
+
+# guardar en parquet
+synth_df.to_parquet(OUT_PATH / out_name, engine="pyarrow", index=False)
+print(f"Final dataset saved on: {OUT_PATH/out_name}")
+# also split and save
+from src.datasets.splits import dataframes_splits
+
+train_df, val_df, test_df = dataframes_splits(
+    synth_df, 0.8, 0.1, 0.1, seed=seed     # TODO: ponerlo con config mas adelante
+)
+
+train_df.to_parquet(OUT_PATH / "train.parquet", engine="pyarrow", index=False)
+val_df.to_parquet(OUT_PATH / "val.parquet", engine="pyarrow", index=False)
+test_df.to_parquet(OUT_PATH / "test.parquet", engine="pyarrow", index=False)
+print(f"Splits saved on: {OUT_PATH}") 

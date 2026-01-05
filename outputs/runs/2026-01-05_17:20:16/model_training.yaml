@@ -20,7 +20,7 @@ loop:
 
 callbacks:
   early_stopping:
-    enabled: False
+    enabled: True
     monitor: "val_loss"
     patience: 20        # higher if we have noise
     min_delta: 0.0
