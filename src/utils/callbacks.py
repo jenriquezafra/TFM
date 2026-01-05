@@ -33,7 +33,7 @@ class EarlyStopping:
             mode: str = "min"
     ):
         self.patience = int(patience)
-        self.min_delta = int(min_delta)
+        self.min_delta = float(min_delta)
         self.warmup_epochs = int(warmup_epochs)
         self.mode = mode.lower()
 
@@ -49,7 +49,7 @@ class EarlyStopping:
         """
         # dont stop on the warmup
         if epoch <= self.warmup_epochs:
-            self._update_self(value)
+            self._update_best(value)
             return False
 
         improved = self._is_improvement(value)
@@ -61,7 +61,7 @@ class EarlyStopping:
         
         self.counter += 1
         return self.counter >= self.patience
-
+    
 
 
     def _is_improvement(self, value: float) -> bool:
