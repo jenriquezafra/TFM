@@ -10,7 +10,7 @@ meta:
   seed: 42
 
 data:
-  n_samples: 100000 # start with 10k, then go with 1M
+  n_samples: 1000000 # Liu has 1M
   batch_size: 1024
   heston_params:    # taken from Liu
     rho: [-0.9, 0.0]  # TODO: no positive correlations?

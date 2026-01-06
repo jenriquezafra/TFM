@@ -1,5 +1,5 @@
 data:
-  dir: "data/synth/2026-01-05_01:39:03"
+  dir: "data/synth/2026-01-06_20:07:49"
   shuffle: true
   splits:
     train: 0.8
@@ -20,7 +20,7 @@ loop:
 
 callbacks:
   early_stopping:
-    enabled: True
+    enabled: False
     monitor: "val_loss"
     patience: 20        # higher if we have noise
     min_delta: 0.0
