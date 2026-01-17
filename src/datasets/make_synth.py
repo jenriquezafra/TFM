@@ -17,7 +17,7 @@ def generate_params_Heston(n_samples, param_ranges, seed=None):
 # Generate the m, tau grid
 def generate_grid(n_samples, bounds, seed=None):
     """
-    - bounds: np.array of shape (2,2) with [[m_min, tau_min], [m_max, tau_max]]
+    - bounds: np.array of shape (2,2) with [[m_min, tau_min], [m_max, tau_max]
     """
     sampler = qmc.LatinHypercube(d=2, seed=seed)
     X_unit = sampler.random(n=n_samples)
