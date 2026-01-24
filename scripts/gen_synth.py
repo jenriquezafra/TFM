@@ -46,13 +46,13 @@ cos_params = np.array([
 
 opt_type = data_cfg["market"]["option_type"]
 
-brent_params_cfg = config["brent_iv"]
+rootfinder_params_cfg = config["brent_iv"]
 iv_bounds = np.array(
-    np.float64(brent_params_cfg["iv_bounds"])
+    np.float64(rootfinder_params_cfg["iv_bounds"])
 )
 
-brent_tol = np.float64(brent_params_cfg["tol"])
-brent_maxiter = np.float64(brent_params_cfg["max_iter"])
+brent_tol = np.float64(rootfinder_params_cfg["tol"])
+brent_maxiter = np.float64(rootfinder_params_cfg["max_iter"])
 
 K = data_cfg["market"]["K"]
 
