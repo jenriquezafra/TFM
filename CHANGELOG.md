@@ -17,3 +17,10 @@
 - Cambios en la estructura de 'gen_synth.py' para los parámetros que se fijen.
 - Añadidos presets y methods en 'synth.yaml'.
 - Generado dataset con solo 2 params de Heston libres (10k rows).
+
+## 2026-01-27
+- Añadido parte de outputs en 'train_pricer.py'
+- Añadida parte de outputs en 'model_training.yaml'
+- Creado 'scripts/sensitivity_pricer.py' para estudiar la sensibilidad ahí. 
+- Rellenada toda la estructura y el I/O en "sensitivity_pricer.py"
+- Creado 'sensitivity_config.yaml" para variar los parámetros importantes ahí
