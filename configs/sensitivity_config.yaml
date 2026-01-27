@@ -1,0 +1,16 @@
+meta:
+  seed: 42
+  description: "Sensitivity analysis configuration"
+
+
+model_dir: "lastest" # can change to the name of the dir
+
+parameters:
+  variables: ["gamma", "bar_nu"] # only 2
+
+grid:
+  expansion_factor: 1.2
+  n_samples_per_dim: 100
+
+error_metric: "rmse" # options: rmse, 
+
