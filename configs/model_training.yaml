@@ -43,4 +43,4 @@ callbacks:
 meta:
   seed: 42
   output_dir: # TODO
-  #TODO: creo que Liu tiene un callback cuando el Brent va mal o algo asi?
+  #TODO: creo que Liu tiene un callback cuando el Brent va mal o algo asi? -> esto debe ser en la creacón de datos synth
