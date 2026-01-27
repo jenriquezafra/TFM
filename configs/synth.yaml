@@ -6,30 +6,49 @@
 
 meta:
   name: heston_synth_data
-  version: "v1"
   seed: 42
 
 data:
-  n_samples: 1000000 # Liu has 1M
-  batch_size: 1024
-  heston_params:    # taken from Liu
-    rho: [-0.9, 0.0]  # TODO: no positive correlations?
-    kappa: [0.0, 3.0]
-    gamma: [0.01, 0.8]
-    bar_v: [0.01, 0.5]
-    v0: [0.05, 0.5]
-    fixed: true     # TODO: quitar en un futuro
-    sampling:
-      n_params_samples: 5 # like Liu aswell
-      method: "lhs"
-
-  grid:
-  # taken from Liu
-    moneyness: [0.6, 1.4] 
-    tau: [0.05, 3.0]
-    sampling:
-      n_params_samples: 100 # TODO: creo que es 5x7
-      method: "lhs"
+  preset: "exp_2params"
+  presets:
+    main: 
+      n_samples: 1000000 # Liu has 1M
+      batch_size: 1024
+      heston_params:    # taken from Liu
+        rho: [-0.9, 0.0]  # TODO: no positive correlations?
+        kappa: 0.9        #[0.0, 3.0]
+        gamma: [0.01, 0.8]
+        bar_v: [0.01, 0.5]
+        v0: 0.36          #[0.05, 0.5]
+        sampling:
+          n_params_samples: 5 # like Liu aswell
+          method: "lhs"
+      grid:
+      # taken from Liu
+        moneyness: [0.6, 1.4] 
+        tau: [0.05, 3.0]
+        sampling:
+          n_params_samples: 100 
+          method: "lhs"
+    
+    exp_2params:
+      n_samples: 100000 
+      batch_size: 1024
+      heston_params:    
+        rho: -0.45 
+        kappa: 2
+        gamma: [0.01, 0.8]    # VARIABLE
+        bar_v: [0.01, 0.5]    # VARIABLE
+        v0: 0.25
+        sampling:
+          n_params_samples: 2 
+          method: "lhs"
+      grid:
+        moneyness: [0.6, 1.4] 
+        tau: [0.05, 3.0]
+        sampling:
+          n_params_samples: 100 
+          method: "lhs"
 
   market:
     r: [0.0, 0.05]
@@ -43,8 +62,12 @@ cos_solver:       # NOT from Liu
   N: 256
   L: 10
 
-brent_iv:         # NOT from Liu
-  tol: 1.0e-8
-  max_iter: 100
-  iv_bounds: [1.0e-6, 5.0]
-
+root_finder:
+  method: "LM"
+  methods:
+    brent_iv: # NOT from Liu
+      tol: 1.0e-8
+      max_iter: 100
+      iv_bounds: [1.0e-6, 5.0]
+    LM:
+      sigma0: 0.2
