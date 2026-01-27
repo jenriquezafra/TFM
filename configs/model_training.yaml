@@ -1,3 +1,9 @@
+meta:
+  seed: 42
+  output_dir:
+  #TODO: creo que Liu tiene un callback cuando el Brent va mal o algo asi? -> esto debe ser en la creacón de datos synth
+
+
 data:
   dir: "data/synth/2026-01-06_20:07:49"
   shuffle: true
@@ -12,7 +18,7 @@ optimizer:
   weight_decay: 0.0
 
 loss:
-  name: "mse" # mse | mae | negative log-likelihood loss function (nll) | cross entropy
+  name: "mse" # mse | rmse | mae | negative log-likelihood loss function (nll) | cross entropy
 
 loop:
   epochs: 500 # TODO: update
@@ -38,9 +44,6 @@ callbacks:
     step_size: 10
     gamma: 0.5
 
-  logging:
-
-meta:
-  seed: 42
-  output_dir: # TODO
-  #TODO: creo que Liu tiene un callback cuando el Brent va mal o algo asi? -> esto debe ser en la creacón de datos synth
+outputs:
+  loss_curve: True
+  gap_curve: True
