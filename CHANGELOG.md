@@ -24,3 +24,20 @@
 - Creado 'scripts/sensitivity_pricer.py' para estudiar la sensibilidad ahí. 
 - Rellenada toda la estructura y el I/O en "sensitivity_pricer.py"
 - Creado 'sensitivity_config.yaml" para variar los parámetros importantes ahí
+
+## 2026-01-29
+- Añadido el shutil para guardar metadatos de los datos synth en el entrenamiento.
+
+- Añadidos los pares de parámetros en 'sensitivity.yaml'
+
+## 2026-02-01
+- Añadidos valores de los fixed params en "sensitivity_config.yaml"
+- Creado el grid para interpolar/extrapolar en "sensitivity_pricer.py"
+- Cargada NN en sensitivity_pricer.py
+
+## 2026-02-02
+- Creado 'predict.py' en 'src/inference/'
+- Creado pero sin hacer 'load.py' en 'src/inference/'
+- Cambiada la lógica de 'sensitivity_pricer.py' para que sea una clase. Creo que es mucho mejor, ya que quiero hacer loos plots para diferentes pares de parámetros.
+
+
