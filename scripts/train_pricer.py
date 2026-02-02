@@ -34,11 +34,16 @@ run_dir = RUNS_DIR / run_id
 # to save the config used
 shutil.copy(
     PROJECT_ROOT / "configs" / "model_training.yaml",
-    run_dir / "model_training.yaml"
+    run_dir / "model_training_copy.yaml"
 )
 shutil.copy(
     PROJECT_ROOT / "configs" / "model_architecture.yaml",
-    run_dir / "model_architecture.yaml"
+    run_dir / "model_architecture_copy.yaml"
+)
+
+shutil.copy(
+    PROJECT_ROOT / "configs" / "synth.yaml",
+    run_dir / "synth_copy.yaml"
 )
 
 #################### read the config and data ####################
