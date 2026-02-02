@@ -3,14 +3,29 @@ meta:
   description: "Sensitivity analysis configuration"
 
 
-model_dir: "lastest" # can change to the name of the dir
+model_dir: "latest_100k" # can change to the name of the dir
 
 parameters:
-  variables: ["gamma", "bar_nu"] # only 2
+  pairs: 
+    - ["gamma", "bar_v"] # only 2
+    - ["rho", "gamma"]
+    - ["v0", "bar_v"]
+    - ["kappa", "bar_v"]
+    - ["moneyness", "tau"]
+
+  fixed_values:
+    rho:  -0.45
+    kappa: 1.5
+    gamma: 0.4
+    bar_v: 0.25
+    v0: 0.3
+    moneyness: 1.0
+    tau: 1.0
+    r: 0.025
 
 grid:
   expansion_factor: 1.2
-  n_samples_per_dim: 100
+  n_points: 100
 
 error_metric: "rmse" # options: rmse, 
 

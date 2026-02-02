@@ -5,7 +5,7 @@ meta:
 
 
 data:
-  dir: "data/synth/2026-01-06_20:07:49"
+  dir: "data/synth/100k_fixed"
   shuffle: true
   splits:
     train: 0.8
