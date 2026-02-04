@@ -5,7 +5,7 @@ meta:
 
 
 data:
-  dir: "data/synth/100k_fixed"
+  dir: "data/synth/1M_LM"
   shuffle: true
   splits:
     train: 0.8
@@ -15,22 +15,22 @@ data:
 optimizer:
   name: "adam"
   learn_rate: 1.0e-3  #NOTE: default for Adam
-  weight_decay: 0.0
+  weight_decay: 0
 
 loss:
-  name: "mse" # mse | rmse | mae | negative log-likelihood loss function (nll) | cross entropy
+  name: "rmse" # mse | rmse | mae | negative log-likelihood loss function (nll) | cross entropy
 
 loop:
-  epochs: 500 # TODO: update
+  epochs: 1000 # Liu uses 8000
   batch_size: 1024
 
 callbacks:
-  early_stopping:
-    enabled: False
+  early_stopping:   # Liu doesnt use ES
+    enabled: True
     monitor: "val_loss"
-    patience: 20        # higher if we have noise
-    min_delta: 0.0
-    warmup_epochs: 10
+    patience: 50        # higher if we have noise
+    min_delta: 1.0e-5
+    warmup_epochs: 80
     mode: "min"
 
   checkpoint:
@@ -39,11 +39,13 @@ callbacks:
     filename_last: "model_last.pt"
 
 
-  lr_scheduler:   # StepLR to update lr as the epochs increases
-    name: "step"
-    step_size: 10
-    gamma: 0.5
+  lr_scheduler:     # Liu uses gamma=0.5 every 500 epochs
+    enabled: True
+    name: "step"  
+    step_size: 300  # every n epochs to update lr
+    gamma: 0.75      # new_lr = old_lr * gamma
 
 outputs:
   loss_curve: True
   gap_curve: True
+  lr_curve: True

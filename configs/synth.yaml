@@ -1,8 +1,3 @@
-# Configuration of the synthetic data generated via the Heston COS solver
-# Contains:
-#   - ranges of the params
-#   - grid of strikes K and maturities T
-#   - validations (Feller?)
 
 meta:
   name: heston_synth_data
@@ -10,13 +5,13 @@ meta:
 
 data:
     n_samples: 1000000 # Liu has 1M
-    batch_size: 1024
+    batch_size: 1024  #TODO: move to training
     heston_params:    # taken from Liu
-      rho: [-0.9, 0.0]  # TODO: no positive correlations?
-      kappa: 0.9        #[0.0, 3.0]
+      rho: [-0.9, 0.0]  #NOTE: no positive correlations?
+      kappa: [0.0, 3.0]        #[0.0, 3.0] # 0.9
       gamma: [0.01, 0.8]
       bar_v: [0.01, 0.5]
-      v0: 0.36          #[0.05, 0.5]
+      v0: [0.05, 0.5]          #[0.05, 0.5] # 0.36
       sampling:
         n_params_samples: 5 # like Liu aswell
         method: "lhs"
@@ -41,7 +36,7 @@ cos_solver:       # NOT from Liu
   L: 10
 
 root_finder:
-  method: "LM"
+  method: "LM" 
   methods:
     brent_iv: # NOT from Liu
       tol: 1.0e-8

@@ -3,7 +3,7 @@ meta:
   description: "Sensitivity analysis configuration"
 
 
-model_dir: "latest_100k" # can change to the name of the dir
+model_dir: "2026-02-03_17:15:17" # can change to the name of the dir
 
 parameters:
   pairs: 
