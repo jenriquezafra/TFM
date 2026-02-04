@@ -15,8 +15,8 @@
 - [ ] Training: en cada epoch (o cada 10), generar un nuevo batch para entrenar (re-sampling, no shuffle)
     - [ ] Verificar que eso no está ya implementado
 
-- [ ] Probar la red en el nuevo datasets con params fijos y hacer surfaces plots par ver el error en esos 2 params (usar MSE/RMSE/MAE, ...)
-
+- [X] Probar la red en el nuevo datasets con params fijos y hacer surfaces plots par ver el error en esos 2 params (usar MSE/RMSE/MAE, ...)
+    - [ ] Cambiar un poco 
 
 ## Medium-term
 
@@ -25,6 +25,9 @@
 - [ ] En 'gen_synth.py', al fijar las variables, realmente estoy haciendo LHS sobre d=8, no sobre el que debería. No cambia mucho pero es conceptualmente incorrecto.
 
 - [X] Poner de nuevo bien lo de la elección del preset en training (solo hay uno).
+
+- [ ] Arreglar en 'sensitivity_pricer.py' lo de que hacer raices negativas (ejecutar y ver el log)
+
 
 ## Optionals
 - [ ] Añadir L-BFGS como root finder
