@@ -40,4 +40,11 @@
 - Creado pero sin hacer 'load.py' en 'src/inference/'
 - Cambiada la lógica de 'sensitivity_pricer.py' para que sea una clase. Creo que es mucho mejor, ya que quiero hacer loos plots para diferentes pares de parámetros.
 
+## 2026-02-03
+- Generated synth dataset with 1M points using the LM root-finder to get the IV.
+- Introduced a manual seed for the shuffling during training in 'train_pricing.py'
+- Defined all the logic for the LR scheduler on 'train_pricer.py'
+- Añadido step_lr callback en 'callbacks.py'
+- Added logging for ETA in the training on 'train_pricer.py'
+
 
