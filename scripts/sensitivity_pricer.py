@@ -14,7 +14,6 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.inference.predict import predict
 from src.models.ANN_pricer import ANN
 from src.solvers.implied_vol import IV_Brent, IV_LM
 

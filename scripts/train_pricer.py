@@ -1,4 +1,5 @@
 import sys
+import time
 import yaml
 import torch
 import shutil
@@ -46,13 +47,26 @@ shutil.copy(
     run_dir / "synth_copy.yaml"
 )
 
+#################### auxiliary functions ####################
+
+def _format_seconds(sec):
+    sec = int(sec)
+    h = sec // 3600
+    m = (sec % 3600) // 60
+    s = sec % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
 #################### read the config and data ####################
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
 cfg_data = config["data"]
 shuffle = cfg_data["shuffle"]
+
+# set the random seed
 seed = config["meta"]["seed"]
+g = torch.Generator()
+g.manual_seed(seed)
 
 # to save the checkpoints
 cfg_ckpt = config["callbacks"]["checkpoint"]
@@ -83,6 +97,7 @@ if es_enable:
         warmup_epochs=cfg_es["warmup_epochs"],
         mode=cfg_es["mode"]
     )
+
 
 # load the data
 data_path = PROJECT_ROOT / cfg_data["dir"] / "train.parquet"
@@ -119,8 +134,16 @@ n_train = len(train_ds)
 n_val = len(val_ds)
 
 batch_size = config["loop"]["batch_size"]
-train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=shuffle)
-val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=shuffle)
+train_loader = DataLoader(
+    train_ds, 
+    batch_size=batch_size, 
+    shuffle=shuffle,
+    generator=g)
+
+val_loader = DataLoader(
+    val_ds, 
+    batch_size=batch_size, 
+    shuffle=False)      #NOTE: i think shuffling is not needed for validation
 
 ### load the model
 with open(model_config_path, "r") as f:
@@ -159,14 +182,31 @@ if opt_name == "adam":
 else: 
     raise ValueError(f"Optimizer: '{opt_name}' not implemented")
 
+
+# callback of StepLR
+from src.utils.callbacks import build_step_lr
+lr_scheduler = None
+cfg_lr = config["callbacks"]["lr_scheduler"]
+if cfg_lr["enabled"]:
+    if cfg_lr["name"].lower() == "step":
+        lr_scheduler = build_step_lr(
+            optimizer=optimizer,
+            step_size=cfg_lr["step_size"],
+            gamma=cfg_lr["gamma"]
+        )
+    else:
+        raise ValueError(f"LR Scheduler: '{cfg_lr['name']}' not implemented")
+
 ### training with validation
 epochs = config["loop"]["epochs"]
 
 # to save some metrics 
 metrics_dir = run_dir / "metrics"
+epoch_times = []
 history = []
 
 for epoch in range(1, epochs+1): # each epoch
+    epoch_start = time.time()
     # train
     model.train()
     train_sum = 0.0
@@ -195,12 +235,27 @@ for epoch in range(1, epochs+1): # each epoch
 
     val_loss = val_sum / n_val
 
+    # step the lr scheduler
+    if lr_scheduler is not None:
+        lr_scheduler.step()
+    current_lr = optimizer.param_groups[0]["lr"]
+
     # save metrics
     history.append({
         "epoch": epoch,
         "train_loss": train_loss,
         "val_loss": val_loss,
+        "lr": current_lr, 
     })
+
+    # log epoch time
+    epoch_time = time.time() - epoch_start
+    epoch_times.append(epoch_time)
+
+    N = min(5, len(epoch_times))
+    avg_epoch_time = sum(epoch_times[-N:]) / N
+    epochs_left = epochs - epoch
+    eta_sec = avg_epoch_time * epochs_left
 
     # save checkpoints
     if ckpt_enabled:
@@ -240,9 +295,12 @@ for epoch in range(1, epochs+1): # each epoch
 
     # some logging
     if epoch==1 or epoch%5==0:
-        print(
-            f"Epoch {epoch:3d}/{epochs} | train {loss_name}: {train_loss:.6f} | val {loss_name}: {val_loss:.6f}"
-        )
+            print(
+        f"Epoch {epoch:3d}/{epochs} | "
+        f"train {loss_name}: {train_loss:.6f} | "
+        f"val {loss_name}: {val_loss:.6f} | "
+        f"ETA {_format_seconds(eta_sec)}"
+    )
     
 
 #################### some outputs ####################
@@ -258,6 +316,7 @@ fig_dir.mkdir(parents=True, exist_ok=True)
 epochs_arr = hist_df["epoch"].to_numpy()
 train_arr = hist_df["train_loss"].to_numpy()
 val_arr = hist_df["val_loss"].to_numpy()
+lr_arr = hist_df["lr"].to_numpy()
 
 plots_cfg = config["outputs"]
 
@@ -290,3 +349,16 @@ if plots_cfg["gap_curve"]:
     plt.savefig(fig_dir / "generalization_gap.png", dpi=300)
     plt.close()
     print(f"Saved generalization gap figure on {fig_dir}")
+
+# learning rate curve
+if plots_cfg["lr_curve"]:
+    plt.figure()
+    plt.plot(epochs_arr, lr_arr)
+    plt.xlabel("epoch")
+    plt.ylabel("learning rate")
+    plt.grid(True, which="major")
+    plt.grid(True, which="minor", alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(fig_dir / "learning_rate_curve.png", dpi=300)
+    plt.close()
+    print(f"Saved learning rate curve figure on {fig_dir}")

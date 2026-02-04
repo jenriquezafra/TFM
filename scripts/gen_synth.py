@@ -20,11 +20,7 @@ with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
 seed = config["meta"]["seed"]
-preset = config["data"]["preset"]
-if preset == "main":
-    data_cfg = config["data"]["presets"]["main"]
-elif preset == "exp_2params":
-    data_cfg = config["data"]["presets"]["exp_2params"]
+data_cfg = config["data"]
 
 N = int(data_cfg["n_samples"])
 
@@ -50,7 +46,7 @@ params_bounds = np.vstack([as_bounds(params_cfg[param], param) for param in PARA
 grid_cfg = data_cfg["grid"]
 
 grid_bounds = np.array([grid_cfg["moneyness"], grid_cfg["tau"]])
-r_bounds = np.array([config["data"]["market"]["r"][0], config["data"]["market"]["r"][1]])
+r_bounds = np.array([config["market"]["r"][0], config["market"]["r"][1]])
 
 
 cos_params_cfg = config["cos_solver"]
@@ -59,7 +55,7 @@ cos_params = np.array([
     np.float64(cos_params_cfg["L"])
 ])
 
-opt_type = config["data"]["market"]["option_type"]
+opt_type = config["market"]["option_type"]
 
 
 rootfinder = config["root_finder"]["method"]
@@ -74,7 +70,7 @@ elif rootfinder == "LM":
 
 
 
-K = config["data"]["market"]["K"]
+K = config["market"]["K"]
 
 ################################# GENERATE ALL THE PARAMS #####################################
 all_samples = generate_all(n_samples=N,
@@ -84,7 +80,6 @@ all_samples = generate_all(n_samples=N,
                            seed=seed)
 
     
-
 
 ################################# CREATE DATASET #####################################
 
@@ -145,7 +140,6 @@ if rootfinder == "brent_iv":
 
 elif rootfinder == "LM":
     for i in range(0, N):
-        print(synth_df.iloc[i,:])
         iv = IV_LM(
             params_Heston=synth_df.iloc[i,:5],
             S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
@@ -157,6 +151,7 @@ elif rootfinder == "LM":
             sigma0=LM_sigma0
         )
         synth_df.loc[i, "IV"] = iv
+        print(synth_df.iloc[i,:])
 
 
 

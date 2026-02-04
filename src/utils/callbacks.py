@@ -75,3 +75,16 @@ class EarlyStopping:
         if (self.mode == "min" and value < self.best) or (self.mode == "max" and value > self.best):
             self.best = value
             self.counter = 0
+
+
+################################## StepLR ###############################
+def build_step_lr(optimizer, step_size: int, gamma: float):
+    """
+    Step Learning Rate Scheduler
+    Decreases the learning rate by a factor of gamma every step_size epochs
+    """
+    return torch.optim.lr_scheduler.StepLR(
+        optimizer,
+        step_size=step_size,
+        gamma=gamma,
+    )
