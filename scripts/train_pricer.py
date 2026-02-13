@@ -133,16 +133,21 @@ val_ds = TensorDataset(X_val, y_val)
 n_train = len(train_ds)
 n_val = len(val_ds)
 
-batch_size = config["loop"]["batch_size"]
+batch_size_train = config["loop"]["batch_size_train"]
+batch_size_val = config["loop"]["batch_size_val"]
+if batch_size_val == "all":
+    batch_size_val = n_val
+
 train_loader = DataLoader(
     train_ds, 
-    batch_size=batch_size, 
+    batch_size=batch_size_train, 
     shuffle=shuffle,
     generator=g)
 
+# TODO: cambiar el batch size (x10?) si el optim es mix o lbfgs
 val_loader = DataLoader(
     val_ds, 
-    batch_size=batch_size, 
+    batch_size=batch_size_val, 
     shuffle=False)      #NOTE: i think shuffling is not needed for validation
 
 ### load the model
@@ -171,31 +176,93 @@ else:
     raise ValueError(f"Loss function: '{loss_name}' not implemented")
 
 ### optimizer
-#NOTE: implementar mejor si quiero usar otro optmizer
-opt_name = (config["optimizer"]["name"]).lower()
-if opt_name == "adam":
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=config["optimizer"]["learn_rate"],
-        weight_decay=config["optimizer"]["weight_decay"]
-        )
-else: 
-    raise ValueError(f"Optimizer: '{opt_name}' not implemented")
+def _normalize_optimizer_name(name: str) -> str:
+    name = name.lower()
+    if name == "adam":
+        return "adam"
+    if name in ("l-bfgs", "lbfgs"):
+        return "lbfgs"
+    raise ValueError(f"Optimizer '{name}' not supported. Use 'adam' or 'L-BFGS'")
 
+
+def _get_optimizer_cfg(cfg, normalized_name: str):
+    for item in cfg["optimizers"]:
+        raw_name = item.get("name", "").lower()
+        if raw_name == "mix":
+            continue
+        try:
+            item_name = _normalize_optimizer_name(raw_name)
+        except ValueError:
+            continue
+        if item_name == normalized_name:
+            return item
+    raise ValueError(f"Optimizer: '{normalized_name}' not found in config optimizers list")
+
+
+def _build_optimizer(normalized_name: str):
+    opt_cfg = _get_optimizer_cfg(config, normalized_name)
+    if normalized_name == "adam":
+        return torch.optim.Adam(
+            model.parameters(),
+            lr=opt_cfg["learn_rate"],
+            weight_decay=opt_cfg["weight_decay"],
+        )
+    return torch.optim.LBFGS(
+        model.parameters(),
+        lr=opt_cfg["learn_rate"],
+        max_iter=opt_cfg["max_iter"],
+        line_search_fn=opt_cfg["line_search_fn"],
+        history_size=opt_cfg["historic_size"],
+    )
+
+
+# mix setup
+meta_opt_name = (config["meta"]["optimizer"]).lower()
+mix_enabled = meta_opt_name == "mix"
+mix_step = None
+mix_first_opt_name = None
+mix_second_opt_name = None
+
+if mix_enabled:
+    mix_cfg = None
+    for item in config["optimizers"]:
+        if item.get("name", "").lower() == "mix":
+            mix_cfg = item
+            break
+    if mix_cfg is None:
+        raise ValueError("Mix optimizer configuration not found in config optimizers list")
+
+    mix_step = int(mix_cfg["step_size"])
+    if mix_step <= 0:
+        raise ValueError("Mix step_size must be > 0")
+
+    mix_first_opt_name = _normalize_optimizer_name(mix_cfg["first_optimizer"])
+    mix_second_opt_name = "lbfgs" if mix_first_opt_name == "adam" else "adam"
+    active_opt_name = mix_first_opt_name
+else:
+    active_opt_name = _normalize_optimizer_name(meta_opt_name)
+
+optimizer = _build_optimizer(active_opt_name)
 
 # callback of StepLR
 from src.utils.callbacks import build_step_lr
 lr_scheduler = None
 cfg_lr = config["callbacks"]["lr_scheduler"]
-if cfg_lr["enabled"]:
-    if cfg_lr["name"].lower() == "step":
-        lr_scheduler = build_step_lr(
-            optimizer=optimizer,
-            step_size=cfg_lr["step_size"],
-            gamma=cfg_lr["gamma"]
-        )
-    else:
+
+
+def _build_lr_scheduler_for(optimizer_obj):
+    if cfg_lr["enabled"]:
+        if cfg_lr["name"].lower() == "step":
+            return build_step_lr(
+                optimizer=optimizer_obj,
+                step_size=cfg_lr["step_size"],
+                gamma=cfg_lr["gamma"]
+            )
         raise ValueError(f"LR Scheduler: '{cfg_lr['name']}' not implemented")
+    return None
+
+
+lr_scheduler = _build_lr_scheduler_for(optimizer)
 
 ### training with validation
 epochs = config["loop"]["epochs"]
@@ -207,6 +274,18 @@ history = []
 
 for epoch in range(1, epochs+1): # each epoch
     epoch_start = time.time()
+
+    # switch optimizers every mix_step epochs if mix mode is enabled
+    if mix_enabled:
+        block_idx = (epoch - 1) // mix_step
+        desired_opt_name = mix_first_opt_name if (block_idx % 2 == 0) else mix_second_opt_name
+        if desired_opt_name != active_opt_name:
+            active_opt_name = desired_opt_name
+            optimizer = _build_optimizer(active_opt_name)
+            lr_scheduler = _build_lr_scheduler_for(optimizer)
+            print(f"[mix] epoch {epoch}: switched optimizer to {active_opt_name}")
+
+
     # train
     model.train()
     train_sum = 0.0
@@ -214,11 +293,21 @@ for epoch in range(1, epochs+1): # each epoch
     for xb, yb in train_loader: # each batch
         xb, yb = xb.to(device), yb.to(device)
 
-        optimizer.zero_grad() # para no acumular los gradientes antiguos
-        pred = model(xb)
-        loss = loss_fn(pred, yb)
-        loss.backward()
-        optimizer.step()
+        if active_opt_name == "lbfgs":
+            def closure():
+                optimizer.zero_grad()
+                pred_local = model(xb)
+                loss_local = loss_fn(pred_local, yb)
+                loss_local.backward()
+                return loss_local
+
+            loss = optimizer.step(closure)
+        else:
+            optimizer.zero_grad()
+            pred = model(xb)
+            loss = loss_fn(pred, yb)
+            loss.backward()
+            optimizer.step()
 
         train_sum += loss.item() * xb.size(0) # loss.item() es una media del escalar de loss para una epoch
 
@@ -243,6 +332,7 @@ for epoch in range(1, epochs+1): # each epoch
     # save metrics
     history.append({
         "epoch": epoch,
+        "optimizer": active_opt_name,
         "train_loss": train_loss,
         "val_loss": val_loss,
         "lr": current_lr, 
@@ -295,12 +385,13 @@ for epoch in range(1, epochs+1): # each epoch
 
     # some logging
     if epoch==1 or epoch%5==0:
-            print(
-        f"Epoch {epoch:3d}/{epochs} | "
-        f"train {loss_name}: {train_loss:.6f} | "
-        f"val {loss_name}: {val_loss:.6f} | "
-        f"ETA {_format_seconds(eta_sec)}"
-    )
+        print(
+            f"Epoch {epoch:3d}/{epochs} | "
+            f"opt: {active_opt_name} | "
+            f"train {loss_name}: {train_loss:.6f} | "
+            f"val {loss_name}: {val_loss:.6f} | "
+            f"ETA {_format_seconds(eta_sec)}"
+        )
     
 
 #################### some outputs ####################
