@@ -10,14 +10,21 @@
 
 - [X] Hacer un script para estudiar la sensibilidad (que genere plots también)
 
-- [ ] Cambiar loss function a RMSE (root MSE)
+- [X] Cambiar loss function a RMSE (root MSE)
 
-- [ ] Training: en cada epoch (o cada 10), generar un nuevo batch para entrenar (re-sampling, no shuffle)
-    - [ ] Verificar que eso no está ya implementado
+- [X] Training: en cada epoch (o cada 10), generar un nuevo batch para entrenar (re-sampling, no shuffle)
+    - [X] Verificar que eso no está ya implementado
+    - (Ya estaba implementado)
 
 - [X] Probar la red en el nuevo datasets con params fijos y hacer surfaces plots par ver el error en esos 2 params (usar MSE/RMSE/MAE, ...)
-    - [ ] Cambiar un poco 
+    - [X] Cambiar un poco 
 
+- [ ] Sacar los heatmaps de kappa que faltan
+
+- [ ] Añadir L-BFGS optimizer
+    - [ ] Mix con Adam cada x epochs
+
+    
 ## Medium-term
 
 

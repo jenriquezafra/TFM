@@ -47,4 +47,12 @@
 - Añadido step_lr callback en 'callbacks.py'
 - Added logging for ETA in the training on 'train_pricer.py'
 
+# 2026-02-04
+- Cambiado el batch_size de la validación durante el training. Ajustado para que sea todo.
 
+# 2026-02-13
+- Implementado L-BFGS optmizer puro en el training (sin tests)
+
+- Implementada la lógica del mix de optimizers (sin tests)
+
+- 
