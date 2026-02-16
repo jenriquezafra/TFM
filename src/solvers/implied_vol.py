@@ -22,6 +22,7 @@ def IV_Brent(
         iv_bounds=(1e-6, 5.0),
         tol=1e-6,
         max_iter=100,
+        return_details=False,
         ):
     """
     From a tau and a K, compute the IV using Brent's method
@@ -78,8 +79,20 @@ def IV_Brent(
         xtol=tol,
         maxiter=max_iter
     )
-    
-    return np.float64(iv)
+
+    iv = np.float64(iv)
+    if not return_details:
+        return iv
+
+    bs_at_iv = np.float64(BS_solver(S0=S0, K=K, tau=tau, sigma=iv, r=r, opt_type=opt_type))
+    price_residual = np.float64(bs_at_iv - V_tgt)
+    details = {
+        "target_price": V_tgt,
+        "bs_price_at_iv": bs_at_iv,
+        "price_residual": price_residual,
+        "price_residual_abs": np.float64(abs(price_residual)),
+    }
+    return iv, details
 
 
 ################################ To compute a IV surface ########################################
@@ -127,6 +140,7 @@ def IV_LM(
         COS_params,
         opt_type="put",
         sigma0=0.2,
+        return_details=False,
         ):
     """
     Compute the IV using Levenberg-Marquardt method
@@ -164,11 +178,31 @@ def IV_LM(
         return dif
     
     res = least_squares(residual, x0=np.array([sigma0]), method="lm")
-
     sigma_hat = np.float64(res.x[0])
+    iv = sigma_hat if sigma_hat > 0 else np.nan
 
-    return sigma_hat if sigma_hat > 0 else np.nan
+    if not return_details:
+        return iv
+
+    if np.isnan(iv):
+        bs_at_iv = np.nan
+        price_residual = np.nan
+        price_residual_abs = np.nan
+    else:
+        bs_at_iv = np.float64(BS_solver(S0=S0, K=K, tau=tau, sigma=iv, r=r, opt_type=opt_type))
+        price_residual = np.float64(bs_at_iv - V_tgt)
+        price_residual_abs = np.float64(abs(price_residual))
+
+    details = {
+        "target_price": V_tgt,
+        "bs_price_at_iv": bs_at_iv,
+        "price_residual": price_residual,
+        "price_residual_abs": price_residual_abs,
+        "success": bool(res.success),
+        "nfev": int(res.nfev),
+        "cost": np.float64(res.cost),
+    }
+    return iv, details
     
-
 
 
