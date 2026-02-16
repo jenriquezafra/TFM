@@ -4,7 +4,7 @@ meta:
   seed: 42
 
 data:
-    n_samples: 1000000 # Liu has 1M
+    n_samples: 1000 # Liu has 1M
     batch_size: 1024  #TODO: move to training
     heston_params:    # taken from Liu
       rho: [-0.9, 0.0]  #NOTE: no positive correlations?
@@ -32,8 +32,8 @@ market:
     method: "lhs"
 
 cos_solver:       # NOT from Liu
-  N: 256
-  L: 10
+  N: 1500     # Liu uses 1500
+  L: 50       # Liu uses 50
 
 root_finder:
   method: "LM" 
@@ -44,3 +44,7 @@ root_finder:
       iv_bounds: [1.0e-6, 5.0]
     LM:
       sigma0: 0.2
+
+quality_check:
+  residual_warn_abs: 1.0e-6
+  progress_every: 10000

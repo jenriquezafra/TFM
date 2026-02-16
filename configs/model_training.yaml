@@ -1,6 +1,6 @@
 meta:
   seed: 42
-  optimizer: "L-BFGS" # adam | L-BFGS | mix
+  optimizer: "adam" # adam | L-BFGS | mix
 
 
 data:
@@ -13,7 +13,7 @@ data:
 
 optimizers:
   - name: "adam"
-    learn_rate: 1.0e-3      #NOTE: default for Adam
+    learn_rate: 1.0e-3
     weight_decay: 0
 
   - name: "L-BFGS"
@@ -27,10 +27,10 @@ optimizers:
     first_optimizer: "adam"
 
 loss:
-  name: "rmse" # mse | rmse | mae | negative log-likelihood loss function (nll) | cross entropy
+  name: "mse" # mse | rmse | mae | negative log-likelihood loss function (nll) | cross entropy
 
 loop:
-  epochs: 1000 # Liu uses 8000
+  epochs: 8000 # Liu uses 8000
   batch_size_train: 1024
   batch_size_val: "all"
 
@@ -38,9 +38,9 @@ callbacks:
   early_stopping:   # Liu doesnt use ES
     enabled: True
     monitor: "val_loss"
-    patience: 50        # higher if we have noise
-    min_delta: 1.0e-5
-    warmup_epochs: 80
+    patience: 200
+    min_delta: 1.0e-8
+    warmup_epochs: 500
     mode: "min"
 
   checkpoint:
@@ -52,8 +52,8 @@ callbacks:
   lr_scheduler:     # Liu uses gamma=0.5 every 500 epochs
     enabled: True
     name: "step"  
-    step_size: 150  # every n epochs to update lr
-    gamma: 0.75      # new_lr = old_lr * gamma
+    step_size: 500  # every n epochs to update lr
+    gamma: 0.50      # new_lr = old_lr * gamma
 
 outputs:
   loss_curve: True
