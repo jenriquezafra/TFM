@@ -138,13 +138,18 @@ batch_size_val = config["loop"]["batch_size_val"]
 if batch_size_val == "all":
     batch_size_val = n_val
 
+meta_opt_name = (config["meta"]["optimizer"]).lower()
+if batch_size_train == "all":
+    batch_size_train = n_train
+elif meta_opt_name in ("mix", "lbfgs", "l-bfgs"):
+    batch_size_train = min(int(batch_size_train) * 10, n_train)
+
 train_loader = DataLoader(
     train_ds, 
     batch_size=batch_size_train, 
     shuffle=shuffle,
     generator=g)
 
-# TODO: cambiar el batch size (x10?) si el optim es mix o lbfgs
 val_loader = DataLoader(
     val_ds, 
     batch_size=batch_size_val, 
