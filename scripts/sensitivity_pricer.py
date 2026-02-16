@@ -248,6 +248,8 @@ class SensitivityPricer2D:
             return np.sqrt(diff**2)
         if self.error_metric == "mse":
             return diff**2
+        if self.error_metric == "difference":
+            return diff
         raise ValueError(f"Unsupported error metric: {self.error_metric}")
 
     def _plot_surface_2d(
