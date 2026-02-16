@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import sys
+import time
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -41,6 +42,14 @@ def as_bounds(value, name):
     upper = np.nextafter(lower, np.inf)
     return np.array([lower, upper], dtype=np.float64)
 
+
+def _format_seconds(sec: float) -> str:
+    sec = int(max(0, sec))
+    h = sec // 3600
+    m = (sec % 3600) // 60
+    s = sec % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
 params_bounds = np.vstack([as_bounds(params_cfg[param], param) for param in PARAM_ORDER])
 
 grid_cfg = data_cfg["grid"]
@@ -67,6 +76,14 @@ if rootfinder == "brent_iv":
 elif rootfinder == "LM":
     rootfinder_params_cfg = config["root_finder"]["methods"]["LM"]
     LM_sigma0 = np.float64(rootfinder_params_cfg["sigma0"])
+else:
+    raise ValueError(f"Root finder method '{rootfinder}' is not supported")
+
+quality_cfg = config.get("quality_check", {})
+residual_warn_abs = np.float64(quality_cfg.get("residual_warn_abs", 1.0e-6))
+progress_every = int(quality_cfg.get("progress_every", 10000))
+if progress_every <= 0:
+    progress_every = 10000
 
 
 
@@ -121,38 +138,112 @@ for param_name, param_value in fixed.items():
 
 ################################# COMPUTE IVs #####################################
 # recorrer el dataset por fila e ir calculando las IVs
+iv_values = np.full(shape=N, fill_value=np.nan, dtype=np.float64)
+price_residual_abs = np.full(shape=N, fill_value=np.nan, dtype=np.float64)
+solver_success = np.zeros(shape=N, dtype=bool)
+gen_start_time = time.time()
+print(
+    f"Generating IVs with '{rootfinder}' "
+    f"for {N} samples"
+)
+
 if rootfinder == "brent_iv":
     for i in range(0, N):
-        print(synth_df.iloc[i,:])
-        iv = IV_Brent(
-            params_Heston=synth_df.iloc[i,:5],
-            S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
-            K= np.float64(K),                        # K=1 fixed
-            tau=synth_df.loc[i, "tau"],
-            r=synth_df.loc[i,"r"],
-            COS_params=cos_params,
-            opt_type=opt_type,
-            iv_bounds=iv_bounds,
-            tol=brent_tol,
-            max_iter=brent_maxiter 
-        )
-        synth_df.loc[i, "IV"] = iv
+        try:
+            iv, details = IV_Brent(
+                params_Heston=synth_df.iloc[i,:5],
+                S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
+                K=np.float64(K),                          # K=1 fixed
+                tau=synth_df.loc[i, "tau"],
+                r=synth_df.loc[i, "r"],
+                COS_params=cos_params,
+                opt_type=opt_type,
+                iv_bounds=iv_bounds,
+                tol=brent_tol,
+                max_iter=brent_maxiter,
+                return_details=True,
+            )
+            iv_values[i] = iv
+            price_residual_abs[i] = details["price_residual_abs"]
+            solver_success[i] = True
+        except Exception:
+            iv_values[i] = np.nan
+            price_residual_abs[i] = np.nan
+            solver_success[i] = False
+
+        if ((i + 1) % progress_every == 0) or (i == N - 1):
+            processed = i + 1
+            elapsed = time.time() - gen_start_time
+            rate = processed / max(elapsed, 1e-12)
+            eta = (N - processed) / max(rate, 1e-12)
+            pct = 100.0 * processed / N
+            residual_slice = price_residual_abs[:i+1]
+            valid = residual_slice[np.isfinite(residual_slice)]
+            mean_res = float(valid.mean()) if len(valid) > 0 else np.nan
+            bad_count = int((valid > residual_warn_abs).sum()) if len(valid) > 0 else 0
+            print(
+                f"[{rootfinder}] {processed}/{N} ({pct:5.1f}%) | "
+                f"elapsed={_format_seconds(elapsed)} | "
+                f"eta={_format_seconds(eta)} | "
+                f"mean|BS(IV)-V_tgt|={mean_res:.3e} | "
+                f"bad(>{residual_warn_abs:.1e})={bad_count}"
+            )
 
 elif rootfinder == "LM":
     for i in range(0, N):
-        iv = IV_LM(
-            params_Heston=synth_df.iloc[i,:5],
-            S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
-            K= np.float64(K),                        # K=1 fixed
-            tau=synth_df.loc[i, "tau"],
-            r=synth_df.loc[i,"r"],
-            COS_params=cos_params,
-            opt_type=opt_type,
-            sigma0=LM_sigma0
-        )
-        synth_df.loc[i, "IV"] = iv
-        print(synth_df.iloc[i,:])
+        try:
+            iv, details = IV_LM(
+                params_Heston=synth_df.iloc[i,:5],
+                S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
+                K=np.float64(K),                          # K=1 fixed
+                tau=synth_df.loc[i, "tau"],
+                r=synth_df.loc[i, "r"],
+                COS_params=cos_params,
+                opt_type=opt_type,
+                sigma0=LM_sigma0,
+                return_details=True,
+            )
+            iv_values[i] = iv
+            price_residual_abs[i] = details["price_residual_abs"]
+            solver_success[i] = details["success"]
+        except Exception:
+            iv_values[i] = np.nan
+            price_residual_abs[i] = np.nan
+            solver_success[i] = False
 
+        if ((i + 1) % progress_every == 0) or (i == N - 1):
+            processed = i + 1
+            elapsed = time.time() - gen_start_time
+            rate = processed / max(elapsed, 1e-12)
+            eta = (N - processed) / max(rate, 1e-12)
+            pct = 100.0 * processed / N
+            residual_slice = price_residual_abs[:i+1]
+            valid = residual_slice[np.isfinite(residual_slice)]
+            mean_res = float(valid.mean()) if len(valid) > 0 else np.nan
+            bad_count = int((valid > residual_warn_abs).sum()) if len(valid) > 0 else 0
+            sigma0_hits = int(np.isclose(iv_values[:i+1], LM_sigma0, atol=1e-12, rtol=0).sum())
+            print(
+                f"[{rootfinder}] {processed}/{N} ({pct:5.1f}%) | "
+                f"elapsed={_format_seconds(elapsed)} | "
+                f"eta={_format_seconds(eta)} | "
+                f"mean|BS(IV)-V_tgt|={mean_res:.3e} | "
+                f"bad(>{residual_warn_abs:.1e})={bad_count} | "
+                f"IV==sigma0({LM_sigma0:.3f})={sigma0_hits}"
+            )
+
+synth_df.loc[:, "IV"] = iv_values
+
+valid_residual = price_residual_abs[np.isfinite(price_residual_abs)]
+if len(valid_residual) > 0:
+    print("IV quality summary")
+    print(f"  valid residuals: {len(valid_residual)}/{N}")
+    print(f"  mean |BS(IV)-V_tgt|: {float(valid_residual.mean()):.3e}")
+    print(f"  p90  |BS(IV)-V_tgt|: {float(np.percentile(valid_residual, 90)):.3e}")
+    print(f"  p99  |BS(IV)-V_tgt|: {float(np.percentile(valid_residual, 99)):.3e}")
+    print(f"  max  |BS(IV)-V_tgt|: {float(valid_residual.max()):.3e}")
+    print(f"  bad count (>{residual_warn_abs:.1e}): {int((valid_residual > residual_warn_abs).sum())}")
+else:
+    print("IV quality summary: no valid residuals found")
 
 
 print(synth_df.head())
@@ -167,6 +258,18 @@ OUT_PATH.mkdir(parents=True, exist_ok=True)
 # guardar en parquet
 synth_df.to_parquet(OUT_PATH / out_name, engine="pyarrow", index=False)
 print(f"Final dataset saved on: {OUT_PATH/out_name}")
+
+# save IV quality diagnostics (separate file to keep train schema unchanged)
+quality_df = pd.DataFrame({
+    "row_id": np.arange(N, dtype=np.int64),
+    "IV": iv_values,
+    "price_residual_abs": price_residual_abs,
+    "solver_success": solver_success,
+})
+if rootfinder == "LM":
+    quality_df["iv_equals_sigma0"] = np.isclose(iv_values, LM_sigma0, atol=1e-12, rtol=0)
+quality_df.to_parquet(OUT_PATH / "iv_quality.parquet", engine="pyarrow", index=False)
+print(f"IV quality report saved on: {OUT_PATH / 'iv_quality.parquet'}")
 
 # also split and save
 from src.datasets.splits import dataframes_splits
