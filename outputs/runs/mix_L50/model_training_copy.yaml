@@ -1,0 +1,61 @@
+meta:
+  seed: 42
+  optimizer: "mix" # adam | L-BFGS | mix
+
+
+data:
+  dir: "data/synth/1M_L50"
+  shuffle: true
+  splits:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+
+optimizers:
+  - name: "adam"
+    learn_rate: 5.0e-4
+    weight_decay: 1.0e-6
+
+  - name: "L-BFGS"
+    learn_rate: 1.0e-2      #NOTE: default for L-BFGS
+    max_iter: 8
+    line_search_fn: "strong_wolfe"
+    historic_size: 100
+
+  - name: "mix"
+    step_size: 100
+    first_optimizer: "adam"
+
+loss:
+  name: "mse" # mse | rmse | mae | negative log-likelihood loss function (nll) | cross entropy
+
+loop:
+  epochs: 8000 # Liu uses 8000
+  batch_size_train: 1024
+  batch_size_val: "all"
+
+callbacks:
+  early_stopping:   # Liu doesnt use ES
+    enabled: True
+    monitor: "val_loss"
+    patience: 200
+    min_delta: 1.0e-8
+    warmup_epochs: 500
+    mode: "min"
+
+  checkpoint:
+    enabled: True
+    filename_best: "model_best.pt"
+    filename_last: "model_last.pt"
+
+
+  lr_scheduler:     # Liu uses gamma=0.5 every 500 epochs
+    enabled: True
+    name: "step"  
+    step_size: 500  # every n epochs to update lr
+    gamma: 0.50      # new_lr = old_lr * gamma
+
+outputs:
+  loss_curve: True
+  gap_curve: True
+  lr_curve: True

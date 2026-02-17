@@ -1,0 +1,51 @@
+
+meta:
+  name: heston_synth_data
+  seed: 42
+
+data:
+    n_samples: 1000000 # Liu has 1M
+    batch_size: 1024  #TODO: move to training
+    heston_params:    # taken from Liu
+      rho: [-0.9, 0.0]  #NOTE: no positive correlations?
+      kappa: [0.0, 3.0]        #[0.0, 3.0] # 0.9
+      gamma: [0.01, 0.8]
+      bar_v: [0.01, 0.5]
+      v0: [0.05, 0.5]          #[0.05, 0.5] # 0.36
+      sampling:
+        n_params_samples: 5 # like Liu aswell
+        method: "lhs"
+    grid:
+    # taken from Liu
+      moneyness: [0.6, 1.4] 
+      tau: [0.05, 3.0]
+      sampling:
+        n_params_samples: 100 
+        method: "lhs"
+
+market:
+  r: [0.0, 0.05]
+  K: 1                # fixed as Liu
+  option_type: "put"  # better for COS 
+  sampling:
+    n_params_samples: 100 
+    method: "lhs"
+
+cos_solver:       # NOT from Liu
+  N: 1500     # Liu uses 1500
+  L: 50       # Liu uses 50
+  interval_rule: "cumulant_autodiff"  # options: "sqrt_t" (legacy), "cumulant_autodiff"
+
+root_finder:
+  method: "LM" 
+  methods:
+    brent_iv: # NOT from Liu
+      tol: 1.0e-8
+      max_iter: 100
+      iv_bounds: [1.0e-6, 5.0]
+    LM:
+      sigma0: 0.2
+
+quality_check:
+  residual_warn_abs: 1.0e-6
+  progress_every: 1000

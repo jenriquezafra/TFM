@@ -67,7 +67,7 @@ class EarlyStopping:
         if self.mode == "min":
             return value < (self.best - self.min_delta)
         else:
-            return value < (self.best + self.min_delta)
+            return value > (self.best + self.min_delta)
         
 
     def _update_best(self, value: float) -> None:
