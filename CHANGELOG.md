@@ -55,4 +55,12 @@
 
 - Implementada la lógica del mix de optimizers (sin tests)
 
-- 
+# 2026-02-14
+- Realizadas runs de mix, ADAM puro, y L-BFGS puro
+
+# 2026-02-16
+- Visto scatter plot de LHS de los params (van bien)
+
+- Implementada lógica para ver residuos de los datos sintéticos generados
+
+- Creación de nuevos datos aumentando la precisión de COS
