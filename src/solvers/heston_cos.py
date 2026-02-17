@@ -1,7 +1,112 @@
 # Vanila options pricer under Heston using the COS method to use as ground truth
 
-import numpy as np 
-from numpy import exp, pi, sqrt, cos, sin
+import numpy as np
+from numpy import cos, exp, pi, sin, sqrt
+import torch
+
+
+def _heston_chf_numpy(u, tau, r, rho, kappa, gamma, bar_nu, nu0):
+    u = np.asarray(u, dtype=np.complex128)
+
+    d1 = np.sqrt((kappa - gamma * rho * 1j * u) ** 2 + (u**2 + 1j * u) * gamma**2)
+    g = (kappa - gamma * rho * 1j * u - d1) / (kappa - gamma * rho * 1j * u + d1)
+    cc = kappa - 1j * rho * gamma * u - d1
+
+    exp_term = exp(-d1 * tau)
+    c1 = exp(1j * u * tau * r + (nu0 / gamma**2) * (((1 - exp_term) / (1 - g * exp_term)) * cc))
+    c2 = exp((kappa * bar_nu / gamma**2) * (tau * cc - 2 * np.log((1 - g * exp_term) / (1 - g))))
+    return c1 * c2
+
+
+def _heston_chf_torch(u, tau, r, rho, kappa, gamma, bar_nu, nu0):
+
+    d1 = torch.sqrt((kappa - gamma * rho * 1j * u) ** 2 + (u**2 + 1j * u) * gamma**2)
+    g = (kappa - gamma * rho * 1j * u - d1) / (kappa - gamma * rho * 1j * u + d1)
+    cc = kappa - 1j * rho * gamma * u - d1
+
+    exp_term = torch.exp(-d1 * tau)
+    c1 = torch.exp(
+        1j * u * tau * r + (nu0 / gamma**2) * (((1 - exp_term) / (1 - g * exp_term)) * cc)
+    )
+    c2 = torch.exp(
+        (kappa * bar_nu / gamma**2) * (tau * cc - 2 * torch.log((1 - g * exp_term) / (1 - g)))
+    )
+    return c1 * c2
+
+
+def heston_cumulants_autodiff(params_Heston, tau, r):
+    """
+    Compute (c1, c2, c4) cumulants of log-return X = log(S_T / S_0)
+    with autodiff over k(u)=log(phi(-i*u)).
+    """
+
+    rho, kappa, gamma, bar_nu, nu0 = [float(x) for x in params_Heston]
+    tau = float(tau)
+    r = float(r)
+
+    dtype_r = torch.float64
+    dtype_c = torch.complex128
+
+    rho_t = torch.tensor(rho, dtype=dtype_r)
+    kappa_t = torch.tensor(kappa, dtype=dtype_r)
+    gamma_t = torch.tensor(gamma, dtype=dtype_r)
+    bar_nu_t = torch.tensor(bar_nu, dtype=dtype_r)
+    nu0_t = torch.tensor(nu0, dtype=dtype_r)
+    tau_t = torch.tensor(tau, dtype=dtype_r)
+    r_t = torch.tensor(r, dtype=dtype_r)
+
+    t = torch.tensor(0.0, dtype=dtype_r, requires_grad=True)
+    u = torch.complex(torch.zeros_like(t), -t).to(dtype_c)  # u = -i*t
+
+    phi = _heston_chf_torch(
+        u=u,
+        tau=tau_t,
+        r=r_t,
+        rho=rho_t,
+        kappa=kappa_t,
+        gamma=gamma_t,
+        bar_nu=bar_nu_t,
+        nu0=nu0_t,
+    )
+    k_fn = torch.log(phi).real
+
+    c1 = torch.autograd.grad(k_fn, t, create_graph=True)[0]
+    c2 = torch.autograd.grad(c1, t, create_graph=True)[0]
+    c3 = torch.autograd.grad(c2, t, create_graph=True)[0]
+    c4 = torch.autograd.grad(c3, t, create_graph=False)[0]
+
+    return float(c1.detach()), float(c2.detach()), float(c4.detach())
+
+
+def _cos_integration_bounds(params_Heston, tau, r, L, t0=0.0, interval_rule="sqrt_t"):
+    T = float(np.float64(tau) + np.float64(t0))
+    T_nonneg = max(T, 0.0)
+    fallback_a = -L * np.sqrt(T_nonneg)
+    fallback_b = L * np.sqrt(T_nonneg)
+
+    if interval_rule in {"sqrt_t", "legacy"}:
+        return fallback_a, fallback_b
+
+    if interval_rule in {"cumulant_autodiff", "cumulants"}:
+        try:
+            c1, c2, c4 = heston_cumulants_autodiff(params_Heston=params_Heston, tau=tau, r=r)
+            c4_pos = max(c4, 0.0)
+            spread_inner = c2 + np.sqrt(c4_pos)
+            if (not np.isfinite(spread_inner)) or spread_inner <= 0.0:
+                return fallback_a, fallback_b
+            spread = L * np.sqrt(spread_inner)
+            a = c1 - spread
+            b = c1 + spread
+            if np.isfinite(a) and np.isfinite(b) and b > a:
+                return a, b
+            return fallback_a, fallback_b
+        except Exception:
+            return fallback_a, fallback_b
+
+    raise ValueError(
+        f"Unsupported interval_rule '{interval_rule}'. "
+        "Use 'sqrt_t' or 'cumulant_autodiff'."
+    )
 
 # NOTE: deprecated
 def COS_solver(params_Heston,
@@ -11,7 +116,8 @@ def COS_solver(params_Heston,
                r,
                COS_params, 
                t0=0, 
-               opt_type="put"):
+               opt_type="put",
+               interval_rule="sqrt_t"):
     """
     
     Params:
@@ -45,24 +151,27 @@ def COS_solver(params_Heston,
     T = tau + t0
 
     # integration range
-    a, b = -L*sqrt(T), L*sqrt(T)     # TODO: implement the best version with cumulants    NECESARIO
+    a, b = _cos_integration_bounds(
+        params_Heston=params_Heston,
+        tau=tau,
+        r=r,
+        L=L,
+        t0=t0,
+        interval_rule=interval_rule,
+    )
 
     # define the Characteristic Function of Heston
     def ChF_Heston(u, tau):
-        # first we need to define some coefficients
-        def D1(u):
-            d1 = sqrt((kappa-gamma*rho*1j*u)**2 + (u**2+1j*u)*gamma**2)
-            return d1
-    
-        def g(u):
-            gc = (kappa-gamma*rho*1j*u-D1(u)) / (kappa-gamma*rho*1j*u+D1(u))
-            return gc
-
-        cc = kappa - 1j*rho*gamma*u-D1(u)
-        c1 =  exp(1j*u*tau*r + nu0/gamma**2 *((1-exp(-D1(u)*tau))/(1-g(u)*exp(-D1(u)*tau)))* cc)
-        c2 =  exp(kappa*bar_nu/gamma**2 * (tau*cc - 2*np.log((1-g(u)*exp(-D1(u)*tau))/(1-g(u)))))
-        phi = c1*c2
-        return phi
+        return _heston_chf_numpy(
+            u=u,
+            tau=tau,
+            r=r,
+            rho=rho,
+            kappa=kappa,
+            gamma=gamma,
+            bar_nu=bar_nu,
+            nu0=nu0,
+        )
     
     def payoff_coeff(k):
         def chi_coeff(c,d):
@@ -113,7 +222,8 @@ def COS_solver_scalar(params_Heston,
                       r,
                       COS_params,
                       t0=0,
-                      opt_type="put"):
+                      opt_type="put",
+                      interval_rule="sqrt_t"):
 
     rho, kappa, gamma, bar_nu, nu0 = params_Heston
     N, L = COS_params
@@ -126,23 +236,26 @@ def COS_solver_scalar(params_Heston,
     T = tau + t0
     T = np.float64(T)
 
-    a, b = -L * np.sqrt(T), L * np.sqrt(T)
+    a, b = _cos_integration_bounds(
+        params_Heston=params_Heston,
+        tau=tau,
+        r=r,
+        L=L,
+        t0=t0,
+        interval_rule=interval_rule,
+    )
 
     def ChF_Heston(u, tau):
-        u = np.asarray(u, dtype=complex)
-
-        def D1(u):
-            return np.sqrt((kappa - gamma * rho * 1j * u) ** 2 + (u**2 + 1j*u) * gamma**2)
-
-        def g(u):
-            return (kappa - gamma * rho * 1j * u - D1(u)) / (kappa - gamma * rho * 1j * u + D1(u))
-
-        cc = kappa - 1j * rho * gamma * u - D1(u)
-
-        c1 = exp(1j*u*tau*r + (nu0/gamma**2) * (((1 - exp(-D1(u)*tau)) / (1 - g(u)*exp(-D1(u)*tau))) * cc))
-        c2 = exp((kappa*bar_nu/gamma**2) * (tau*cc - 2*np.log((1 - g(u)*exp(-D1(u)*tau)) / (1 - g(u)))))
-
-        return c1 * c2
+        return _heston_chf_numpy(
+            u=u,
+            tau=tau,
+            r=r,
+            rho=rho,
+            kappa=kappa,
+            gamma=gamma,
+            bar_nu=bar_nu,
+            nu0=nu0,
+        )
 
     def payoff_coeff(k):
         def chi_coeff(c, d):

@@ -3,7 +3,9 @@ import time
 import yaml
 import torch
 import shutil
+import subprocess
 import pandas as pd
+import numpy as np
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
@@ -56,12 +58,58 @@ def _format_seconds(sec):
     s = sec % 60
     return f"{h:02d}:{m:02d}:{s:02d}"
 
+
+def _count_feature_overlap(df_a: pd.DataFrame, df_b: pd.DataFrame, round_decimals: int | None = 12) -> int:
+    if round_decimals is not None:
+        df_a = df_a.round(round_decimals)
+        df_b = df_b.round(round_decimals)
+
+    hash_a = pd.util.hash_pandas_object(df_a, index=False).to_numpy()
+    hash_b = pd.util.hash_pandas_object(df_b, index=False).to_numpy()
+    return int(np.intersect1d(hash_a, hash_b).size)
+
+
+def _batch_losses(pred: torch.Tensor, target: torch.Tensor, loss_name: str) -> torch.Tensor:
+    if loss_name == "mse":
+        return (pred - target).pow(2).view(-1)
+    if loss_name == "mae":
+        return (pred - target).abs().view(-1)
+    if loss_name == "rmse":
+        # Keep squared errors; sqrt is applied after trimmed aggregation.
+        return (pred - target).pow(2).view(-1)
+    raise ValueError(f"Loss function: '{loss_name}' not implemented for per-sample losses")
+
+
+def _trimmed_mean(values: np.ndarray, trim_top_fraction: float) -> float:
+    if values.size == 0:
+        return float("nan")
+    if trim_top_fraction <= 0:
+        return float(np.mean(values))
+
+    n_trim = int(np.floor(values.size * trim_top_fraction))
+    if n_trim <= 0:
+        return float(np.mean(values))
+    if n_trim >= values.size:
+        raise ValueError(
+            f"trim_top_fraction={trim_top_fraction} removes all validation samples "
+            f"(n={values.size})."
+        )
+
+    # Keep the lowest values and trim only the top-tail hardest samples.
+    values_sorted = np.sort(values)
+    return float(np.mean(values_sorted[: values.size - n_trim]))
+
 #################### read the config and data ####################
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
 cfg_data = config["data"]
 shuffle = cfg_data["shuffle"]
+integrity_cfg = cfg_data.get("integrity_checks", {})
+integrity_enabled = bool(integrity_cfg.get("enabled", False))
+integrity_round_decimals = integrity_cfg.get("round_decimals", 12)
+if integrity_round_decimals is not None:
+    integrity_round_decimals = int(integrity_round_decimals)
 
 # set the random seed
 seed = config["meta"]["seed"]
@@ -77,17 +125,26 @@ ckpt_enabled = bool(cfg_ckpt.get("enabled", True))
 ckpt_dir = run_dir / "checkpoints"
 ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-ckpt_best_path = ckpt_dir / cfg_ckpt["filename_best"] 
+ckpt_best_path = ckpt_dir / cfg_ckpt["filename_best"]
 ckpt_last_path = ckpt_dir / cfg_ckpt["filename_last"]
-
-best_val = float("inf")
 
 # Early stopping
 cfg_es = config["callbacks"]["early_stopping"]
 es_enable = bool(cfg_es.get("enabled", True))
+es_monitor = cfg_es.get("monitor", "val_loss")
+supported_es_monitors = {"val_loss", "val_loss_trimmed"}
+if es_monitor not in supported_es_monitors:
+    raise ValueError(f"Unsupported early-stopping monitor '{es_monitor}'. Use one of {supported_es_monitors}")
 
-if cfg_es["monitor"] != "val_loss":
-    raise ValueError("Right now only 'val_loss' is supported")
+trim_top_fraction = float(cfg_es.get("trim_top_fraction", 0.0))
+if trim_top_fraction < 0 or trim_top_fraction >= 1:
+    raise ValueError("early_stopping.trim_top_fraction must be in [0, 1)")
+
+requires_trimmed_monitor = es_monitor == "val_loss_trimmed"
+if requires_trimmed_monitor and trim_top_fraction <= 0:
+    raise ValueError(
+        "Using monitor='val_loss_trimmed' requires early_stopping.trim_top_fraction > 0"
+    )
 
 early_stopper = None
 if es_enable:
@@ -117,6 +174,20 @@ train_df_y = train_df.iloc[:, -1]
 
 val_df_X = val_df.iloc[:, :-1]
 val_df_y = val_df.iloc[:, -1]
+
+if integrity_enabled:
+    overlap_train_val = _count_feature_overlap(
+        train_df_X,
+        val_df_X,
+        round_decimals=integrity_round_decimals
+    )
+    if overlap_train_val > 0:
+        print(
+            f"[warning] data integrity check: detected {overlap_train_val} overlapping "
+            "feature rows between train and val (possible leakage)."
+        )
+    else:
+        print("[info] data integrity check: no overlapping feature rows between train and val.")
 
 X_train = torch.from_numpy(train_df_X.values).float()
 y_train = torch.from_numpy(train_df_y.values).float().view(-1, 1)
@@ -276,6 +347,8 @@ epochs = config["loop"]["epochs"]
 metrics_dir = run_dir / "metrics"
 epoch_times = []
 history = []
+best_monitor = float("inf")
+best_monitor_name = es_monitor
 
 for epoch in range(1, epochs+1): # each epoch
     epoch_start = time.time()
@@ -321,13 +394,30 @@ for epoch in range(1, epochs+1): # each epoch
     # validation
     model.eval()
     val_sum = 0.0
+    val_losses_for_trim = [] if requires_trimmed_monitor else None
     with torch.no_grad(): 
         for xb, yb in val_loader:
             xb, yb = xb.to(device), yb.to(device)
             pred = model(xb)
-            val_sum += loss_fn(pred, yb).item() * xb.size(0)
+            batch_loss = loss_fn(pred, yb)
+            val_sum += batch_loss.item() * xb.size(0)
+
+            if requires_trimmed_monitor:
+                per_sample = _batch_losses(pred=pred, target=yb, loss_name=loss_name)
+                val_losses_for_trim.append(per_sample.detach().cpu().numpy())
 
     val_loss = val_sum / n_val
+    val_loss_trimmed = None
+    if requires_trimmed_monitor:
+        val_losses_np = np.concatenate(val_losses_for_trim, axis=0)
+        trimmed_base = _trimmed_mean(val_losses_np, trim_top_fraction=trim_top_fraction)
+        val_loss_trimmed = float(np.sqrt(trimmed_base)) if loss_name == "rmse" else trimmed_base
+
+    monitor_values = {
+        "val_loss": val_loss,
+        "val_loss_trimmed": val_loss_trimmed if val_loss_trimmed is not None else val_loss,
+    }
+    monitor_value = monitor_values[best_monitor_name]
 
     # step the lr scheduler
     if lr_scheduler is not None:
@@ -340,6 +430,9 @@ for epoch in range(1, epochs+1): # each epoch
         "optimizer": active_opt_name,
         "train_loss": train_loss,
         "val_loss": val_loss,
+        "val_loss_trimmed": val_loss_trimmed,
+        "monitor_name": best_monitor_name,
+        "monitor_value": monitor_value,
         "lr": current_lr, 
     })
 
@@ -366,8 +459,8 @@ for epoch in range(1, epochs+1): # each epoch
             )
 
         # save best if improved
-        if val_loss < best_val:
-            best_val = val_loss
+        if monitor_value < best_monitor:
+            best_monitor = monitor_value
             save_checkpoints(
                 path=ckpt_best_path,
                 model=model,
@@ -380,9 +473,9 @@ for epoch in range(1, epochs+1): # each epoch
             
     # Early stopping
     if es_enable and early_stopper is not None:
-        if early_stopper.step(epoch=epoch,value=val_loss):
+        if early_stopper.step(epoch=epoch, value=monitor_value):
             print(
-                f"Early stopping at epoch {epoch} | best val_loss={early_stopper.best:.6f}"
+                f"Early stopping at epoch {epoch} | best {best_monitor_name}={early_stopper.best:.6f} "
                 f"| patience={cfg_es['patience']} | min_delta={cfg_es['min_delta']}"
             )
             break
@@ -390,11 +483,16 @@ for epoch in range(1, epochs+1): # each epoch
 
     # some logging
     if epoch==1 or epoch%5==0:
+        trimmed_str = ""
+        if val_loss_trimmed is not None:
+            trimmed_str = f" | val_trim {loss_name}: {val_loss_trimmed:.6f}"
         print(
             f"Epoch {epoch:3d}/{epochs} | "
             f"opt: {active_opt_name} | "
             f"train {loss_name}: {train_loss:.6f} | "
             f"val {loss_name}: {val_loss:.6f} | "
+            f"monitor ({best_monitor_name}): {monitor_value:.6f}"
+            f"{trimmed_str} | "
             f"ETA {_format_seconds(eta_sec)}"
         )
     
@@ -458,3 +556,27 @@ if plots_cfg["lr_curve"]:
     plt.savefig(fig_dir / "learning_rate_curve.png", dpi=300)
     plt.close()
     print(f"Saved learning rate curve figure on {fig_dir}")
+
+# run sensitivity plots automatically for this run
+sensitivity_cfg_path = PROJECT_ROOT / "configs" / "sensitivity_config.yaml"
+if sensitivity_cfg_path.exists():
+    cmd = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "sensitivity_pricer.py"),
+        "--config",
+        str(sensitivity_cfg_path),
+        "--model-dir",
+        run_dir.name,
+    ]
+    print("Running sensitivity_pricer.py to generate 3x2 grid...")
+    proc = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+    if proc.returncode == 0:
+        print(f"Sensitivity plots generated in {fig_dir}")
+    else:
+        print("Warning: sensitivity_pricer.py failed")
+        if proc.stdout:
+            print(proc.stdout)
+        if proc.stderr:
+            print(proc.stderr)
+else:
+    print(f"Warning: sensitivity config not found at {sensitivity_cfg_path}")

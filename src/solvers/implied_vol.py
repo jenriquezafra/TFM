@@ -19,6 +19,7 @@ def IV_Brent(
         r,
         COS_params,
         opt_type="put",
+        cos_interval_rule="sqrt_t",
         iv_bounds=(1e-6, 5.0),
         tol=1e-6,
         max_iter=100,
@@ -50,12 +51,21 @@ def IV_Brent(
                               tau=tau,
                               r=r,
                               COS_params=COS_params,
+                              interval_rule=cos_interval_rule,
                               opt_type=opt_type
                               )
     
-    low_iv, high_iv = iv_bounds
-
     V_tgt = np.float64(target_price)
+    if (not np.isfinite(V_tgt)) or (V_tgt < 0):
+        raise ValueError(f"Invalid target price from COS solver: {V_tgt}")
+
+    low_iv, high_iv = iv_bounds
+    low_iv = np.float64(low_iv)
+    high_iv = np.float64(high_iv)
+    if low_iv <= 0:
+        low_iv = np.float64(1.0e-12)
+    if high_iv <= low_iv:
+        raise ValueError(f"Invalid IV bounds: low={low_iv}, high={high_iv}")
 
     # funcion of the residual V_BS - V_Heston
     def f(sigma):
@@ -70,15 +80,48 @@ def IV_Brent(
         )
         return np.float64(V_bs)-V_tgt
     
-    
-    
-    iv = brentq(
-        f,
-        low_iv,
-        high_iv,
-        xtol=tol,
-        maxiter=max_iter
-    )
+    f_low = np.float64(f(low_iv))
+    f_high = np.float64(f(high_iv))
+    if (not np.isfinite(f_low)) or (not np.isfinite(f_high)):
+        raise ValueError(
+            f"Non-finite residual on initial bracket: f(low)={f_low}, f(high)={f_high}"
+        )
+
+    # Expand upper bound if the initial bracket does not bracket a root.
+    # This avoids false negatives on high-IV edge cases.
+    max_high_iv = np.float64(20.0)
+    while (f_low * f_high > 0.0) and (high_iv < max_high_iv):
+        high_iv = np.float64(min(max_high_iv, high_iv * 2.0))
+        f_high = np.float64(f(high_iv))
+        if not np.isfinite(f_high):
+            break
+
+    if np.isclose(f_low, 0.0, atol=tol):
+        iv = low_iv
+    elif np.isclose(f_high, 0.0, atol=tol):
+        iv = high_iv
+    elif f_low * f_high > 0.0:
+        # Fallback: if one endpoint is already very close in price, keep it.
+        abs_low = np.float64(abs(f_low))
+        abs_high = np.float64(abs(f_high))
+        best_abs = min(abs_low, abs_high)
+        if best_abs <= np.float64(max(1.0e-10, 10.0 * tol)):
+            iv = low_iv if abs_low <= abs_high else high_iv
+        else:
+            raise ValueError(
+                "Brent failed to bracket root: "
+                f"f(low={low_iv:.3e})={f_low:.3e}, "
+                f"f(high={high_iv:.3e})={f_high:.3e}, "
+                f"target_price={V_tgt:.3e}"
+            )
+    else:
+        iv = brentq(
+            f,
+            low_iv,
+            high_iv,
+            xtol=tol,
+            maxiter=max_iter
+        )
 
     iv = np.float64(iv)
     if not return_details:
@@ -105,6 +148,7 @@ def IV_surface(
         tau_array,
         r,
         COS_params,
+        cos_interval_rule="sqrt_t",
         opt_type="put"
         ):
 
@@ -124,6 +168,7 @@ def IV_surface(
             tau=tau,
             r=r,
             COS_params=COS_params,
+            cos_interval_rule=cos_interval_rule,
             opt_type=opt_type
         )
 
@@ -139,6 +184,7 @@ def IV_LM(
         r,
         COS_params,
         opt_type="put",
+        cos_interval_rule="sqrt_t",
         sigma0=0.2,
         return_details=False,
         ):
@@ -165,6 +211,7 @@ def IV_LM(
         tau=tau,
         r=r,
         COS_params=COS_params,
+        interval_rule=cos_interval_rule,
         opt_type=opt_type,
     )
 
@@ -204,5 +251,3 @@ def IV_LM(
     }
     return iv, details
     
-
-

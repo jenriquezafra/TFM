@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 import sys
 import time
+import shutil
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -22,6 +23,14 @@ with open(config_path, "r") as f:
 
 seed = config["meta"]["seed"]
 data_cfg = config["data"]
+splits_cfg = data_cfg.get("splits", {})
+split_train = float(splits_cfg.get("train", 0.8))
+split_val = float(splits_cfg.get("val", 0.1))
+split_test = float(splits_cfg.get("test", 0.1))
+stratify_cfg = splits_cfg.get("stratify", {})
+stratify_enabled = bool(stratify_cfg.get("enabled", False))
+stratify_target_col = str(stratify_cfg.get("target_column", "IV"))
+stratify_n_bins = int(stratify_cfg.get("n_bins", 20))
 
 N = int(data_cfg["n_samples"])
 
@@ -63,6 +72,7 @@ cos_params = np.array([
     np.float64(cos_params_cfg["N"]),
     np.float64(cos_params_cfg["L"])
 ])
+cos_interval_rule = cos_params_cfg.get("interval_rule", "sqrt_t")
 
 opt_type = config["market"]["option_type"]
 
@@ -81,9 +91,13 @@ else:
 
 quality_cfg = config.get("quality_check", {})
 residual_warn_abs = np.float64(quality_cfg.get("residual_warn_abs", 1.0e-6))
-progress_every = int(quality_cfg.get("progress_every", 10000))
+residual_keep_abs = quality_cfg.get("residual_keep_abs", None)
+if residual_keep_abs is not None:
+    residual_keep_abs = np.float64(residual_keep_abs)
+drop_sigma0_hits = bool(quality_cfg.get("drop_sigma0_hits", False))
+progress_every = int(quality_cfg.get("progress_every", 1000))
 if progress_every <= 0:
-    progress_every = 10000
+    progress_every = 1000
 
 
 
@@ -135,6 +149,12 @@ for name in PARAM_ORDER:
 for param_name, param_value in fixed.items():
     synth_df.loc[:, param_name] = param_value
 
+# some validations
+## tau cannot be <= 0 (because appears as a dividend in BS)
+synth_df = synth_df[synth_df["tau"] > 0]
+
+## Feller condition TODO:
+
 
 ################################# COMPUTE IVs #####################################
 # recorrer el dataset por fila e ir calculando las IVs
@@ -157,6 +177,7 @@ if rootfinder == "brent_iv":
                 tau=synth_df.loc[i, "tau"],
                 r=synth_df.loc[i, "r"],
                 COS_params=cos_params,
+                cos_interval_rule=cos_interval_rule,
                 opt_type=opt_type,
                 iv_bounds=iv_bounds,
                 tol=brent_tol,
@@ -199,6 +220,7 @@ elif rootfinder == "LM":
                 tau=synth_df.loc[i, "tau"],
                 r=synth_df.loc[i, "r"],
                 COS_params=cos_params,
+                cos_interval_rule=cos_interval_rule,
                 opt_type=opt_type,
                 sigma0=LM_sigma0,
                 return_details=True,
@@ -246,6 +268,22 @@ else:
     print("IV quality summary: no valid residuals found")
 
 
+# filter invalid/noisy labels before saving splits for training
+keep_mask = np.isfinite(iv_values)
+if residual_keep_abs is not None:
+    keep_mask &= np.isfinite(price_residual_abs) & (price_residual_abs <= residual_keep_abs)
+if rootfinder == "LM" and drop_sigma0_hits:
+    keep_mask &= ~np.isclose(iv_values, LM_sigma0, atol=1e-12, rtol=0)
+
+kept = int(keep_mask.sum())
+removed = int(N - kept)
+if removed > 0:
+    print(
+        "Filtering rows before train/val/test split: "
+        f"kept={kept} removed={removed} ({100.0 * removed / N:.3f}%)"
+    )
+synth_df = synth_df.loc[keep_mask].reset_index(drop=True)
+
 print(synth_df.head())
 ################################# SAVE DATASET #####################################
 name = config["meta"]["name"]
@@ -254,6 +292,12 @@ run_id = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 
 OUT_PATH = PROJECT_ROOT / "data" / "synth" / run_id 
 OUT_PATH.mkdir(parents=True, exist_ok=True)
+
+# to save the config used
+shutil.copy(
+    PROJECT_ROOT / "configs" / "synth.yaml",
+    OUT_PATH / "model_training_copy.yaml"
+)
 
 # guardar en parquet
 synth_df.to_parquet(OUT_PATH / out_name, engine="pyarrow", index=False)
@@ -265,6 +309,7 @@ quality_df = pd.DataFrame({
     "IV": iv_values,
     "price_residual_abs": price_residual_abs,
     "solver_success": solver_success,
+    "keep_for_training": keep_mask,
 })
 if rootfinder == "LM":
     quality_df["iv_equals_sigma0"] = np.isclose(iv_values, LM_sigma0, atol=1e-12, rtol=0)
@@ -272,13 +317,36 @@ quality_df.to_parquet(OUT_PATH / "iv_quality.parquet", engine="pyarrow", index=F
 print(f"IV quality report saved on: {OUT_PATH / 'iv_quality.parquet'}")
 
 # also split and save
-from src.datasets.splits import dataframes_splits
-
-train_df, val_df, test_df = dataframes_splits(
-    synth_df, 0.8, 0.1, 0.1, seed=seed     # TODO: ponerlo con config mas adelante
+from src.datasets.splits import (
+    dataframes_splits,
+    dataframes_splits_stratified_quantiles,
 )
+
+if stratify_enabled:
+    print(
+        f"Building splits with IV quantile stratification: "
+        f"target='{stratify_target_col}', n_bins={stratify_n_bins}"
+    )
+    train_df, val_df, test_df = dataframes_splits_stratified_quantiles(
+        synth_df,
+        split_train,
+        split_val,
+        split_test,
+        seed=seed,
+        target_col=stratify_target_col,
+        n_bins=stratify_n_bins,
+    )
+else:
+    print("Building random train/val/test splits (no stratification)")
+    train_df, val_df, test_df = dataframes_splits(
+        synth_df,
+        split_train,
+        split_val,
+        split_test,
+        seed=seed,
+    )
 
 train_df.to_parquet(OUT_PATH / "train.parquet", engine="pyarrow", index=False)
 val_df.to_parquet(OUT_PATH / "val.parquet", engine="pyarrow", index=False)
 test_df.to_parquet(OUT_PATH / "test.parquet", engine="pyarrow", index=False)
-print(f"Splits saved on: {OUT_PATH}") 
+print(f"Splits saved on: {OUT_PATH}")
