@@ -4,8 +4,16 @@ meta:
   seed: 42
 
 data:
-    n_samples: 1000 # Liu has 1M
+    n_samples: 1000000 # Liu has 1M
     batch_size: 1024  #TODO: move to training
+    splits:
+      train: 0.8
+      val: 0.1
+      test: 0.1
+      stratify:
+        enabled: true
+        target_column: "IV"
+        n_bins: 20
     heston_params:    # taken from Liu
       rho: [-0.9, 0.0]  #NOTE: no positive correlations?
       kappa: [0.0, 3.0]        #[0.0, 3.0] # 0.9
@@ -34,9 +42,10 @@ market:
 cos_solver:       # NOT from Liu
   N: 1500     # Liu uses 1500
   L: 50       # Liu uses 50
+  interval_rule: "cumulant_autodiff"  # options: "sqrt_t" (legacy), "cumulant_autodiff"
 
 root_finder:
-  method: "LM" 
+  method: "brent_iv" 
   methods:
     brent_iv: # NOT from Liu
       tol: 1.0e-8
@@ -47,4 +56,6 @@ root_finder:
 
 quality_check:
   residual_warn_abs: 1.0e-6
-  progress_every: 10000
+  residual_keep_abs: 1.0e-6
+  drop_sigma0_hits: false
+  progress_every: 1000

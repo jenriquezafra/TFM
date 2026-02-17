@@ -4,8 +4,11 @@ meta:
 
 
 data:
-  dir: "data/synth/1M_LM"
+  dir: "data/synth/1M_Brent_L50"
   shuffle: true
+  integrity_checks:
+    enabled: True
+    round_decimals: 12
   splits:
     train: 0.8
     val: 0.1
@@ -13,17 +16,17 @@ data:
 
 optimizers:
   - name: "adam"
-    learn_rate: 1.0e-3
+    learn_rate: 5.0e-4
     weight_decay: 0
 
   - name: "L-BFGS"
     learn_rate: 1.0e-2      #NOTE: default for L-BFGS
-    max_iter: 20
+    max_iter: 8
     line_search_fn: "strong_wolfe"
     historic_size: 100
 
   - name: "mix"
-    step_size: 30
+    step_size: 100
     first_optimizer: "adam"
 
 loss:
@@ -37,8 +40,9 @@ loop:
 callbacks:
   early_stopping:   # Liu doesnt use ES
     enabled: True
-    monitor: "val_loss"
-    patience: 200
+    monitor: "val_loss_trimmed"   # robust to tiny outlier tails in val
+    trim_top_fraction: 1.0e-5     # for 100k val samples, trims the single worst point
+    patience: 500                 # let StepLR operate before stopping
     min_delta: 1.0e-8
     warmup_epochs: 500
     mode: "min"

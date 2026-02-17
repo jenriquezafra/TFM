@@ -3,15 +3,13 @@ meta:
   description: "Sensitivity analysis configuration"
 
 
-model_dir: "2026-02-03_17:15:17" # can change to the name of the dir
+model_dir: "ADAM_Brent_L50" # can change to the name of the dir
 
 parameters:
   pairs: 
-    - ["gamma", "bar_v"] # only 2
+    - ["gamma", "bar_v"]
     - ["rho", "gamma"]
-    - ["v0", "bar_v"]
     - ["kappa", "bar_v"]
-    - ["moneyness", "tau"]
 
   fixed_values:
     rho:  -0.45
@@ -27,5 +25,4 @@ grid:
   expansion_factor: 1.2
   n_points: 100
 
-error_metric: "rmse" # options: rmse, 
-
+error_metric: "abs_diff" # options: abs_diff, rmse, mse, difference
