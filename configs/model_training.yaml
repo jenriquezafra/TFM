@@ -1,14 +1,11 @@
 meta:
   seed: 42
-  optimizer: "adam" # adam | L-BFGS | mix
+  optimizer: "mix" # adam | L-BFGS | mix
 
 
 data:
   dir: "data/synth/1M_Brent_L50"
   shuffle: true
-  integrity_checks:
-    enabled: True
-    round_decimals: 12
   splits:
     train: 0.8
     val: 0.1
@@ -40,9 +37,8 @@ loop:
 callbacks:
   early_stopping:   # Liu doesnt use ES
     enabled: True
-    monitor: "val_loss_trimmed"   # robust to tiny outlier tails in val
-    trim_top_fraction: 1.0e-5     # for 100k val samples, trims the single worst point
-    patience: 500                 # let StepLR operate before stopping
+    monitor: "val_loss"
+    patience: 50
     min_delta: 1.0e-8
     warmup_epochs: 500
     mode: "min"
