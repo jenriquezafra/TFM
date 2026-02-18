@@ -19,12 +19,13 @@
 - [X] Probar la red en el nuevo datasets con params fijos y hacer surfaces plots par ver el error en esos 2 params (usar MSE/RMSE/MAE, ...)
     - [X] Cambiar un poco 
 
-- [ ] Sacar los heatmaps de kappa que faltan
+- [X] Sacar los heatmaps de kappa que faltan
 
-- [ ] Añadir L-BFGS optimizer
-    - [ ] Mix con Adam cada x epochs
+- [X] Añadir L-BFGS optimizer
+    - [X] Mix con Adam cada x epochs
 
-    
+- [ ] Hacer ramas en GitHub: una para optimizadores diferentes (ADAM, L-BFGS y mix). Usar mismos datos.
+    - [ ] Hacer runs IGUALES con cada optimizador.
 ## Medium-term
 
 
@@ -33,8 +34,10 @@
 
 - [X] Poner de nuevo bien lo de la elección del preset en training (solo hay uno).
 
-- [ ] Arreglar en 'sensitivity_pricer.py' lo de que hacer raices negativas (ejecutar y ver el log)
+- [X] Arreglar en 'sensitivity_pricer.py' lo de que hacer raices negativas (ejecutar y ver el log)
 
 
 ## Optionals
-- [ ] Añadir L-BFGS como root finder
+- [X] Añadir L-BFGS como root finder
+
+- [X] Añadir mix de L-BFGS y ADAM
