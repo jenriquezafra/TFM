@@ -66,7 +66,8 @@ class SensitivityPricer2D:
             raise ValueError(
                 f"sensitivity_config.yaml must define exactly 3 parameter pairs for a 3x2 grid; got {len(self.pairs)}"
             )
-        self.grid_factor = float(self.config["grid"]["expansion_factor"])
+        self.grid_factor = float(self.config["grid"].get("expansion_factor", 1.2))
+        self.extrapolation_ranges = self.config["grid"].get("extrapolation_ranges", {})
         self.n_points = int(self.config["grid"]["n_points"])
         self.error_metric = self.config.get("error_metric", "rmse").lower()
 
@@ -110,6 +111,41 @@ class SensitivityPricer2D:
         if name in self.fixed_values:
             return _as_range(self.fixed_values[name])
         raise KeyError(f"Missing range for parameter '{name}'")
+
+    @staticmethod
+    def _normalize_bounds(min_val: float, max_val: float) -> Tuple[float, float]:
+        if min_val <= max_val:
+            return min_val, max_val
+        return max_val, min_val
+
+    def _clamp_param_bounds(self, name: str, min_val: float, max_val: float) -> Tuple[float, float]:
+        min_val, max_val = self._normalize_bounds(float(min_val), float(max_val))
+
+        if name in STRICT_POSITIVE_PARAMS:
+            min_val = max(1.0e-12, min_val)
+            max_val = max(1.0e-12, max_val)
+        if name == "rho":
+            min_val = max(-0.999, min_val)
+            max_val = min(0.999, max_val)
+
+        if min_val > max_val:
+            raise ValueError(f"Invalid bounds for '{name}' after clamping: [{min_val}, {max_val}]")
+        return min_val, max_val
+
+    def _grid_ranges_for_param(self, name: str) -> Tuple[float, float, float, float]:
+        interp_min, interp_max = self._clamp_param_bounds(name, *self._range_for_param(name))
+        if name in self.extrapolation_ranges:
+            grid_min, grid_max = _as_range(self.extrapolation_ranges[name])
+        else:
+            grid_min, grid_max = _expand_range(interp_min, interp_max, self.grid_factor)
+        grid_min, grid_max = self._clamp_param_bounds(name, grid_min, grid_max)
+
+        if grid_min > interp_min or grid_max < interp_max:
+            raise ValueError(
+                f"Grid range for '{name}' must include interpolation range. "
+                f"Interpolation=[{interp_min}, {interp_max}], Grid=[{grid_min}, {grid_max}]"
+            )
+        return interp_min, interp_max, grid_min, grid_max
 
     def _parse_market_config(self) -> Tuple[np.ndarray, str, float, str]:
         cos_cfg = self.data_cfg["cos_solver"]
@@ -161,27 +197,23 @@ class SensitivityPricer2D:
         model.to(self.device)
         return model
 
-    def _grid_for_pair(self, param1: str, param2: str) -> Tuple[np.ndarray, np.ndarray]:
-        p1_min, p1_max = _expand_range(*self._range_for_param(param1), self.grid_factor)
-        p2_min, p2_max = _expand_range(*self._range_for_param(param2), self.grid_factor)
-        if param1 in STRICT_POSITIVE_PARAMS:
-            p1_min = max(1.0e-12, p1_min)
-            p1_max = max(1.0e-12, p1_max)
-        if param2 in STRICT_POSITIVE_PARAMS:
-            p2_min = max(1.0e-12, p2_min)
-            p2_max = max(1.0e-12, p2_max)
-        if param1 == "rho":
-            p1_min = max(-0.999, p1_min)
-            p1_max = min(0.999, p1_max)
-        if param2 == "rho":
-            p2_min = max(-0.999, p2_min)
-            p2_max = min(0.999, p2_max)
+    def _grid_for_pair(
+        self, param1: str, param2: str
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float], Tuple[float, float]]:
+        p1_interp_min, p1_interp_max, p1_grid_min, p1_grid_max = self._grid_ranges_for_param(param1)
+        p2_interp_min, p2_interp_max, p2_grid_min, p2_grid_max = self._grid_ranges_for_param(param2)
 
-        p1_values = np.linspace(p1_min, p1_max, self.n_points, dtype=np.float64)
-        p2_values = np.linspace(p2_min, p2_max, self.n_points, dtype=np.float64)
+        p1_values = np.linspace(p1_grid_min, p1_grid_max, self.n_points, dtype=np.float64)
+        p2_values = np.linspace(p2_grid_min, p2_grid_max, self.n_points, dtype=np.float64)
 
         P1, P2 = np.meshgrid(p1_values, p2_values, indexing="ij")
-        return P1, P2
+        interpolation_mask = (
+            (P1 >= p1_interp_min)
+            & (P1 <= p1_interp_max)
+            & (P2 >= p2_interp_min)
+            & (P2 <= p2_interp_max)
+        )
+        return P1, P2, interpolation_mask, (p1_interp_min, p1_interp_max), (p2_interp_min, p2_interp_max)
 
     def _build_feature_grid(
         self, param1: str, param2: str, P1: np.ndarray, P2: np.ndarray
@@ -295,11 +327,38 @@ class SensitivityPricer2D:
 
     def _plot_grid_3x2(
         self,
-        rows: List[Tuple[str, str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+        rows: List[
+            Tuple[
+                str,
+                str,
+                np.ndarray,
+                np.ndarray,
+                np.ndarray,
+                Tuple[float, float],
+                Tuple[float, float],
+                np.ndarray,
+                np.ndarray,
+                np.ndarray,
+            ]
+        ],
     ) -> Path:
         fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(14, 16), constrained_layout=True)
 
-        for row_idx, (param1, param2, P1, P2, y_nn, y_heston, error_surface) in enumerate(rows):
+        for (
+            row_idx,
+            (
+                param1,
+                param2,
+                P1,
+                P2,
+                _interpolation_mask,
+                p1_interp_bounds,
+                p2_interp_bounds,
+                y_nn,
+                y_heston,
+                error_surface,
+            ),
+        ) in enumerate(rows):
             ax_val = axes[row_idx, 0]
             ax_err = axes[row_idx, 1]
 
@@ -370,6 +429,22 @@ class SensitivityPricer2D:
                 ax_err.set_title(f"{param1} vs {param2} | {self.error_metric.upper()} error")
             fig.colorbar(mesh_err, ax=ax_err, shrink=0.85)
 
+            for ax in (ax_val, ax_err):
+                ax.axvline(p1_interp_bounds[0], linestyle="--", linewidth=1.0, color="black")
+                ax.axvline(p1_interp_bounds[1], linestyle="--", linewidth=1.0, color="black")
+                ax.axhline(p2_interp_bounds[0], linestyle="--", linewidth=1.0, color="black")
+                ax.axhline(p2_interp_bounds[1], linestyle="--", linewidth=1.0, color="black")
+                ax.text(
+                    0.02,
+                    0.02,
+                    "interpolation limits",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    ha="left",
+                    va="bottom",
+                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7, "pad": 2.0},
+                )
+
         fig_path = self.fig_dir / "sensitivity_grid_3x2.png"
         fig.savefig(fig_path, dpi=300)
         plt.close(fig)
@@ -381,14 +456,27 @@ class SensitivityPricer2D:
             if self.verbose:
                 print(f"Processing pair: {param1} vs {param2}")
 
-            P1, P2 = self._grid_for_pair(param1, param2)
+            P1, P2, interpolation_mask, p1_interp_bounds, p2_interp_bounds = self._grid_for_pair(param1, param2)
             features = self._build_feature_grid(param1, param2, P1, P2)
             x_flat = features.reshape(-1, len(PARAM_ORDER))
 
             y_nn = self._predict_nn(x_flat).reshape(P1.shape)
             y_heston = self._compute_iv_surface(x_flat).reshape(P1.shape)
             error_surface = self._compute_error_surface(y_nn, y_heston)
-            plot_rows.append((param1, param2, P1, P2, y_nn, y_heston, error_surface))
+            plot_rows.append(
+                (
+                    param1,
+                    param2,
+                    P1,
+                    P2,
+                    interpolation_mask,
+                    p1_interp_bounds,
+                    p2_interp_bounds,
+                    y_nn,
+                    y_heston,
+                    error_surface,
+                )
+            )
 
         fig_path = self._plot_grid_3x2(plot_rows)
         if self.verbose:

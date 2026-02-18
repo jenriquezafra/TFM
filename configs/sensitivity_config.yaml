@@ -3,7 +3,7 @@ meta:
   description: "Sensitivity analysis configuration"
 
 
-model_dir: "mix_L50" # can change to the name of the dir
+model_dir: "MIX_best" # can change to the name of the dir
 
 parameters:
   pairs: 
@@ -22,7 +22,16 @@ parameters:
     r: 0.025
 
 grid:
-  expansion_factor: 1.2
   n_points: 100
+  expansion_factor: 1.2 # fallback only for params not present in extrapolation_ranges
+  extrapolation_ranges:
+    rho: [-1.1, 0.0]
+    kappa: [0.0, 4]
+    gamma: [0.0, 0.80]
+    bar_v: [0.0, 0.55]
+    v0: [0.0, 0.75]
+    moneyness: [0.7, 1.3]
+    tau: [0.2, 2.0]
+    r: [0.00, 0.06]
 
 error_metric: "abs_diff" # options: abs_diff, rmse, mse, difference
