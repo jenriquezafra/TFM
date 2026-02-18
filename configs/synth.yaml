@@ -58,4 +58,7 @@ quality_check:
   residual_warn_abs: 1.0e-6
   residual_keep_abs: 1.0e-6
   drop_sigma0_hits: false
+  feller_filter:
+    enabled: true
+    slack_tol: 0.0
   progress_every: 1000

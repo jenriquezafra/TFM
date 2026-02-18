@@ -3,7 +3,7 @@ meta:
   description: "Sensitivity analysis configuration"
 
 
-model_dir: "ADAM_Brent_L50" # can change to the name of the dir
+model_dir: "mix_L50" # can change to the name of the dir
 
 parameters:
   pairs: 

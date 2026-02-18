@@ -98,6 +98,9 @@ drop_sigma0_hits = bool(quality_cfg.get("drop_sigma0_hits", False))
 progress_every = int(quality_cfg.get("progress_every", 1000))
 if progress_every <= 0:
     progress_every = 1000
+feller_cfg = quality_cfg.get("feller_filter", {})
+feller_enabled = bool(feller_cfg.get("enabled", False))
+feller_slack_tol = np.float64(feller_cfg.get("slack_tol", 0.0))
 
 
 
@@ -151,9 +154,26 @@ for param_name, param_value in fixed.items():
 
 # some validations
 ## tau cannot be <= 0 (because appears as a dividend in BS)
-synth_df = synth_df[synth_df["tau"] > 0]
+tau_keep_mask = synth_df["tau"].to_numpy(dtype=np.float64) > 0.0
+tau_violations = int((~tau_keep_mask).sum())
+if tau_violations > 0:
+    print(
+        f"Tau validity filter: invalid tau rows={tau_violations}/{N} "
+        f"({100.0 * tau_violations / N:.4f}%)"
+    )
 
-## Feller condition TODO:
+## Feller condition (for Heston variance process positivity)
+feller_slack = (
+    2.0 * synth_df["kappa"].to_numpy(dtype=np.float64) * synth_df["bar_v"].to_numpy(dtype=np.float64)
+    - synth_df["gamma"].to_numpy(dtype=np.float64) ** 2
+)
+feller_keep_mask = np.isfinite(feller_slack) & (feller_slack >= -feller_slack_tol)
+if feller_enabled:
+    feller_violations = int((~feller_keep_mask).sum())
+    print(
+        f"Feller filter enabled: violations={feller_violations}/{N} "
+        f"({100.0 * feller_violations / N:.4f}%)"
+    )
 
 
 ################################# COMPUTE IVs #####################################
@@ -169,28 +189,33 @@ print(
 
 if rootfinder == "brent_iv":
     for i in range(0, N):
-        try:
-            iv, details = IV_Brent(
-                params_Heston=synth_df.iloc[i,:5],
-                S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
-                K=np.float64(K),                          # K=1 fixed
-                tau=synth_df.loc[i, "tau"],
-                r=synth_df.loc[i, "r"],
-                COS_params=cos_params,
-                cos_interval_rule=cos_interval_rule,
-                opt_type=opt_type,
-                iv_bounds=iv_bounds,
-                tol=brent_tol,
-                max_iter=brent_maxiter,
-                return_details=True,
-            )
-            iv_values[i] = iv
-            price_residual_abs[i] = details["price_residual_abs"]
-            solver_success[i] = True
-        except Exception:
+        if (not tau_keep_mask[i]) or (feller_enabled and (not feller_keep_mask[i])):
             iv_values[i] = np.nan
             price_residual_abs[i] = np.nan
             solver_success[i] = False
+        else:
+            try:
+                iv, details = IV_Brent(
+                    params_Heston=synth_df.iloc[i,:5],
+                    S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
+                    K=np.float64(K),                          # K=1 fixed
+                    tau=synth_df.loc[i, "tau"],
+                    r=synth_df.loc[i, "r"],
+                    COS_params=cos_params,
+                    cos_interval_rule=cos_interval_rule,
+                    opt_type=opt_type,
+                    iv_bounds=iv_bounds,
+                    tol=brent_tol,
+                    max_iter=brent_maxiter,
+                    return_details=True,
+                )
+                iv_values[i] = iv
+                price_residual_abs[i] = details["price_residual_abs"]
+                solver_success[i] = True
+            except Exception:
+                iv_values[i] = np.nan
+                price_residual_abs[i] = np.nan
+                solver_success[i] = False
 
         if ((i + 1) % progress_every == 0) or (i == N - 1):
             processed = i + 1
@@ -212,26 +237,31 @@ if rootfinder == "brent_iv":
 
 elif rootfinder == "LM":
     for i in range(0, N):
-        try:
-            iv, details = IV_LM(
-                params_Heston=synth_df.iloc[i,:5],
-                S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
-                K=np.float64(K),                          # K=1 fixed
-                tau=synth_df.loc[i, "tau"],
-                r=synth_df.loc[i, "r"],
-                COS_params=cos_params,
-                cos_interval_rule=cos_interval_rule,
-                opt_type=opt_type,
-                sigma0=LM_sigma0,
-                return_details=True,
-            )
-            iv_values[i] = iv
-            price_residual_abs[i] = details["price_residual_abs"]
-            solver_success[i] = details["success"]
-        except Exception:
+        if (not tau_keep_mask[i]) or (feller_enabled and (not feller_keep_mask[i])):
             iv_values[i] = np.nan
             price_residual_abs[i] = np.nan
             solver_success[i] = False
+        else:
+            try:
+                iv, details = IV_LM(
+                    params_Heston=synth_df.iloc[i,:5],
+                    S0=synth_df.loc[i, "moneyness"],          # m=S0/K, but K=1 so S0=m
+                    K=np.float64(K),                          # K=1 fixed
+                    tau=synth_df.loc[i, "tau"],
+                    r=synth_df.loc[i, "r"],
+                    COS_params=cos_params,
+                    cos_interval_rule=cos_interval_rule,
+                    opt_type=opt_type,
+                    sigma0=LM_sigma0,
+                    return_details=True,
+                )
+                iv_values[i] = iv
+                price_residual_abs[i] = details["price_residual_abs"]
+                solver_success[i] = details["success"]
+            except Exception:
+                iv_values[i] = np.nan
+                price_residual_abs[i] = np.nan
+                solver_success[i] = False
 
         if ((i + 1) % progress_every == 0) or (i == N - 1):
             processed = i + 1
@@ -270,6 +300,9 @@ else:
 
 # filter invalid/noisy labels before saving splits for training
 keep_mask = np.isfinite(iv_values)
+keep_mask &= tau_keep_mask
+if feller_enabled:
+    keep_mask &= feller_keep_mask
 if residual_keep_abs is not None:
     keep_mask &= np.isfinite(price_residual_abs) & (price_residual_abs <= residual_keep_abs)
 if rootfinder == "LM" and drop_sigma0_hits:
@@ -296,7 +329,7 @@ OUT_PATH.mkdir(parents=True, exist_ok=True)
 # to save the config used
 shutil.copy(
     PROJECT_ROOT / "configs" / "synth.yaml",
-    OUT_PATH / "model_training_copy.yaml"
+    OUT_PATH / "synth_copy.yaml"
 )
 
 # guardar en parquet
@@ -309,6 +342,9 @@ quality_df = pd.DataFrame({
     "IV": iv_values,
     "price_residual_abs": price_residual_abs,
     "solver_success": solver_success,
+    "tau_keep": tau_keep_mask,
+    "feller_slack": feller_slack,
+    "feller_keep": feller_keep_mask,
     "keep_for_training": keep_mask,
 })
 if rootfinder == "LM":

@@ -4,7 +4,7 @@ meta:
 
 
 data:
-  dir: "data/synth/1M_Brent_L50"
+  dir: "data/synth/1M_Feller"
   shuffle: true
   splits:
     train: 0.8
@@ -13,7 +13,7 @@ data:
 
 optimizers:
   - name: "adam"
-    learn_rate: 5.0e-4
+    learn_rate: 1.0e-4
     weight_decay: 0
 
   - name: "L-BFGS"
@@ -38,7 +38,7 @@ callbacks:
   early_stopping:   # Liu doesnt use ES
     enabled: True
     monitor: "val_loss"
-    patience: 50
+    patience: 200
     min_delta: 1.0e-8
     warmup_epochs: 500
     mode: "min"
