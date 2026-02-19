@@ -1,4 +1,5 @@
 import argparse
+import shutil
 import sys
 from pathlib import Path
 from typing import List, Tuple
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-from matplotlib.colors import PowerNorm, TwoSlopeNorm
+from matplotlib.colors import LogNorm, Normalize, SymLogNorm, TwoSlopeNorm
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,16 @@ from src.solvers.implied_vol import IV_Brent, IV_LM
 PARAM_ORDER = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
 HESTON_PARAM_COUNT = 5
 STRICT_POSITIVE_PARAMS = {"kappa", "gamma", "bar_v", "v0", "tau", "moneyness"}
+PARAM_LABELS = {
+    "rho": r"$\rho$",
+    "kappa": r"$\kappa$",
+    "gamma": r"$\gamma$",
+    "bar_v": r"$\bar{v}$",
+    "v0": r"$v_0$",
+    "moneyness": r"$S_0/K$",
+    "tau": r"$\tau$",
+    "r": r"$r$",
+}
 
 
 def _load_yaml(path: Path) -> dict:
@@ -310,6 +321,10 @@ class SensitivityPricer2D:
         raise ValueError(f"Unsupported error metric: {self.error_metric}")
 
     @staticmethod
+    def _param_label(name: str) -> str:
+        return PARAM_LABELS.get(name, name)
+
+    @staticmethod
     def _safe_limits(values: List[np.ndarray], fallback: Tuple[float, float]) -> Tuple[float, float]:
         finite_parts = [v[np.isfinite(v)] for v in values if v.size > 0]
         finite_parts = [v for v in finite_parts if v.size > 0]
@@ -324,6 +339,48 @@ class SensitivityPricer2D:
             eps = max(1.0e-8, abs(lo) * 1.0e-3)
             return lo - eps, hi + eps
         return lo, hi
+
+    def _build_error_norm(
+        self,
+        error_surface: np.ndarray,
+        err_lo: float,
+        err_hi: float,
+        error_scale: str,
+    ):
+        scale = error_scale.lower()
+        if scale not in {"linear", "log"}:
+            raise ValueError(f"Unsupported error scale '{error_scale}'. Use 'linear' or 'log'.")
+
+        finite = error_surface[np.isfinite(error_surface)]
+        if finite.size == 0:
+            return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+
+        if self.error_metric == "difference":
+            if scale == "log":
+                finite_abs = np.abs(finite)
+                positive_abs = finite_abs[finite_abs > 0]
+                if positive_abs.size == 0:
+                    return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+                vmax = max(float(np.max(finite_abs)), 1.0e-12)
+                linthresh = max(float(np.percentile(positive_abs, 5.0)), 1.0e-12)
+                return SymLogNorm(linthresh=linthresh, vmin=-vmax, vmax=vmax), "gray"
+            if err_lo < 0.0 < err_hi:
+                return TwoSlopeNorm(vmin=err_lo, vcenter=0.0, vmax=err_hi), "gray"
+            return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+
+        # Non-negative metrics: rmse, mse, abs_diff
+        if scale == "log":
+            positive = finite[finite > 0.0]
+            if positive.size == 0:
+                return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+            vmin = float(np.min(positive))
+            vmax = float(np.max(positive))
+            if np.isclose(vmin, vmax):
+                eps = max(1.0e-12, vmin * 1.0e-3)
+                return Normalize(vmin=vmin - eps, vmax=vmax + eps), "gray"
+            return LogNorm(vmin=vmin, vmax=vmax, clip=True), "gray"
+
+        return Normalize(vmin=err_lo, vmax=err_hi), "gray"
 
     def _plot_grid_3x2(
         self,
@@ -341,6 +398,8 @@ class SensitivityPricer2D:
                 np.ndarray,
             ]
         ],
+        error_scale: str,
+        output_name: str,
     ) -> Path:
         fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(14, 16), constrained_layout=True)
 
@@ -361,6 +420,8 @@ class SensitivityPricer2D:
         ) in enumerate(rows):
             ax_val = axes[row_idx, 0]
             ax_err = axes[row_idx, 1]
+            param1_label = self._param_label(param1)
+            param2_label = self._param_label(param2)
 
             val_lo, val_hi = self._safe_limits([y_nn, y_heston], fallback=(0.0, 1.0))
             err_lo, err_hi = self._safe_limits([error_surface], fallback=(0.0, 1.0))
@@ -381,37 +442,17 @@ class SensitivityPricer2D:
             except Exception:
                 if self.verbose:
                     print(f"Warning: could not draw Heston contours for pair {param1}/{param2}")
-            ax_val.set_xlabel(param1)
-            ax_val.set_ylabel(param2)
-            ax_val.set_title(f"{param1} vs {param2} | IV values (NN + Heston contours)")
+            ax_val.set_xlabel(param1_label)
+            ax_val.set_ylabel(param2_label)
+            ax_val.set_title(f"{param1_label} vs {param2_label} | IV values (NN)")
             fig.colorbar(mesh_val, ax=ax_val, shrink=0.85)
 
-            if self.error_metric == "difference":
-                finite_abs = np.abs(error_surface[np.isfinite(error_surface)])
-                if finite_abs.size > 0:
-                    p90 = float(np.percentile(finite_abs, 90.0))
-                    lim = float(np.percentile(finite_abs, 99.0))
-                    if p90 > 0:
-                        lim = min(lim, 5.0 * p90)
-                    lim = lim if lim > 0 else float(finite_abs.max())
-                else:
-                    lim = 1.0
-                lim = max(lim, 1.0e-12)
-                err_norm = TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim)
-                err_cmap = "gray"
-            else:
-                finite = error_surface[np.isfinite(error_surface)]
-                if finite.size > 0:
-                    p90 = float(np.percentile(finite, 90.0))
-                    vmax = float(np.percentile(finite, 99.0))
-                    if p90 > 0:
-                        vmax = min(vmax, 5.0 * p90)
-                    vmax = vmax if vmax > 0 else float(finite.max())
-                else:
-                    vmax = 1.0
-                vmax = max(vmax, 1.0e-12)
-                err_norm = PowerNorm(gamma=0.45, vmin=0.0, vmax=vmax)
-                err_cmap = "gray"
+            err_norm, err_cmap = self._build_error_norm(
+                error_surface=error_surface,
+                err_lo=err_lo,
+                err_hi=err_hi,
+                error_scale=error_scale,
+            )
 
             mesh_err = ax_err.pcolormesh(
                 P1,
@@ -421,12 +462,16 @@ class SensitivityPricer2D:
                 cmap=err_cmap,
                 norm=err_norm,
             )
-            ax_err.set_xlabel(param1)
-            ax_err.set_ylabel(param2)
+            ax_err.set_xlabel(param1_label)
+            ax_err.set_ylabel(param2_label)
             if self.error_metric == "abs_diff":
-                ax_err.set_title(f"{param1} vs {param2} | |NN - Heston|")
+                ax_err.set_title(
+                    f"{param1_label} vs {param2_label} | |NN - Heston| ({error_scale.lower()})"
+                )
             else:
-                ax_err.set_title(f"{param1} vs {param2} | {self.error_metric.upper()} error")
+                ax_err.set_title(
+                    f"{param1_label} vs {param2_label} | {self.error_metric.upper()} error ({error_scale.lower()})"
+                )
             fig.colorbar(mesh_err, ax=ax_err, shrink=0.85)
 
             for ax in (ax_val, ax_err):
@@ -445,7 +490,7 @@ class SensitivityPricer2D:
                     bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7, "pad": 2.0},
                 )
 
-        fig_path = self.fig_dir / "sensitivity_grid_3x2.png"
+        fig_path = self.fig_dir / output_name
         fig.savefig(fig_path, dpi=300)
         plt.close(fig)
         return fig_path
@@ -478,9 +523,22 @@ class SensitivityPricer2D:
                 )
             )
 
-        fig_path = self._plot_grid_3x2(plot_rows)
+        fig_linear = self._plot_grid_3x2(
+            plot_rows,
+            error_scale="linear",
+            output_name="sensitivity_grid_3x2_linear.png",
+        )
+        fig_log = self._plot_grid_3x2(
+            plot_rows,
+            error_scale="log",
+            output_name="sensitivity_grid_3x2_log.png",
+        )
+        legacy_fig = self.fig_dir / "sensitivity_grid_3x2.png"
+        shutil.copy2(fig_linear, legacy_fig)
         if self.verbose:
-            print(f"Saved figure: {fig_path}")
+            print(f"Saved figure: {fig_linear}")
+            print(f"Saved figure: {fig_log}")
+            print(f"Saved figure (legacy alias): {legacy_fig}")
 
 
 def main() -> None:
