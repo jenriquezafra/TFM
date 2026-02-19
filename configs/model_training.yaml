@@ -1,6 +1,6 @@
 meta:
   seed: 42
-  optimizer: "mix" # adam | L-BFGS | mix
+  optimizer: "adam" # adam | L-BFGS | mix
 
 
 data:
@@ -13,8 +13,8 @@ data:
 
 optimizers:
   - name: "adam"
-    learn_rate: 1.0e-4
-    weight_decay: 0
+    learn_rate: 1.0e-3
+    weight_decay: 0.0
 
   - name: "L-BFGS"
     learn_rate: 1.0e-2      #NOTE: default for L-BFGS
@@ -37,9 +37,10 @@ loop:
 callbacks:
   early_stopping:   # Liu doesnt use ES
     enabled: True
-    monitor: "val_loss"
-    patience: 200
-    min_delta: 1.0e-8
+    monitor: "val_loss_trimmed"
+    trim_top_fraction: 0.01
+    patience: 600
+    min_delta: 0.0
     warmup_epochs: 500
     mode: "min"
 
