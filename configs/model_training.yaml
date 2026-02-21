@@ -13,8 +13,8 @@ data:
 
 optimizers:
   - name: "adam"
-    learn_rate: 1.0e-3
-    weight_decay: 0.0
+    learn_rate: 7.0e-4
+    weight_decay: 1.0e-6
 
   - name: "L-BFGS"
     learn_rate: 1.0e-2      #NOTE: default for L-BFGS
@@ -37,9 +37,9 @@ loop:
 callbacks:
   early_stopping:   # Liu doesnt use ES
     enabled: True
-    monitor: "val_loss_trimmed"
+    monitor: "val_loss"   # val_loss | val_loss_trimmed
     trim_top_fraction: 0.01
-    patience: 600
+    patience: 500
     min_delta: 0.0
     warmup_epochs: 500
     mode: "min"

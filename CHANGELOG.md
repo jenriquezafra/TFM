@@ -64,3 +64,6 @@
 - Implementada lógica para ver residuos de los datos sintéticos generados
 
 - Creación de nuevos datos aumentando la precisión de COS
+
+- Many improvements not logged
+

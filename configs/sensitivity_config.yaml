@@ -3,7 +3,7 @@ meta:
   description: "Sensitivity analysis configuration"
 
 
-model_dir: "ADAM_v02" # can change to the name of the dir
+model_dir: "ADAM_v04" # can change to the name of the dir
 
 parameters:
   pairs: 

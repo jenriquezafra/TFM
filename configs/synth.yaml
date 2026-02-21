@@ -4,7 +4,7 @@ meta:
   seed: 42
 
 data:
-    n_samples: 1000000 # Liu has 1M
+    n_samples: 1000000 # target final valid samples after filtering
     batch_size: 1024  #TODO: move to training
     splits:
       train: 0.8
@@ -58,6 +58,9 @@ quality_check:
   residual_warn_abs: 1.0e-6
   residual_keep_abs: 1.0e-6
   drop_sigma0_hits: false
+  force_target_after_filters: true
+  generation_chunk_size: 250000
+  max_generation_rounds: 20
   feller_filter:
     enabled: true
     slack_tol: 0.0

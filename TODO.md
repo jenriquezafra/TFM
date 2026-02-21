@@ -29,6 +29,7 @@
 ## Medium-term
 
 
+
 ## Low priority
 - [ ] En 'gen_synth.py', al fijar las variables, realmente estoy haciendo LHS sobre d=8, no sobre el que debería. No cambia mucho pero es conceptualmente incorrecto.
 
