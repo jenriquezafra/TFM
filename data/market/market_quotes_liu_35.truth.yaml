@@ -1,0 +1,6 @@
+theta_true:
+  rho: -0.45
+  kappa: 1.00
+  gamma: 0.35
+  bar_v: 0.20
+  v0: 0.22

@@ -298,6 +298,7 @@ mix_enabled = meta_opt_name == "mix"
 mix_step = None
 mix_first_opt_name = None
 mix_second_opt_name = None
+optimizers_by_name = {}
 
 if mix_enabled:
     mix_cfg = None
@@ -315,10 +316,11 @@ if mix_enabled:
     mix_first_opt_name = _normalize_optimizer_name(mix_cfg["first_optimizer"])
     mix_second_opt_name = "lbfgs" if mix_first_opt_name == "adam" else "adam"
     active_opt_name = mix_first_opt_name
+    optimizers_by_name[mix_first_opt_name] = _build_optimizer(mix_first_opt_name)
+    optimizers_by_name[mix_second_opt_name] = _build_optimizer(mix_second_opt_name)
 else:
     active_opt_name = _normalize_optimizer_name(meta_opt_name)
-
-optimizer = _build_optimizer(active_opt_name)
+    optimizers_by_name[active_opt_name] = _build_optimizer(active_opt_name)
 
 # callback of StepLR
 from src.utils.callbacks import build_step_lr
@@ -338,7 +340,20 @@ def _build_lr_scheduler_for(optimizer_obj):
     return None
 
 
-lr_scheduler = _build_lr_scheduler_for(optimizer)
+if mix_enabled:
+    # In MIX mode we only schedule ADAM's learning rate.
+    lr_schedulers_by_name = {
+        opt_name: (_build_lr_scheduler_for(opt_obj) if opt_name == "adam" else None)
+        for opt_name, opt_obj in optimizers_by_name.items()
+    }
+else:
+    lr_schedulers_by_name = {
+        opt_name: _build_lr_scheduler_for(opt_obj)
+        for opt_name, opt_obj in optimizers_by_name.items()
+    }
+
+optimizer = optimizers_by_name[active_opt_name]
+lr_scheduler = lr_schedulers_by_name[active_opt_name]
 
 ### training with validation
 epochs = config["loop"]["epochs"]
@@ -359,8 +374,8 @@ for epoch in range(1, epochs+1): # each epoch
         desired_opt_name = mix_first_opt_name if (block_idx % 2 == 0) else mix_second_opt_name
         if desired_opt_name != active_opt_name:
             active_opt_name = desired_opt_name
-            optimizer = _build_optimizer(active_opt_name)
-            lr_scheduler = _build_lr_scheduler_for(optimizer)
+            optimizer = optimizers_by_name[active_opt_name]
+            lr_scheduler = lr_schedulers_by_name[active_opt_name]
             print(f"[mix] epoch {epoch}: switched optimizer to {active_opt_name}")
 
 

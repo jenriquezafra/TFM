@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-02-26_15-30-53",
+  "model_bucket": "ADAM_v05",
+  "calibration_id": 2,
+  "run_tag": "",
+  "quotes_file": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/smoke_quotes.csv",
+  "market_quotes_copy": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ADAM_v05/Calibration_2/market_quotes_input.csv",
+  "model_run_dir": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ADAM_v05",
+  "checkpoint": "model_best.pt",
+  "device": "cpu",
+  "n_quotes": 5,
+  "parameter_order": [
+    "rho",
+    "kappa",
+    "gamma",
+    "bar_v",
+    "v0"
+  ],
+  "theta_star": [
+    -0.4342157800349834,
+    1.704995028134693,
+    0.10488169099686545,
+    0.16310125672330614,
+    0.27975075106233965
+  ],
+  "objective_fun": 0.002374269620919662,
+  "success": false,
+  "message": "Maximum number of iterations has been exceeded.",
+  "nit": 1,
+  "nfev": 2,
+  "residual_rmse": 0.021782933270648862,
+  "weighted_mse": 0.0004744961818735411,
+  "de_settings": {
+    "maxiter": 1,
+    "popsize": 3,
+    "tol": 0.01,
+    "mutation": [
+      0.5,
+      1.0
+    ],
+    "recombination": 0.7,
+    "seed": null,
+    "polish": false
+  },
+  "regularization": {
+    "type": "l2",
+    "lambda": 1e-06
+  },
+  "bounds": {
+    "rho": [
+      -0.9,
+      0.0
+    ],
+    "kappa": [
+      0.0,
+      3.0
+    ],
+    "gamma": [
+      0.01,
+      0.8
+    ],
+    "bar_v": [
+      0.01,
+      0.5
+    ],
+    "v0": [
+      0.05,
+      0.5
+    ]
+  }
+}
