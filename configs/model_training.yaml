@@ -13,7 +13,7 @@ data:
 
 optimizers:
   - name: "adam"
-    learn_rate: 1.0e-4
+    learn_rate: 1.0e-3
     weight_decay: 0
 
   - name: "L-BFGS"
