@@ -1,5 +1,6 @@
 import sys
 import time
+import re
 import yaml
 import torch
 import shutil
@@ -22,6 +23,9 @@ from src.utils.callbacks import save_checkpoints, EarlyStopping
 
 config_path = PROJECT_ROOT / "configs" / "model_training.yaml"
 model_config_path = PROJECT_ROOT / "configs" / "model_architecture.yaml"
+calibration_config_path = PROJECT_ROOT / "configs" / "calibration.yaml"
+experiment_logs_dir = PROJECT_ROOT / "outputs" / "experiment_logs"
+calibration_folder_pattern = re.compile(r"^Calibration_(\d+)$")
 
 # to save the run outputs
 RUNS_DIR = PROJECT_ROOT / "outputs" / "runs"
@@ -98,6 +102,209 @@ def _trimmed_mean(values: np.ndarray, trim_top_fraction: float) -> float:
     # Keep the lowest values and trim only the top-tail hardest samples.
     values_sorted = np.sort(values)
     return float(np.mean(values_sorted[: values.size - n_trim]))
+
+
+def _load_yaml_dict(path: Path) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _resolve_path(raw_path: str | Path, *, base_dir: Path) -> Path:
+    path = Path(raw_path)
+    if path.is_absolute():
+        return path
+    return base_dir / path
+
+
+def _resolve_calibration_output_root(calibration_cfg_path: Path) -> Path:
+    cfg = _load_yaml_dict(calibration_cfg_path)
+    out_raw = cfg.get("outputs", {}).get("dir", "outputs/calibration")
+    return _resolve_path(out_raw, base_dir=PROJECT_ROOT)
+
+
+def _resolve_calibration_quotes_override(calibration_cfg_path: Path) -> tuple[Path | None, bool]:
+    cfg = _load_yaml_dict(calibration_cfg_path)
+    quotes_raw = cfg.get("data", {}).get("market_quotes_path", None)
+
+    if quotes_raw is not None:
+        configured_quotes_path = _resolve_path(quotes_raw, base_dir=PROJECT_ROOT)
+        if configured_quotes_path.exists():
+            return None, True
+        print(
+            f"Warning: calibration quotes file not found at {configured_quotes_path}. "
+            "Trying fallback quotes file."
+        )
+
+    fallback_candidates = [
+        PROJECT_ROOT / "data" / "market" / "market_quotes_liu_35.csv",
+        PROJECT_ROOT / "data" / "market" / "smoke_quotes.csv",
+    ]
+    for fallback in fallback_candidates:
+        if fallback.exists():
+            print(f"Using fallback calibration quotes: {fallback}")
+            return fallback, True
+
+    print("Warning: no calibration quotes file found. Skipping post-training calibration.")
+    return None, False
+
+
+def _latest_calibration_summary_path(*, calibration_root: Path, run_name: str) -> Path | None:
+    run_cal_dir = calibration_root / run_name
+    if not run_cal_dir.exists():
+        return None
+
+    latest_id = None
+    latest_summary_path = None
+    for child in run_cal_dir.iterdir():
+        if not child.is_dir():
+            continue
+        match = calibration_folder_pattern.match(child.name)
+        if match is None:
+            continue
+        calibration_id = int(match.group(1))
+        summary_path = child / "summary.yaml"
+        if not summary_path.exists():
+            continue
+        if latest_id is None or calibration_id > latest_id:
+            latest_id = calibration_id
+            latest_summary_path = summary_path
+
+    return latest_summary_path
+
+
+def _as_float(value):
+    if value is None:
+        return None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(out):
+        return None
+    return out
+
+
+def _fmt_scientific(value) -> str:
+    parsed = _as_float(value)
+    if parsed is None:
+        return "n/a"
+    return f"{parsed:.8e}"
+
+
+def _fmt_pct(value) -> str:
+    parsed = _as_float(value)
+    if parsed is None:
+        return "n/a"
+    return f"{parsed:+.2f}%"
+
+
+def _run_post_training_calibration(run_name: str) -> None:
+    if not calibration_config_path.exists():
+        print(f"Warning: calibration config not found at {calibration_config_path}")
+        return
+
+    quotes_override, can_run = _resolve_calibration_quotes_override(calibration_config_path)
+    if not can_run:
+        return
+
+    cmd = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "calibrate_cann.py"),
+        "--config",
+        str(calibration_config_path),
+        "--model-dir",
+        run_name,
+    ]
+    if quotes_override is not None:
+        cmd.extend(["--quotes", str(quotes_override)])
+
+    print("Running calibrate_cann.py for this trained run...")
+    proc = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+    if proc.returncode != 0:
+        print("Warning: calibrate_cann.py failed")
+        if proc.stdout:
+            print(proc.stdout)
+        if proc.stderr:
+            print(proc.stderr)
+        return
+
+    calibration_root = _resolve_calibration_output_root(calibration_config_path)
+    summary_path = _latest_calibration_summary_path(
+        calibration_root=calibration_root,
+        run_name=run_name,
+    )
+    if summary_path is None:
+        print(
+            f"Warning: calibration finished but summary.yaml was not found "
+            f"under {calibration_root / run_name}"
+        )
+        return
+
+    summary = _load_yaml_dict(summary_path)
+    print(
+        "Calibration metrics | "
+        f"weighted_mse: {_fmt_scientific(summary.get('weighted_mse'))} | "
+        f"residual_rmse: {_fmt_scientific(summary.get('residual_rmse'))} | "
+        f"objective_fun: {_fmt_scientific(summary.get('objective_fun'))}"
+    )
+
+
+def _refresh_optimizer_logs() -> bool:
+    cmd = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "build_optimizer_experiment_logs.py"),
+    ]
+    print("Refreshing optimizer experiment logs...")
+    proc = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+    if proc.returncode != 0:
+        print("Warning: build_optimizer_experiment_logs.py failed")
+        if proc.stdout:
+            print(proc.stdout)
+        if proc.stderr:
+            print(proc.stderr)
+        return False
+    return True
+
+
+def _print_run_vs_best_history(*, run_name: str, optimizer_mode: str) -> None:
+    if optimizer_mode not in {"mix", "adam"}:
+        return
+
+    log_path = experiment_logs_dir / f"{optimizer_mode}_experiments.csv"
+    if not log_path.exists():
+        print(f"Warning: optimizer log file not found: {log_path}")
+        return
+
+    log_df = pd.read_csv(log_path)
+    if log_df.empty:
+        print(f"Warning: optimizer log file is empty: {log_path}")
+        return
+
+    row_df = log_df[log_df["run_id"] == run_name]
+    if row_df.empty:
+        print(f"Warning: run '{run_name}' not found in {log_path.name}")
+        return
+
+    row = row_df.iloc[0]
+    print(f"Run comparison vs historical best [{optimizer_mode.upper()}]")
+    print(
+        f"- train best_val_loss: {_fmt_scientific(row.get('best_val_loss'))} "
+        f"| best historical: {_fmt_scientific(row.get('best_hist_train_val_loss'))} "
+        f"({str(row.get('best_hist_train_run_id', 'n/a'))}) "
+        f"| delta: {_fmt_pct(row.get('train_vs_best_hist_pct'))}"
+    )
+    print(
+        f"- calib weighted_mse: {_fmt_scientific(row.get('calib_weighted_mse'))} "
+        f"| best historical: {_fmt_scientific(row.get('best_hist_calib_weighted_mse'))} "
+        f"({str(row.get('best_hist_calib_run_id', 'n/a'))}) "
+        f"| delta: {_fmt_pct(row.get('calib_vs_best_hist_pct'))}"
+    )
+    print(
+        f"- calib residual_rmse: {_fmt_scientific(row.get('calib_residual_rmse'))}"
+    )
 
 #################### read the config and data ####################
 with open(config_path, "r") as f:
@@ -595,3 +802,10 @@ if sensitivity_cfg_path.exists():
             print(proc.stderr)
 else:
     print(f"Warning: sensitivity config not found at {sensitivity_cfg_path}")
+
+# run calibration automatically for this run
+_run_post_training_calibration(run_name=run_dir.name)
+
+# refresh logs and show comparison against historical best
+if _refresh_optimizer_logs():
+    _print_run_vs_best_history(run_name=run_dir.name, optimizer_mode=meta_opt_name)
