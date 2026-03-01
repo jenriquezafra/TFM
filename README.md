@@ -65,6 +65,27 @@ Note:
 - 'scripts/' only orchestrade experiments and ensure reproducibility
 - Notebooks are used for exploration only
 
+## Optimizer experiment logs (MIX / ADAM)
+
+To build optimizer-specific experiment logs from `outputs/runs/*`:
+
+```bash
+.venv/bin/python scripts/build_optimizer_experiment_logs.py
+```
+
+Generated files:
+- `outputs/experiment_logs/mix_experiments.csv`
+- `outputs/experiment_logs/adam_experiments.csv`
+
+The logs include:
+- Training metrics (`best_val_loss`, `best_epoch`, `val_last_vs_best_pct`, etc.).
+- Latest calibration metrics (`calib_weighted_mse`, `calib_residual_rmse`, `calib_objective_fun`) when available.
+- Relative comparison versus historical best for each optimizer family:
+  - `train_vs_best_hist_pct`
+  - `calib_vs_best_hist_pct`
+
+`scripts/train_pricer.py` now runs post-training calibration automatically for the new run, refreshes these logs, and prints the run-vs-history summary in terminal.
+
 
 ## Calibration (CaNN + Differential Evolution)
 
