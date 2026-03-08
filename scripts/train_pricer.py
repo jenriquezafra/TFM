@@ -418,15 +418,46 @@ if batch_size_val == "all":
 
 meta_opt_name = (config["meta"]["optimizer"]).lower()
 if batch_size_train == "all":
-    batch_size_train = n_train
-elif meta_opt_name in ("mix", "lbfgs", "l-bfgs"):
-    batch_size_train = min(int(batch_size_train) * 10, n_train)
+    batch_size_train_adam = n_train
+else:
+    batch_size_train_adam = int(batch_size_train)
 
-train_loader = DataLoader(
-    train_ds, 
-    batch_size=batch_size_train, 
-    shuffle=shuffle,
-    generator=g)
+lbfgs_cfg = None
+for item in config["optimizers"]:
+    raw_name = str(item.get("name", "")).lower()
+    if raw_name in ("l-bfgs", "lbfgs"):
+        lbfgs_cfg = item
+        break
+lbfgs_full_batch = bool(lbfgs_cfg.get("full_batch", False)) if lbfgs_cfg is not None else False
+
+if lbfgs_full_batch:
+    batch_size_train_lbfgs = n_train
+else:
+    batch_size_train_lbfgs = batch_size_train_adam
+    if meta_opt_name in ("mix", "lbfgs", "l-bfgs"):
+        batch_size_train_lbfgs = min(batch_size_train_lbfgs * 10, n_train)
+
+train_loaders_by_name = {
+    "adam": DataLoader(
+        train_ds,
+        batch_size=batch_size_train_adam,
+        shuffle=shuffle,
+        generator=g,
+    ),
+    "lbfgs": DataLoader(
+        train_ds,
+        batch_size=batch_size_train_lbfgs,
+        # L-BFGS full-batch is deterministic and safer without shuffling.
+        shuffle=(shuffle and not lbfgs_full_batch),
+        generator=g,
+    ),
+}
+
+print(
+    "[data] train batch size | "
+    f"adam: {batch_size_train_adam} | "
+    f"lbfgs: {batch_size_train_lbfgs} (full_batch={lbfgs_full_batch})"
+)
 
 val_loader = DataLoader(
     val_ds, 
@@ -589,6 +620,7 @@ for epoch in range(1, epochs+1): # each epoch
     # train
     model.train()
     train_sum = 0.0
+    train_loader = train_loaders_by_name[active_opt_name]
 
     for xb, yb in train_loader: # each batch
         xb, yb = xb.to(device), yb.to(device)
