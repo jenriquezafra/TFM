@@ -1,0 +1,56 @@
+meta:
+  seed: 42
+  description: "CaNN calibration (Liu-style): frozen forward NN + Differential Evolution"
+
+model:
+  model_dir: "latest"           # folder under outputs/runs, or 'latest'
+  checkpoint: "model_best.pt"   # model_best.pt | model_last.pt
+  device: "auto"                # auto | cpu | mps | cuda
+
+data:
+  market_quotes_path: "data/market/market_quotes.csv"  # csv/parquet with observed quotes
+  format: "auto"                                        # auto | csv | parquet
+  columns:
+    moneyness: "moneyness"
+    tau: "tau"
+    r: "r"
+    iv_market: "iv_market"
+    weight: "weight"        # optional column, if missing uses default_weight
+  default_weight: 1.0
+
+calibration:
+  parameter_order: ["rho", "kappa", "gamma", "bar_v", "v0"]
+  bounds:
+    rho: [-0.9, 0.0]
+    kappa: [0.0, 3.0]
+    gamma: [0.01, 0.8]
+    bar_v: [0.01, 0.5]
+    v0: [0.05, 0.5]
+
+  regularization:
+    type: "l2"      # none | l1 | l2 | l2_squared
+    lambda: 1.0e-6
+
+  de:
+    maxiter: 300
+    popsize: 10        # SciPy multiplier (effective population = popsize * n_params)
+    tol: 0.01
+    mutation: [0.5, 1.0]
+    recombination: 0.7
+    seed: null         # null -> fallback to meta.seed
+    polish: false
+
+inference:
+  batch_size: 4096
+
+# Optional. If provided (synthetic calibration), parameter error artifacts are produced.
+# Order: [rho, kappa, gamma, bar_v, v0]
+synthetic_truth:
+  theta_true: null
+  truth_file: null   # optional path to YAML/JSON with theta_true (absolute or relative to project root)
+
+outputs:
+  dir: "outputs/calibration"
+  save_residual_heatmap: false
+  save_quotes_parquet: true
+  save_quotes_csv: false

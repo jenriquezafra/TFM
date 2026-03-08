@@ -1,0 +1,82 @@
+timestamp: 2026-03-02_19-56-33
+model_bucket: MIX_v03
+calibration_id: 1
+run_tag: ''
+quotes_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.csv
+market_quotes_copy: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v03/Calibration_1/market_quotes_input.csv
+model_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v03
+checkpoint: model_best.pt
+device: cpu
+n_quotes: 35
+parameter_order:
+- rho
+- kappa
+- gamma
+- bar_v
+- v0
+theta_star:
+- -0.4564142671922401
+- 0.7787250522024913
+- 0.33049531042489677
+- 0.20008892861880395
+- 0.21876233714917576
+objective_fun: 6.464744001195875e-06
+success: true
+message: Optimization terminated successfully.
+nit: 111
+nfev: 112
+residual_rmse: 0.00039492633129192394
+weighted_mse: 1.5596680714769848e-07
+de_settings:
+  maxiter: 300
+  popsize: 10
+  tol: 0.01
+  mutation:
+  - 0.5
+  - 1.0
+  recombination: 0.7
+  seed: null
+  polish: false
+regularization:
+  type: l2
+  lambda: 1.0e-06
+bounds:
+  rho:
+  - -0.9
+  - 0.0
+  kappa:
+  - 0.0
+  - 3.0
+  gamma:
+  - 0.01
+  - 0.8
+  bar_v:
+  - 0.01
+  - 0.5
+  v0:
+  - 0.05
+  - 0.5
+theta_true:
+- -0.45
+- 1.0
+- 0.35
+- 0.2
+- 0.22
+theta_true_source: quotes_sidecar:/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.truth.yaml
+parameter_abs_error:
+  rho: 0.006414267192240086
+  kappa: 0.22127494779750867
+  gamma: 0.019504689575103207
+  bar_v: 8.892861880394065e-05
+  v0: 0.0012376628508242449
+parameter_rel_error:
+  rho: 0.014253927093866858
+  kappa: 0.22127494779750867
+  gamma: 0.05572768450029488
+  bar_v: 0.00044464309401970326
+  v0: 0.005625740231019295
+parameter_error_artifacts:
+  table_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v03/Calibration_1/parameter_errors.csv
+  abs_bar_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v03/Calibration_1/parameter_error_abs_bar.png
+  abs_heatmap_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v03/Calibration_1/parameter_error_abs_heatmap.png
+  rel_heatmap_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v03/Calibration_1/parameter_error_rel_heatmap.png
