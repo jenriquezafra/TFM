@@ -203,6 +203,7 @@ def _build_run_row(run_dir: Path, *, calibration_dir: Path) -> dict[str, Any] | 
         "lbfgs_lr": lbfgs_cfg.get("learn_rate"),
         "lbfgs_max_iter": lbfgs_cfg.get("max_iter"),
         "lbfgs_history_size": lbfgs_cfg.get("historic_size"),
+        "lbfgs_full_batch": lbfgs_cfg.get("full_batch"),
         "mix_step_size": mix_cfg.get("step_size"),
         "mix_first_optimizer": mix_cfg.get("first_optimizer"),
     }
