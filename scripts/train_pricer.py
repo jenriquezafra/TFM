@@ -19,6 +19,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.ANN_pricer import ANN
+from src.models.normalization import (
+    build_normalization_stats,
+    denormalize_target,
+    normalize_features,
+    normalize_target,
+    save_normalization_stats,
+)
 from src.utils.callbacks import save_checkpoints, EarlyStopping
 
 config_path = PROJECT_ROOT / "configs" / "model_training.yaml"
@@ -201,6 +208,85 @@ def _fmt_pct(value) -> str:
     return f"{parsed:+.2f}%"
 
 
+def _validate_bin_edges(edges, *, name: str) -> np.ndarray:
+    arr = np.asarray(edges, dtype=np.float64).reshape(-1)
+    if arr.size < 2:
+        raise ValueError(f"{name} bin edges must have at least 2 values")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} bin edges contain non-finite values")
+    if np.any(np.diff(arr) <= 0.0):
+        raise ValueError(f"{name} bin edges must be strictly increasing")
+    return arr
+
+
+def _predict_model(
+    *,
+    model: torch.nn.Module,
+    x_features: np.ndarray,
+    batch_size: int,
+    device: str,
+    norm_stats: dict,
+) -> np.ndarray:
+    x_norm = normalize_features(x_features, norm_stats)
+    model.eval()
+    outputs = []
+    with torch.inference_mode():
+        for start in range(0, x_norm.shape[0], batch_size):
+            stop = min(start + batch_size, x_norm.shape[0])
+            x_chunk = torch.from_numpy(x_norm[start:stop]).to(device)
+            y_chunk = model(x_chunk).detach().cpu().numpy().reshape(-1)
+            outputs.append(y_chunk.astype(np.float64, copy=False))
+    pred = np.concatenate(outputs, axis=0)
+    return denormalize_target(pred, norm_stats)
+
+
+def _build_global_metrics(split: str, residual: np.ndarray) -> dict:
+    abs_err = np.abs(residual)
+    mse = float(np.mean(residual**2))
+    return {
+        "split": split,
+        "n_samples": int(residual.size),
+        "mse": mse,
+        "rmse": float(np.sqrt(mse)),
+        "mae": float(np.mean(abs_err)),
+        "abs_err_p50": float(np.quantile(abs_err, 0.50)),
+        "abs_err_p90": float(np.quantile(abs_err, 0.90)),
+        "abs_err_p99": float(np.quantile(abs_err, 0.99)),
+    }
+
+
+def _build_bin_metrics(
+    *,
+    split: str,
+    feature_name: str,
+    feature_values: np.ndarray,
+    residual: np.ndarray,
+    bin_edges: np.ndarray,
+) -> list[dict]:
+    idx = np.digitize(feature_values, bin_edges[1:-1], right=False)
+    rows = []
+    for i in range(bin_edges.size - 1):
+        mask = idx == i
+        if not np.any(mask):
+            continue
+        err = residual[mask]
+        mse = float(np.mean(err**2))
+        rows.append(
+            {
+                "split": split,
+                "feature": feature_name,
+                "bin_left": float(bin_edges[i]),
+                "bin_right": float(bin_edges[i + 1]),
+                "n_samples": int(mask.sum()),
+                "share_pct": float(100.0 * mask.mean()),
+                "mse": mse,
+                "rmse": float(np.sqrt(mse)),
+                "mae": float(np.mean(np.abs(err))),
+            }
+        )
+    return rows
+
+
 def _run_post_training_calibration(run_name: str) -> None:
     if not calibration_config_path.exists():
         print(f"Warning: calibration config not found at {calibration_config_path}")
@@ -364,13 +450,13 @@ if es_enable:
 
 
 # load the data
-data_path = PROJECT_ROOT / cfg_data["dir"] / "train.parquet"
 train_path = PROJECT_ROOT / cfg_data["dir"] / "train.parquet"
 val_path = PROJECT_ROOT / cfg_data["dir"] / "val.parquet"
+test_path = PROJECT_ROOT / cfg_data["dir"] / "test.parquet"
 
-data_df = pd.read_parquet(data_path)
 train_df = pd.read_parquet(train_path)
 val_df = pd.read_parquet(val_path)
+test_df = pd.read_parquet(test_path)
 
 
 #################### train the model ####################
@@ -381,6 +467,11 @@ train_df_y = train_df.iloc[:, -1]
 
 val_df_X = val_df.iloc[:, :-1]
 val_df_y = val_df.iloc[:, -1]
+
+test_df_X = test_df.iloc[:, :-1]
+test_df_y = test_df.iloc[:, -1]
+feature_cols = list(train_df_X.columns)
+target_col = str(train_df.columns[-1])
 
 if integrity_enabled:
     overlap_train_val = _count_feature_overlap(
@@ -396,11 +487,53 @@ if integrity_enabled:
     else:
         print("[info] data integrity check: no overlapping feature rows between train and val.")
 
-X_train = torch.from_numpy(train_df_X.values).float()
-y_train = torch.from_numpy(train_df_y.values).float().view(-1, 1)
+pre_cfg = config.get("preprocessing", {})
+norm_cfg = pre_cfg.get("normalization", {})
+norm_enabled = bool(norm_cfg.get("enabled", False))
+norm_eps = float(norm_cfg.get("eps", 1.0e-12))
+norm_target_enabled = bool(norm_cfg.get("normalize_target", norm_enabled))
 
-X_val = torch.from_numpy(val_df_X.values).float()
-y_val = torch.from_numpy(val_df_y.values).float().view(-1, 1)
+normalization_stats = build_normalization_stats(
+    train_features=train_df_X.to_numpy(dtype=np.float64),
+    train_target=train_df_y.to_numpy(dtype=np.float64),
+    feature_names=feature_cols,
+    target_name=target_col,
+    enabled=norm_enabled,
+    eps=norm_eps,
+    normalize_target=norm_target_enabled,
+)
+norm_stats_path = save_normalization_stats(run_dir=run_dir, stats=normalization_stats)
+print(
+    f"[preprocessing] normalization enabled={norm_enabled} "
+    f"(target={norm_target_enabled}) | stats={norm_stats_path}"
+)
+
+eval_cfg = config.get("evaluation", {})
+eval_enabled = bool(eval_cfg.get("enabled", True))
+eval_batch_size = int(eval_cfg.get("batch_size", 8192))
+if eval_batch_size <= 0:
+    raise ValueError("evaluation.batch_size must be > 0")
+
+eval_bins_cfg = eval_cfg.get("bins", {})
+tau_bins = _validate_bin_edges(
+    eval_bins_cfg.get("tau", [0.05, 0.25, 0.5, 1.0, 2.0, 3.0]),
+    name="tau",
+)
+moneyness_bins = _validate_bin_edges(
+    eval_bins_cfg.get("moneyness", [0.6, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4]),
+    name="moneyness",
+)
+
+X_train_np = normalize_features(train_df_X.to_numpy(dtype=np.float64), normalization_stats)
+y_train_np = normalize_target(train_df_y.to_numpy(dtype=np.float64).reshape(-1, 1), normalization_stats)
+X_val_np = normalize_features(val_df_X.to_numpy(dtype=np.float64), normalization_stats)
+y_val_np = normalize_target(val_df_y.to_numpy(dtype=np.float64).reshape(-1, 1), normalization_stats)
+
+X_train = torch.from_numpy(X_train_np).float()
+y_train = torch.from_numpy(y_train_np).float()
+
+X_val = torch.from_numpy(X_val_np).float()
+y_val = torch.from_numpy(y_val_np).float()
 
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -756,6 +889,113 @@ for epoch in range(1, epochs+1): # each epoch
 hist_df = pd.DataFrame(history)
 hist_df.to_parquet(metrics_dir / "metrics.parquet", index=False)
 print(f"Saved metrics to: {metrics_dir}")
+
+if eval_enabled:
+    eval_model = ANN(
+        input_dim=model_cfg["input"]["dim"],
+        hidden_dims=model_cfg["hidden"]["dims"],
+        output_dim=model_cfg["output"]["dim"],
+        activation=model_cfg["hidden"]["activation"],
+        dropout_rate=model_cfg["hidden"]["dropout_rate"],
+        initialization=model_cfg["hidden"]["initialization"],
+    ).to(device)
+    best_ckpt = torch.load(ckpt_best_path, map_location=torch.device(device))
+    eval_model.load_state_dict(best_ckpt["model_state"])
+    eval_model.eval()
+
+    split_payload = {
+        "train": (train_df_X, train_df_y),
+        "val": (val_df_X, val_df_y),
+        "test": (test_df_X, test_df_y),
+    }
+    global_rows = []
+    bin_rows = []
+    for split_name, (x_df, y_series) in split_payload.items():
+        x_np = x_df.to_numpy(dtype=np.float64)
+        y_true = y_series.to_numpy(dtype=np.float64).reshape(-1)
+        y_pred = _predict_model(
+            model=eval_model,
+            x_features=x_np,
+            batch_size=eval_batch_size,
+            device=device,
+            norm_stats=normalization_stats,
+        )
+        residual = y_pred - y_true
+
+        global_rows.append(_build_global_metrics(split=split_name, residual=residual))
+
+        if "moneyness" in x_df.columns:
+            m_vals = x_df["moneyness"].to_numpy(dtype=np.float64)
+            bin_rows.extend(
+                _build_bin_metrics(
+                    split=split_name,
+                    feature_name="moneyness",
+                    feature_values=m_vals,
+                    residual=residual,
+                    bin_edges=moneyness_bins,
+                )
+            )
+        if "tau" in x_df.columns:
+            tau_vals = x_df["tau"].to_numpy(dtype=np.float64)
+            bin_rows.extend(
+                _build_bin_metrics(
+                    split=split_name,
+                    feature_name="tau",
+                    feature_values=tau_vals,
+                    residual=residual,
+                    bin_edges=tau_bins,
+                )
+            )
+
+    eval_global_df = pd.DataFrame(global_rows)
+    eval_global_df.to_parquet(metrics_dir / "eval_global.parquet", index=False)
+    eval_global_df.to_csv(metrics_dir / "eval_global.csv", index=False)
+
+    eval_bins_df = pd.DataFrame(bin_rows)
+    if not eval_bins_df.empty:
+        eval_bins_df.to_parquet(metrics_dir / "eval_by_region.parquet", index=False)
+        eval_bins_df.to_csv(metrics_dir / "eval_by_region.csv", index=False)
+
+    eval_summary = {
+        "normalization": {
+            "enabled": norm_enabled,
+            "normalize_target": norm_target_enabled,
+            "stats_file": str(norm_stats_path),
+        },
+        "global": {
+            row["split"]: {
+                "n_samples": int(row["n_samples"]),
+                "mse": float(row["mse"]),
+                "rmse": float(row["rmse"]),
+                "mae": float(row["mae"]),
+                "abs_err_p50": float(row["abs_err_p50"]),
+                "abs_err_p90": float(row["abs_err_p90"]),
+                "abs_err_p99": float(row["abs_err_p99"]),
+            }
+            for row in global_rows
+        },
+        "bins": {
+            "moneyness": moneyness_bins.tolist(),
+            "tau": tau_bins.tolist(),
+        },
+        "artifacts": {
+            "global_parquet": str(metrics_dir / "eval_global.parquet"),
+            "global_csv": str(metrics_dir / "eval_global.csv"),
+            "region_parquet": str(metrics_dir / "eval_by_region.parquet"),
+            "region_csv": str(metrics_dir / "eval_by_region.csv"),
+        },
+    }
+    with open(metrics_dir / "eval_summary.yaml", "w", encoding="utf-8") as f:
+        yaml.safe_dump(eval_summary, f, sort_keys=False)
+
+    print("Saved evaluation metrics:")
+    for row in global_rows:
+        print(
+            f"  [{row['split']}] mse={row['mse']:.8e} "
+            f"rmse={row['rmse']:.8e} mae={row['mae']:.8e}"
+        )
+else:
+    print("Evaluation skipped (evaluation.enabled=False)")
 
 # plot some figures
 fig_dir = run_dir / "figures"

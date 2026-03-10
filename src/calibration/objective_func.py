@@ -6,6 +6,7 @@ from typing import Literal, Sequence
 import numpy as np
 import torch
 
+from src.models.normalization import denormalize_target, normalize_features
 
 Regularization = Literal["none", "l1", "l2", "l2_squared"]
 
@@ -178,6 +179,7 @@ def calibration_objective_vectorized(
     *,
     model: torch.nn.Module,
     market_inputs: MarketInputs,
+    normalization_stats: dict | None = None,
     lambda_reg: float = 0.0,
     regularization: Regularization = "l2",
     n_model_params: int = 5,
@@ -208,6 +210,7 @@ def calibration_objective_vectorized(
         return np.full(theta_matrix.shape[1], fill_value=invalid_value, dtype=np.float64)
 
     features = _build_features(theta_matrix, market_inputs)
+    features = normalize_features(features, normalization_stats)
     model_device = _resolve_device(model, device)
 
     x_tensor = torch.from_numpy(features).to(model_device)
@@ -216,6 +219,7 @@ def calibration_objective_vectorized(
         pred_tensor = model(x_tensor)
 
     pred_flat = np.asarray(pred_tensor.detach().cpu().numpy(), dtype=np.float64).reshape(-1)
+    pred_flat = denormalize_target(pred_flat, normalization_stats)
     expected_size = theta_matrix.shape[1] * market_inputs.n_quotes
     if pred_flat.size != expected_size:
         raise ValueError(
@@ -239,6 +243,7 @@ def calibration_objective(
     *,
     model: torch.nn.Module,
     market_inputs: MarketInputs,
+    normalization_stats: dict | None = None,
     lambda_reg: float = 0.0,
     regularization: Regularization = "l2",
     n_model_params: int = 5,
@@ -260,6 +265,7 @@ def calibration_objective(
         theta,
         model=model,
         market_inputs=market_inputs,
+        normalization_stats=normalization_stats,
         lambda_reg=lambda_reg,
         regularization=regularization,
         n_model_params=n_model_params,

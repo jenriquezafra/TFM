@@ -17,6 +17,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.ANN_pricer import ANN
+from src.models.normalization import (
+    denormalize_target,
+    load_normalization_stats_from_run,
+    normalize_features,
+)
 from src.solvers.implied_vol import IV_Brent, IV_LM
 
 
@@ -65,6 +70,7 @@ class SensitivityPricer2D:
         self.run_dir = self._resolve_run_dir(model_dir)
         self.model_cfg = _load_yaml(self.run_dir / "model_architecture_copy.yaml")
         self.data_cfg = _load_yaml(self.run_dir / "synth_copy.yaml")
+        self.normalization_stats = load_normalization_stats_from_run(self.run_dir)
 
         self.fig_dir = self.run_dir / "figures"
         self.fig_dir.mkdir(parents=True, exist_ok=True)
@@ -243,12 +249,15 @@ class SensitivityPricer2D:
         return np.stack([grid[param] for param in PARAM_ORDER], axis=-1)
 
     def _predict_nn(self, x_flat: np.ndarray) -> np.ndarray:
-        x_tensor = torch.from_numpy(x_flat).float()
+        x_norm = normalize_features(x_flat, self.normalization_stats)
+        x_tensor = torch.from_numpy(x_norm).float()
         self.model.eval()
         x = x_tensor.to(self.device)
         with torch.inference_mode():
             y_pred = self.model(x)
-        return y_pred.cpu().numpy()
+        y_np = y_pred.cpu().numpy().reshape(-1)
+        y_np = denormalize_target(y_np, self.normalization_stats)
+        return y_np.reshape(-1, 1)
 
     def _compute_iv_surface(self, x_flat: np.ndarray) -> np.ndarray:
         total = x_flat.shape[0]

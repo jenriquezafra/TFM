@@ -8,6 +8,11 @@ import torch
 import yaml
 
 from src.models.ANN_pricer import ANN
+from src.models.normalization import (
+    denormalize_target,
+    load_normalization_stats_from_run,
+    normalize_features,
+)
 
 
 FEATURE_ORDER = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
@@ -88,7 +93,7 @@ def load_model_from_run(
     model_dir: str = "latest",
     checkpoint_name: str = "model_best.pt",
     device: str = "auto",
-) -> tuple[ANN, torch.device, Path, dict]:
+) -> tuple[ANN, torch.device, Path, dict, dict | None]:
     """
     Load trained ANN_pricer model from outputs/runs/<run_id>.
 
@@ -97,6 +102,7 @@ def load_model_from_run(
     - torch.device
     - run_dir (Path)
     - model_cfg (dict)
+    - normalization_stats (dict | None)
     """
 
     run_dir = resolve_run_dir(project_root=project_root, model_dir=model_dir)
@@ -126,7 +132,8 @@ def load_model_from_run(
     model.load_state_dict(ckpt["model_state"])
     model.to(model_device)
     model.eval()
-    return model, model_device, run_dir, model_cfg
+    normalization_stats = load_normalization_stats_from_run(run_dir)
+    return model, model_device, run_dir, model_cfg, normalization_stats
 
 
 def build_features_from_theta(
@@ -182,6 +189,7 @@ def predict_iv(
     *,
     device: torch.device | str | None = None,
     batch_size: int | None = None,
+    normalization_stats: dict | None = None,
 ) -> np.ndarray:
     """
     Predict implied volatilities from ANN_pricer.
@@ -196,13 +204,14 @@ def predict_iv(
     - np.ndarray shape (N,)
     """
 
-    x_np = np.asarray(features, dtype=np.float32)
+    x_np = np.asarray(features, dtype=np.float64)
     if x_np.ndim != 2:
         raise ValueError(f"features must be 2D; got ndim={x_np.ndim}")
     if x_np.shape[1] != len(FEATURE_ORDER):
         raise ValueError(
             f"features must have {len(FEATURE_ORDER)} columns; got {x_np.shape[1]}"
         )
+    x_np = normalize_features(x_np, normalization_stats)
 
     if device is None:
         model_device = next(model.parameters()).device
@@ -221,4 +230,5 @@ def predict_iv(
             y_chunk = model(x_chunk).detach().cpu().numpy().reshape(-1)
             outputs.append(y_chunk.astype(np.float64, copy=False))
 
-    return np.concatenate(outputs, axis=0)
+    pred = np.concatenate(outputs, axis=0)
+    return denormalize_target(pred, normalization_stats)

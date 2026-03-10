@@ -394,7 +394,7 @@ def run_calibration_from_config(
     checkpoint_name = model_cfg.get("checkpoint", "model_best.pt")
     model_device_pref = model_cfg.get("device", "auto")
 
-    model, model_device, run_dir, _ = load_model_from_run(
+    model, model_device, run_dir, _, normalization_stats = load_model_from_run(
         project_root=project_root,
         model_dir=model_dir,
         checkpoint_name=checkpoint_name,
@@ -470,6 +470,7 @@ def run_calibration_from_config(
         bounds=bounds,
         lambda_reg=lambda_reg,
         regularization=reg_type,
+        normalization_stats=normalization_stats,
         maxiter=de_maxiter,
         popsize=de_popsize,
         tol=de_tol,
@@ -499,6 +500,7 @@ def run_calibration_from_config(
         features=features_star,
         device=model_device,
         batch_size=infer_batch_size,
+        normalization_stats=normalization_stats,
     )
 
     residual = iv_pred - market_inputs.iv_market
