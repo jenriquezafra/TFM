@@ -86,6 +86,50 @@ The logs include:
 
 `scripts/train_pricer.py` now runs post-training calibration automatically for the new run, refreshes these logs, and prints the run-vs-history summary in terminal.
 
+## Evaluate an existing trained pricer (`eval_pricer.py`)
+
+This evaluates an already-trained ANN run (no retraining), computes global and regional metrics, and saves plots.
+
+Main command:
+```bash
+.venv/bin/python scripts/eval_pricer.py --model-dir MIX_v04 --device cpu
+```
+
+With explicit data directory:
+```bash
+.venv/bin/python scripts/eval_pricer.py \
+  --model-dir MIX_v04 \
+  --data-dir data/synth/1M_Feller \
+  --batch-size 8192
+```
+
+Important:
+- There is no dedicated `eval` config file for this script.
+- By default it loads settings from the selected run:
+  - `outputs/runs/<RUN>/model_training_copy.yaml` for `data.dir` and evaluation bins.
+  - `outputs/runs/<RUN>/metrics/normalization_stats.yaml` for input/output normalization.
+- CLI flags can override defaults (`--data-dir`, `--tau-bins`, `--moneyness-bins`, `--splits`, etc.).
+
+Artifacts written to `outputs/runs/<RUN>/`:
+- `metrics/eval_global.csv` and `.parquet`
+- `metrics/eval_by_region.csv` and `.parquet`
+- `metrics/eval_summary.yaml`
+- `figures/eval_global_mse.png`
+- `figures/eval_global_mae.png`
+- `figures/eval_region_mse.png`
+- `figures/eval_region_mae.png`
+
+Useful flags:
+- `--checkpoint-name model_best.pt` (default)
+- `--splits train,val,test`
+- `--target-col IV`
+- `--no-plots` (compute metrics only)
+
+See all options:
+```bash
+.venv/bin/python scripts/eval_pricer.py --help
+```
+
 
 ## Calibration (CaNN + Differential Evolution)
 
@@ -195,6 +239,42 @@ Files saved in each calibration run:
 - `market_quotes_input.<ext>` (exact quotes file used)
 - `calibration_config_source.yaml` (original config passed)
 - `calibration_config_used.yaml` (effective config actually used, including CLI overrides)
+
+### Evaluate Jacobian/Hessian at calibrated optimum (`theta_star`)
+You can evaluate the calibration objective curvature directly at a saved optimum:
+
+```bash
+.venv/bin/python scripts/eval_calibration_curvature.py \
+  --calibration-dir outputs/calibration/MIX_v05/Calibration_1 \
+  --device cpu \
+  --dtype float64
+```
+
+The script writes:
+- `curvature_theta_star.json` (objective value, gradient, Hessian, eigenvalue diagnostics)
+- `hessian_theta_star.csv` (Hessian matrix with parameter labels)
+- `jacobian_theta_star.png` (bar plot of gradient components)
+- `hessian_theta_star.png` (heatmap of Hessian entries)
+
+Useful variants:
+- Latest calibration automatically:
+```bash
+.venv/bin/python scripts/eval_calibration_curvature.py
+```
+- Use `theta_true` from summary (synthetic setups):
+```bash
+.venv/bin/python scripts/eval_calibration_curvature.py --theta-key theta_true
+```
+- Manual parameter vector:
+```bash
+.venv/bin/python scripts/eval_calibration_curvature.py \
+  --summary-path outputs/calibration/MIX_v05/Calibration_1/summary.json \
+  --theta "-0.33,1.66,0.55,0.20,0.23"
+```
+- Skip plots:
+```bash
+.venv/bin/python scripts/eval_calibration_curvature.py --no-plots
+```
 
 If `synthetic_truth.theta_true` is set in `configs/calibration.yaml`, extra parameter-error artifacts are generated:
 - `parameter_errors.csv`
