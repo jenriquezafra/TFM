@@ -161,12 +161,13 @@ def _build_run_row(run_dir: Path, *, calibration_dir: Path) -> dict[str, Any] | 
         return None
 
     optimizer_mode = _normalize_optimizer_name(training_cfg.get("meta", {}).get("optimizer"))
-    if optimizer_mode not in {"mix", "adam"}:
+    if optimizer_mode not in {"mix", "mix_half", "adam"}:
         return None
 
     adam_cfg = _get_optimizer_cfg(training_cfg, "adam")
     lbfgs_cfg = _get_optimizer_cfg(training_cfg, "lbfgs")
     mix_cfg = _get_optimizer_cfg(training_cfg, "mix")
+    mix_half_cfg = _get_optimizer_cfg(training_cfg, "mix_half")
 
     callbacks_cfg = training_cfg.get("callbacks", {})
     es_cfg = callbacks_cfg.get("early_stopping", {})
@@ -204,8 +205,11 @@ def _build_run_row(run_dir: Path, *, calibration_dir: Path) -> dict[str, Any] | 
         "lbfgs_max_iter": lbfgs_cfg.get("max_iter"),
         "lbfgs_history_size": lbfgs_cfg.get("historic_size"),
         "lbfgs_full_batch": lbfgs_cfg.get("full_batch"),
-        "mix_step_size": mix_cfg.get("step_size"),
-        "mix_first_optimizer": mix_cfg.get("first_optimizer"),
+        "mix_step_size": mix_cfg.get("step_size") if optimizer_mode == "mix" else None,
+        "mix_first_optimizer": mix_cfg.get("first_optimizer") if optimizer_mode == "mix" else None,
+        "mix_half_first_optimizer": (
+            mix_half_cfg.get("first_optimizer") if optimizer_mode == "mix_half" else None
+        ),
     }
     row.update(metrics_summary)
     row.update(calibration_summary)
@@ -264,7 +268,7 @@ def _write_csv(rows: list[dict[str, Any]], out_path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build experiment logs for MIX and ADAM runs from outputs/runs/*."
+        description="Build experiment logs for mixed-family (mix + mix_half) and ADAM runs."
     )
     parser.add_argument(
         "--runs-dir",
@@ -301,7 +305,7 @@ def main() -> None:
         row = _build_run_row(run_dir, calibration_dir=calibration_dir)
         if row is None:
             continue
-        if row["optimizer_mode"] == "mix":
+        if row["optimizer_mode"] in {"mix", "mix_half"}:
             mix_rows.append(row)
         elif row["optimizer_mode"] == "adam":
             adam_rows.append(row)
@@ -311,7 +315,7 @@ def main() -> None:
     _write_csv(mix_rows, mix_out)
     _write_csv(adam_rows, adam_out)
 
-    print(f"Wrote MIX log:  {mix_out} ({len(mix_rows)} runs)")
+    print(f"Wrote MIX-family log (mix + mix_half): {mix_out} ({len(mix_rows)} runs)")
     print(f"Wrote ADAM log: {adam_out} ({len(adam_rows)} runs)")
 
 
