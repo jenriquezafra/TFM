@@ -1,0 +1,2 @@
+run_dir,split,n_total,n_outliers,outlier_share_pct,global_mse,global_rmse,global_mae,outlier_mse,outlier_mae,error_p99,error_p999,vega_feature,outlier_abs_vega_p50,outlier_abs_vega_p90
+/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_v01,test,100000,100,0.1,9.175271287483039e-06,0.0030290710271439723,0.00042925121834350334,0.008898536426539403,0.04536962576668744,0.001756039680001943,0.0036924669514408655,v0,1.5484810145830696,14.727107916194724

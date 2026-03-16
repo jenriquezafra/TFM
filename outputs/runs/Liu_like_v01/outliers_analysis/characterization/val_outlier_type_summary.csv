@@ -1,0 +1,3 @@
+split,outlier_type,n_outliers,share_outliers_pct,mse_contrib,mse_share_global_pct,median_abs_error,p90_abs_error,median_sensitivity_score,floor_count,negative_pred_count
+val,floor_iv_mismatch,7,53.84615384615385,2.4406126982112027e-06,52.501048851801905,0.18049661652946472,0.23247027532958983,110.76121919653697,7,0
+val,short_low_m_high_sensitivity,6,46.15384615384615,1.8721526376626884e-06,40.272664794376524,0.1462764385590539,0.2472146573710134,127.7272250915581,0,0

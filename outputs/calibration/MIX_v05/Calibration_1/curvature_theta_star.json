@@ -1,0 +1,106 @@
+{
+  "summary_path": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v05/Calibration_1/summary.json",
+  "calibration_dir": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v05/Calibration_1",
+  "model_run_dir": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v05",
+  "quotes_path": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v05/Calibration_1/market_quotes_input.csv",
+  "device": "cpu",
+  "dtype": "float64",
+  "theta_source": "summary:theta_star",
+  "theta_label": "theta_star",
+  "parameter_order": [
+    "rho",
+    "kappa",
+    "gamma",
+    "bar_v",
+    "v0"
+  ],
+  "theta": [
+    -0.3293589653196944,
+    1.6593135307863887,
+    0.5521524911427441,
+    0.20350264679220254,
+    0.22717041600706706
+  ],
+  "objective_value": 2.3019125214504815e-05,
+  "jacobian": [
+    -2.0920142415867534e-05,
+    -8.197851448761485e-06,
+    4.14557524426688e-06,
+    -0.000403180318232877,
+    -0.00026903764238605534
+  ],
+  "hessian": [
+    [
+      0.054576959325776775,
+      0.009306042838401146,
+      -0.07399871498194062,
+      0.8377157029520488,
+      0.6242432914898056
+    ],
+    [
+      0.009306042838401142,
+      0.0033091394216569103,
+      -0.013201399561445346,
+      0.16294893299884253,
+      0.07684948313433355
+    ],
+    [
+      -0.07399871498194059,
+      -0.013201399561445346,
+      0.12943694398941524,
+      -1.6949162483621014,
+      -1.2963450809776058
+    ],
+    [
+      0.8377157029520489,
+      0.1629489329988425,
+      -1.6949162483621019,
+      25.614229769843366,
+      18.02073554452713
+    ],
+    [
+      0.6242432914898056,
+      0.07684948313433354,
+      -1.2963450809776063,
+      18.02073554452713,
+      16.59370555897133
+    ]
+  ],
+  "diagnostics": {
+    "grad_l2_norm": 0.00048523980149220344,
+    "hessian_symmetry_max_abs_diff": 4.440892098500626e-16,
+    "hessian_eigvals_sym": [
+      0.001030624767109036,
+      0.0020933835622382463,
+      0.04005667614382962,
+      2.5284072378499585,
+      39.8236704492284
+    ],
+    "hessian_eig_min": 0.001030624767109036,
+    "hessian_eig_max": 39.8236704492284,
+    "hessian_is_psd": true,
+    "hessian_cond_abs": 38640.31965866314
+  },
+  "objective_debug": {
+    "n_quotes": 35,
+    "feature_order": [
+      "rho",
+      "kappa",
+      "gamma",
+      "bar_v",
+      "v0",
+      "moneyness",
+      "tau",
+      "r"
+    ],
+    "parameter_order": [
+      "rho",
+      "kappa",
+      "gamma",
+      "bar_v",
+      "v0"
+    ],
+    "regularization": "l2",
+    "lambda_reg": 1e-06
+  }
+}

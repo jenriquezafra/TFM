@@ -1,0 +1,61 @@
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v04
+checkpoint_name: model_best.pt
+device: cpu
+data_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/1M_Feller
+splits:
+- train
+- val
+- test
+target_col: IV
+batch_size: 8192
+normalization:
+  enabled: false
+  normalize_target: false
+  stats_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v04/metrics/normalization_stats.yaml
+bins:
+  moneyness:
+  - 0.6
+  - 0.8
+  - 0.9
+  - 1.0
+  - 1.1
+  - 1.2
+  - 1.4
+  tau:
+  - 0.05
+  - 0.25
+  - 0.5
+  - 1.0
+  - 2.0
+  - 3.0
+global:
+  train:
+    n_samples: 800000
+    mse: 5.955737432855984e-07
+    rmse: 0.0007717342439503371
+    mae: 0.0005333106175397887
+    abs_err_p50: 0.0004044884569155971
+    abs_err_p90: 0.0011299849147805739
+    abs_err_p99: 0.0022914721245063576
+  val:
+    n_samples: 100000
+    mse: 5.342392724693017e-06
+    rmse: 0.002311361660297457
+    mae: 0.0005664680908006606
+    abs_err_p50: 0.00040877873639957873
+    abs_err_p90: 0.0011541465634675064
+    abs_err_p99: 0.002383930968404928
+  test:
+    n_samples: 100000
+    mse: 4.947062851331114e-06
+    rmse: 0.0022241993731073467
+    mae: 0.0005659231679960409
+    abs_err_p50: 0.0004094978050498965
+    abs_err_p90: 0.0011544555900512956
+    abs_err_p99: 0.002419653090788429
+artifacts:
+  eval_global_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v04/metrics/eval_global.parquet
+  eval_global_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v04/metrics/eval_global.csv
+  eval_region_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v04/metrics/eval_by_region.parquet
+  eval_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v04/metrics/eval_by_region.csv
+  eval_summary_yaml: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v04/metrics/eval_summary.yaml
