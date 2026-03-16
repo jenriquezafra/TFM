@@ -1,0 +1,336 @@
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+os.environ.setdefault("MPLCONFIGDIR", str(PROJECT_ROOT / "outputs" / ".mplconfig"))
+
+import matplotlib
+import numpy as np
+import pandas as pd
+import torch
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.greeks.chain_rule import apply_moneyness_to_spot_chain_rule
+from src.greeks.core import derivatives_batch, greeks_from_jacobian_hessian
+from src.greeks.names import DEFAULT_FEATURE_ORDER, build_greek_index_spec, parse_feature_order
+from src.greeks.nn_adapter import load_nn_price_adapter
+
+
+DEFAULT_FIXED_VALUES = {
+    "rho": -0.7,
+    "kappa": 2.0,
+    "gamma": 0.3,
+    "bar_v": 0.04,
+    "v0": 0.04,
+    "moneyness": 1.0,
+    "tau": 1.0,
+    "r": 0.01,
+}
+
+
+def _none_if_empty(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    text = raw.strip()
+    if text.lower() in {"", "none", "null"}:
+        return None
+    return text
+
+
+def _parse_dtype(raw: str) -> torch.dtype:
+    key = raw.strip().lower()
+    if key in {"float64", "fp64", "double"}:
+        return torch.float64
+    if key in {"float32", "fp32", "single"}:
+        return torch.float32
+    raise ValueError("dtype must be one of {float64, float32}")
+
+
+def _parse_feature_order(raw: str | None) -> list[str]:
+    if raw is None:
+        return list(DEFAULT_FEATURE_ORDER)
+    parts = [x.strip() for x in raw.split(",") if x.strip()]
+    return parse_feature_order(parts)
+
+
+def _safe_name(value: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_.-]+", "_", value)
+
+
+def _parse_fixed_values(raw: str | None) -> dict[str, float]:
+    if raw is None or not raw.strip():
+        return {}
+
+    out: dict[str, float] = {}
+    for item in raw.split(","):
+        token = item.strip()
+        if not token:
+            continue
+        if "=" not in token:
+            raise ValueError(
+                f"Invalid fixed-values token '{token}'. Use format name=value,name=value"
+            )
+        name, value = token.split("=", maxsplit=1)
+        out[name.strip()] = float(value.strip())
+    return out
+
+
+def _resolve_defaults(feature_order: list[str], fixed_overrides: dict[str, float]) -> np.ndarray:
+    base = np.zeros(len(feature_order), dtype=np.float64)
+    for i, name in enumerate(feature_order):
+        if name in fixed_overrides:
+            base[i] = fixed_overrides[name]
+        elif name in DEFAULT_FIXED_VALUES:
+            base[i] = DEFAULT_FIXED_VALUES[name]
+        else:
+            base[i] = 0.0
+    return base
+
+
+def _default_output_path(*, run_name: str, x_feature: str, y_feature: str, user_output: str | None) -> Path:
+    if user_output:
+        out = Path(user_output)
+        if not out.is_absolute():
+            out = PROJECT_ROOT / out
+        return out
+
+    out_dir = PROJECT_ROOT / "outputs" / "greeks" / "surfaces"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir / f"surface_{_safe_name(run_name)}_{_safe_name(x_feature)}_{_safe_name(y_feature)}.csv"
+
+
+def _default_plot_path(*, csv_path: Path, user_plot_path: str | None) -> Path:
+    if user_plot_path:
+        out = Path(user_plot_path)
+        if not out.is_absolute():
+            out = PROJECT_ROOT / out
+        return out
+    return csv_path.with_suffix(".png")
+
+
+def _plot_surface(
+    df: pd.DataFrame,
+    *,
+    x_feature: str,
+    y_feature: str,
+    metric: str,
+    out_path: Path,
+) -> None:
+    if metric not in df.columns:
+        raise KeyError(f"Metric '{metric}' not found in output columns: {list(df.columns)}")
+
+    x_values = np.sort(df[x_feature].unique())
+    y_values = np.sort(df[y_feature].unique())
+
+    pivot = (
+        df.pivot(index=x_feature, columns=y_feature, values=metric)
+        .sort_index(axis=0)
+        .sort_index(axis=1)
+    )
+    z = pivot.to_numpy(dtype=np.float64)
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    im = ax.imshow(
+        z,
+        origin="lower",
+        aspect="auto",
+        extent=[y_values.min(), y_values.max(), x_values.min(), x_values.max()],
+        cmap="viridis",
+    )
+    ax.set_xlabel(y_feature)
+    ax.set_ylabel(x_feature)
+    ax.set_title(metric)
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label(metric)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=220)
+    plt.close(fig)
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Build 2D surface of value/greeks from trained ANN.")
+    parser.add_argument("--model-dir", default="latest")
+    parser.add_argument("--checkpoint-name", default="model_best.pt")
+    parser.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda"])
+    parser.add_argument("--dtype", default="float64", choices=["float64", "float32"])
+    parser.add_argument("--feature-order", default=None)
+
+    parser.add_argument("--x-feature", required=True)
+    parser.add_argument("--x-min", type=float, required=True)
+    parser.add_argument("--x-max", type=float, required=True)
+    parser.add_argument("--x-points", type=int, default=81)
+
+    parser.add_argument("--y-feature", required=True)
+    parser.add_argument("--y-min", type=float, required=True)
+    parser.add_argument("--y-max", type=float, required=True)
+    parser.add_argument("--y-points", type=int, default=81)
+
+    parser.add_argument(
+        "--fixed-values",
+        default="",
+        help="Comma-separated defaults for non-surface features, e.g. rho=-0.7,kappa=2.0",
+    )
+
+    parser.add_argument("--spot-feature", default="moneyness")
+    parser.add_argument("--vol-feature", default=None)
+    parser.add_argument("--tau-feature", default="tau")
+    parser.add_argument("--rate-feature", default="r")
+    parser.add_argument("--theta-sign", default="minus_dv_dtau", choices=["minus_dv_dtau", "dv_dtau"])
+    parser.add_argument("--strike", type=float, default=None)
+
+    parser.add_argument("--chunk-size-values", type=int, default=4096)
+    parser.add_argument("--chunk-size-jac", type=int, default=512)
+    parser.add_argument("--chunk-size-hess", type=int, default=64)
+
+    parser.add_argument("--metric", default="value", help="Column to plot as heatmap")
+    parser.add_argument("--no-plot", action="store_true")
+    parser.add_argument("--output-csv", default=None)
+    parser.add_argument("--plot-path", default=None)
+    return parser
+
+
+def main() -> None:
+    parser = build_arg_parser()
+    args = parser.parse_args()
+
+    if args.x_points < 2 or args.y_points < 2:
+        raise ValueError("x-points and y-points must be >= 2")
+    if args.x_feature == args.y_feature:
+        raise ValueError("x-feature and y-feature must be different")
+
+    dtype = _parse_dtype(args.dtype)
+    feature_order = _parse_feature_order(args.feature_order)
+
+    if args.x_feature not in feature_order:
+        raise KeyError(f"x-feature '{args.x_feature}' not found in feature-order={feature_order}")
+    if args.y_feature not in feature_order:
+        raise KeyError(f"y-feature '{args.y_feature}' not found in feature-order={feature_order}")
+
+    idx_x = feature_order.index(args.x_feature)
+    idx_y = feature_order.index(args.y_feature)
+
+    loaded = load_nn_price_adapter(
+        project_root=PROJECT_ROOT,
+        model_dir=args.model_dir,
+        checkpoint_name=args.checkpoint_name,
+        device=args.device,
+        dtype=dtype,
+        feature_order=feature_order,
+    )
+
+    fixed_overrides = _parse_fixed_values(args.fixed_values)
+    base = _resolve_defaults(feature_order, fixed_overrides)
+
+    x_values = np.linspace(float(args.x_min), float(args.x_max), int(args.x_points), dtype=np.float64)
+    y_values = np.linspace(float(args.y_min), float(args.y_max), int(args.y_points), dtype=np.float64)
+
+    xx, yy = np.meshgrid(x_values, y_values, indexing="ij")
+    n_rows = xx.size
+
+    x_grid = np.repeat(base.reshape(1, -1), repeats=n_rows, axis=0)
+    x_grid[:, idx_x] = xx.reshape(-1)
+    x_grid[:, idx_y] = yy.reshape(-1)
+
+    x_t = torch.from_numpy(x_grid).to(device=loaded.device, dtype=dtype)
+    diff = derivatives_batch(
+        loaded.price_fn,
+        x_t,
+        chunk_size_values=args.chunk_size_values,
+        chunk_size_jac=args.chunk_size_jac,
+        chunk_size_hess=args.chunk_size_hess,
+        dtype=dtype,
+        device=loaded.device,
+    )
+
+    values = diff.values.detach().cpu().numpy().reshape(-1)
+    jacobian = diff.jacobian.detach().cpu()
+    hessian = diff.hessian.detach().cpu()
+
+    spec = build_greek_index_spec(
+        feature_order,
+        spot_feature=args.spot_feature,
+        vol_feature=_none_if_empty(args.vol_feature),
+        tau_feature=_none_if_empty(args.tau_feature),
+        rate_feature=_none_if_empty(args.rate_feature),
+    )
+
+    jac_for_greeks = jacobian
+    hess_for_greeks = hessian
+    if args.strike is not None and args.spot_feature == "moneyness":
+        jac_for_greeks, hess_for_greeks = apply_moneyness_to_spot_chain_rule(
+            jacobian_wrt_m=jac_for_greeks,
+            hessian_wrt_m=hess_for_greeks,
+            idx_moneyness=spec.idx_spot,
+            strike=float(args.strike),
+        )
+
+    greek_map = greeks_from_jacobian_hessian(
+        jac_for_greeks,
+        hess_for_greeks,
+        idx_spot=spec.idx_spot,
+        idx_vol=spec.idx_vol,
+        idx_tau=spec.idx_tau,
+        idx_rate=spec.idx_rate,
+        theta_is_minus_dv_dtau=(args.theta_sign == "minus_dv_dtau"),
+    )
+
+    jac_np = jacobian.numpy()
+    hess_np = hessian.numpy()
+
+    out_df = pd.DataFrame(
+        {
+            args.x_feature: xx.reshape(-1),
+            args.y_feature: yy.reshape(-1),
+            "value": values,
+            f"jac_{args.x_feature}": jac_np[:, idx_x],
+            f"jac_{args.y_feature}": jac_np[:, idx_y],
+            f"hess_{args.x_feature}__{args.x_feature}": hess_np[:, idx_x, idx_x],
+            f"hess_{args.y_feature}__{args.y_feature}": hess_np[:, idx_y, idx_y],
+            f"hess_{args.x_feature}__{args.y_feature}": hess_np[:, idx_x, idx_y],
+        }
+    )
+
+    for greek_name, greek_tensor in greek_map.items():
+        out_df[greek_name] = greek_tensor.detach().cpu().numpy().reshape(-1)
+
+    if args.strike is not None and args.spot_feature == "moneyness":
+        out_df["spot_from_moneyness_strike"] = float(args.strike)
+
+    out_csv = _default_output_path(
+        run_name=loaded.run_dir.name,
+        x_feature=args.x_feature,
+        y_feature=args.y_feature,
+        user_output=args.output_csv,
+    )
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    out_df.to_csv(out_csv, index=False)
+
+    if not args.no_plot:
+        plot_path = _default_plot_path(csv_path=out_csv, user_plot_path=args.plot_path)
+        _plot_surface(
+            out_df,
+            x_feature=args.x_feature,
+            y_feature=args.y_feature,
+            metric=args.metric,
+            out_path=plot_path,
+        )
+        print(f"Saved plot: {plot_path}")
+
+    print(f"Run dir: {loaded.run_dir}")
+    print(f"Device: {loaded.device}")
+    print(f"Rows: {len(out_df)}")
+    print(f"Saved CSV: {out_csv}")
+
+
+if __name__ == "__main__":
+    main()
