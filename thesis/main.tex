@@ -270,7 +270,7 @@ hmargin=3cm
 %----------
 %	Dedication
 %----------	
-\chapter*{Dedication}
+\input{chapters/00_dedication}
 
 \setcounter{page}{5}
 	
@@ -324,304 +324,66 @@ hmargin=3cm
 \clearpage
 \pagenumbering{arabic} % numbering with Arabic numerals for the rest of the document.	
 
-\chapter{Introduction}
-
 % IMPORTANT: Latex special characters are: # $ % & \ ^ _ { } ~. To avoid mistakes when compiling try writing \ before. For: \ use \textbackslash ; for ^ \textasciitilde and ~ \textasciicircum.
 
 %     Example of figure:
 %     \begin{figure}[H]
 %     	\ffigbox[\FBwidth] {
-%     	\caption[Name as seen in index]{Figure name}
-%     	}
-%     	{\includegraphics[scale=0.6]{figures/creativecommons.png}}
-%     \end{figure}
+    %     	\caption[Name as seen in index]{Figure name}
+    %     	}
+    %     	{\includegraphics[scale=0.6]{figures/creativecommons.png}}
+    %     \end{figure}
     
+    
+    %     Example of table:
+    % \begin{table}[H]
+    % 	\ttabbox[\FBwidth]
+    % 	{\caption{Lorem ipsum}}
+    % 	{\begin{tabular}{|c|P{1.5cm}|c|P{1.5cm}|P{2cm}|c|P{1.5cm}|P{2cm}|}
+    % 		\hline
+    % 		\multicolumn{2}{|c|}{\textbf{I}} & \multicolumn{2}{c|}{\textbf{II}} & \multicolumn{3}{c|}{\textbf{III}} & \textbf{IV} \\
+    % 		\hline
+    % 		x & y & x & y & x & y & x & y \\
+    % 		\hline
+    % 		10.0 & 8.04 & 10.0 & 9.14 & 10.0 & 7.46 & 8.0 & 6.58 \\
+    % 		\hline
+    % 		8.0 & 6.95 & 8.0 & 8.14 & 8.0 & 6.77 & 8.0 & 5.76 \\
+    % 		\hline
+    % 		13.0 & 7.58 & 13.0 & 8.74 & 13.0 & 12.74 & 8.0 & 7.71 \\
+    % 		\hline
+    % 		9.0 & 8.81 & 9.0 & 8.77 & 9.0 & 7.11 & 8.0 & 8.84 \\
+    % 		\hline
+    % 		11.0 & 8.33 & 11.0 & 9.26 & 11.0 & 7.81 & 8.0 & 8.47 \\
+    % 		\hline
+    % 		14.0 & 9.96 & 14.0 & 8.10 & 14.0 & 8.84 & 8.0 & 7.04 \\
+    % 		\hline
+    % 		6.0 & 7.24 & 6.0 & 6.13 & 6.0 & 6.08 & 8.0 & 5.25 \\
+    % 		\hline
+    % 		4.0 & 4.26 & 4.0 & 3.10 & 4.0 & 5.39 & 19.0 & 12.50 \\
+    % 		\hline
+    % 		12.0 & 10.84 & 12.0 & 9.13 & 12.0 & 8.15 & 8.0 & 5.56 \\
+    % 		\hline
+    % 		7.0 & 4.82 & 7.0 & 7.26 & 7.0 & 6.42 & 8.0 & 7.91 \\
+    % 		\hline
+    % 		5.0 & 5.68 & 5.0 & 4.74 & 5.0 & 5.73 & 8.0 & 6.89 \\
+    % 		\hline
+    % 		\multicolumn{5}{l}{Source: BOE}
+    % 	\end{tabular}}
+    % \end{table}
+    
+    
+\input{chapters/01_introduction}
+
+\input{chapters/02_background}
+
+\input{chapters/03_NN_surrogate.tex}
+
+\input{chapters/04_CaNN.tex}
+
+\input{chapters/05_performance_and_benchmarks.tex}
+
+\input{chapters/06_conclusions.tex}
 
-%     Example of table:
-% \begin{table}[H]
-% 	\ttabbox[\FBwidth]
-% 	{\caption{Lorem ipsum}}
-% 	{\begin{tabular}{|c|P{1.5cm}|c|P{1.5cm}|P{2cm}|c|P{1.5cm}|P{2cm}|}
-% 		\hline
-% 		\multicolumn{2}{|c|}{\textbf{I}} & \multicolumn{2}{c|}{\textbf{II}} & \multicolumn{3}{c|}{\textbf{III}} & \textbf{IV} \\
-% 		\hline
-% 		x & y & x & y & x & y & x & y \\
-% 		\hline
-% 		10.0 & 8.04 & 10.0 & 9.14 & 10.0 & 7.46 & 8.0 & 6.58 \\
-% 		\hline
-% 		8.0 & 6.95 & 8.0 & 8.14 & 8.0 & 6.77 & 8.0 & 5.76 \\
-% 		\hline
-% 		13.0 & 7.58 & 13.0 & 8.74 & 13.0 & 12.74 & 8.0 & 7.71 \\
-% 		\hline
-% 		9.0 & 8.81 & 9.0 & 8.77 & 9.0 & 7.11 & 8.0 & 8.84 \\
-% 		\hline
-% 		11.0 & 8.33 & 11.0 & 9.26 & 11.0 & 7.81 & 8.0 & 8.47 \\
-% 		\hline
-% 		14.0 & 9.96 & 14.0 & 8.10 & 14.0 & 8.84 & 8.0 & 7.04 \\
-% 		\hline
-% 		6.0 & 7.24 & 6.0 & 6.13 & 6.0 & 6.08 & 8.0 & 5.25 \\
-% 		\hline
-% 		4.0 & 4.26 & 4.0 & 3.10 & 4.0 & 5.39 & 19.0 & 12.50 \\
-% 		\hline
-% 		12.0 & 10.84 & 12.0 & 9.13 & 12.0 & 8.15 & 8.0 & 5.56 \\
-% 		\hline
-% 		7.0 & 4.82 & 7.0 & 7.26 & 7.0 & 6.42 & 8.0 & 7.91 \\
-% 		\hline
-% 		5.0 & 5.68 & 5.0 & 4.74 & 5.0 & 5.73 & 8.0 & 6.89 \\
-% 		\hline
-% 		\multicolumn{5}{l}{Source: BOE}
-% 	\end{tabular}}
-% \end{table}
-
-
-% Start writing here----------------------------------------------------
-\section{Motivation}
-
-\section{Main objectives}
-
-
-\section{Key contributions}
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\chapter{Mathematical and Financial Background}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Mathematical framework for option pricing}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Stochastic calculus background}
-\todos{TODO: add Cumulative Distribution Function definition}\\
-\todos{TODO: add Probability Density Function definition (and delete from below)}\\
-
-[Oorsterlee book] The \textit{Characteristic Function} (ChF) for $u\in \mathbb R$ of the random variable $X$ is the Fourier-Stieltjes transform of the cumulative distribution function $F_X(x)$.
-\begin{equation}
-    \phi_X(u) :=\mathbb E\left[ e^{iuX} \right] = \int_{-\infty}^\infty e^{iux}dF_X(x) = \int_{-\infty}^\infty e^{iux}f_X(x)dx,
-\end{equation}
-where $f_X(u)$ is the \textit{Probability Density Function}, given by 
-\begin{equation}
-    f_X(u)=\frac{\partial F_X(u)}{\partial u}.
-\end{equation}
-
-
-Applying the logarithm to the ChF, we define the \textit{Cumulant Characteristic Function} by 
-\begin{equation}
-    \zeta_X(u) = \log \mathbb E\left[e^{iux}\right] = \log \phi_X(u).
-\end{equation}
-If we compute the MacLaurin expansion to $\zeta_X$, we arrive to 
-\begin{equation}
-    \zeta_X(u) = \sum_{k=0}^\infty \frac{\partial^k \zeta_k (u)}{\partial u^k}\bigg| _{u=0}\frac{u^k}{k!}=\sum_{k=0}^{\infty}\zeta_k \frac{u^k}{k!},
-\end{equation}
-where $\zeta_k \equiv\frac{\partial^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}$ is the $k$-th \textit{cumulant}.
-
-
-Furthermore, we can define the \textit{Moment Generating Function}, $\mathcal M_X(u)$, by 
-\begin{equation}
-    \mathcal M_X(u):= \phi_X(-iu) = \mathbb E\left[ e^{ux} \right]. 
-\end{equation}
-
-
-Since the MGF is $\mathcal M_X(u)=\phi_X(-iu)$ and $\zeta_X(u)=\log \mathcal M_X(u)$, we can compute the cumulants, using the ChF, as
-\begin{equation}
-    \label{eq:cumulants}
-    \zeta_k =\frac{\partial ^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}=\frac{\partial ^k}{\partial u^k}\log \phi_X(-iu)\bigg|_{u=0}.
-\end{equation}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{The Heston stochastic volatility model}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Pricing via characteristic functions}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{The Fourier-COS method}
-\todos{TODO: rellenar}\\
-
-The COS method is the …\\
-The main reasons we want to use a cosine expansion are:
-\begin{itemize}
-    \item In a cosine Fourier expansion we can represent even functions around 0 exactly.
-    \item We can extend any function $g:[0,\pi]\to \mathbb R$ to become an even function on $[-\pi, \pi]$ as follows: 
-    \begin{equation}
-        \bar g(\theta)=\begin{cases}g(\theta), \quad &\theta \geq 0,\\ g(-\theta), \quad &\theta < 0. \end{cases}
-    \end{equation}
-    \item For functions supported on any other finite interval, say $[a,b]\in\mathbb R$, the Fourier $\cos$ series expansion can be obtained via a change of variables: 
-    $$\theta:= \frac{y-a}{b-a}\pi, \quad y:=\frac{b-a}{\pi}\theta+a.$$
-\end{itemize}
-
-\todos{TODO: falta más teoría para enlazar}\\
-
-We finally arrive to the approximation of the PDF 
-\begin{equation}
-    \hat f_X(y) = \sum_{k=0}^{N-1}\!'\  \bar F_k\cos\left(\pi k\frac{y-a}{b-a}\right),
-\end{equation}
-where $\sum '$ indicates that the first term should be multiplied by $1/2$, and the coefficients depend on the ChF: 
-\begin{equation}
-    \bar F_k:= \frac{2}{b-a}\operatorname{Re} \left[ \phi_X\left( \frac{\pi k}{b-a} \right) \cdot \exp\left( -\frac{ i\pi ak}{b-a} \right)\right].
-\end{equation}
-
-\todos{TODO: no se si poner algo aquí o nueva subsection}\\
-
-The value of a plain vanilla option is given by 
-\begin{equation}
-    V(t_0,x) = e^{-r\tau}\int_\mathbb R V(T,y)f_X(T,y;t_0,x)dy,
-\end{equation}
-where $\tau = T-t_0$, $f_X(T,y;t_0,x)$ is the transition probability density of $X(t)$, and $r$ the interest rate.\\
-
-Applying the COS method to the last expression, we arrive to
-\begin{equation}
-    V(t_0,x)\approx e^{-r\tau} \sum_{k=0}^{N-1}\!'\ \operatorname{Re}\left[ \phi_X\left( \frac{\pi k}{b-a} \right)\cdot \exp \left( -\frac{i\pi ak}{b-a} \right) \right] \cdot H_k,
-\end{equation}
-with $x$ a function of $S(t_0)$, $\phi_X(u)$ the ChF, and $H_K$ the \textit{payoff coefficients}:
-\begin{equation}
-    H_k := \frac{2}{b-a}\int_a^b V(T,y) \cos\left( \frac{y-a}{b-a}\pi k \right)dy.
-\end{equation}
-\todos{TODO: seguir con los payoffs coeffients}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{The COS method applied to the Heston model}
-\todos{TODO: rellenar}\\
-
-We need to define the following functions: 
-\begin{align}    
-    D_1(u)&=\sqrt{\left( \kappa-\gamma \rho iu \right)^2 + \left( u^2+iu \right)\gamma^2},\\
-    g(u)&=\frac{\kappa-\gamma \rho iu - D_1}{\kappa - \gamma\rho iu + D_1}.
-\end{align}
-
-
-Using a vector of strikes $\mathbf K$, we find the COS formula for the Heston model:
-\begin{equation}
-    V(t_0,\mathbf x)\approx \mathbf K e^{-r\tau}\cdot\operatorname{Re} \left\{ \sum_{k=0}^{N-1}\!'\  \varphi_H\left[ \frac{\pi k}{b-a},T; \nu(t_0) \right]U_k\cdot \exp\left[ i\pi k\frac{\mathbf X(t_0)-a}{b-a}\right] \right\},
-\end{equation}
-where \todos{no se si es la ChF?}
-\begin{equation}
-\begin{aligned}
-    \varphi_H\left(t,T;\nu(t_0)\right) =& \exp\left\{iur\tau + \frac{\nu(t_0)}{\gamma^2}\left(\frac{1-e^{-D_1\tau}}{1-g e^{-D_1\tau}}\right) \left( \kappa-i\rho \gamma u - D_1\right) \right\} \cdot \\
-     &\cdot\exp\left\{ \frac{\kappa \bar\nu}{\gamma^2}\left(\tau \left( \kappa-i\rho \gamma u -D_1 \right) -2\log\left( \frac{1-ge^{-D_1\tau}}{1-g} \right) \right)\right\}.    
-\end{aligned}
-\end{equation}
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Implied volatility and numerical inversion}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{State of the Art}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\chapter{Neural Network pricer for Heston vanilla options}
-Nuestro objetivo en este apartado es construir un surrogate pricer para opciones vanilla bajo el modelo de Heston con volatilidad estocástica usando redes neuronales.\\
-
-El pricing clásico, como es COS (FFT, PDE, etc) es muy preciso, pero es costoso.
-Sin embargo, la red neuronal aproxima el mapa directo $(\Theta; m, \tau, r)\to \sigma_{imp}$.
-Es importante notar que en este capitulo nos centramos en la red de pricing, no de calibración.\\
-
-The objective of the network is to learn a smooth and accurate approximation of the implied volatility as a function of the model parameters and contract characteristics.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Problem formulation}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Synthetic data formulation}
-We need data to train the neural network. Para tener una fuente controlada y reproducible, vamos a trabajar con datos sintéticos, generados a partir del método de COS, para alimentar a la red neuronal.\\
-
-Los datos que la red necesita son vectores de tamaño $n$, donde hay $n-1$ parámetros en las primeras columnas, y en la $n$-ésima tenemos la volatilidad implícita, calculada con el método de COS y Brent usando los $n-1$ parámetros.
-
-Esto conlleva un problema principal, y es que vamos a trabajar en alta dimensionalidad: tenemos el set de los parámetros de Heston, $\Theta = \{\rho, \kappa, \nu_0, \bar\nu, \gamma\}$, y el set de los parámetros dados por la opción y el mercado, $\Sigma = \{K, S_0, \tau, r\}$. Esto quiere decir que tenemos que generar un espacio $\mathbb R^9$ de 9 dimensiones. 
-
-Si quisieramos crear un grid "clásico" para poblar este espacio, tomando $N$ puntos de cada parámetro, necesitaríamos $N^9$ puntos, Solamente con tomar $N=100$, ya se vuelve un problema extremadamente costoso.\\
-
-Para reducir un poco este problema, si fijamos el strike price en $K=1$, podemos trabajar en unidades de \textit{moneyness}, $m=S_0/K$, De esta forma, ahora trabajamos en $\mathbb R^8$.\todos{ TODO: quizas esto ponerlo en 3.2.1.}\\
-
-Aún así, el problema de poblar este espacio sigue siendo muy costoso. Por eso, utilizaremos un método de sampleo muy útil en este tipo de problemas, conocido como el \textit{Latin Hypercube Sampling} (LHS).
-
-\subsection{Parameter ranges and constraints}
-
-\subsection{Sampling strategy: Latin Hypercube Sampling}
-The training of the neural network requires generating a large set of model parameters distributed over a high-dimensional domain. In our case, the parameter space is $\mathbb R^8$. A purely random sampling of this space may generate highly populated regions while leaving other regions scarcely explored. As a consequence, the resulting training dataset may be poorly representative, leading to suboptimal training performance.
-
-To avoid this problem, we will use the \textit{Latin Hypercube Sampling} (LHS), a sampling method designed to uniformly cover each dimension. The main idea consists in splitting each dimension of the parameter space into $N$ disjoint subintervals of equal length, and randomly selecting exactly one sample within each subinterval.
-
-Thus, LHS guarantees a one-dimensional marginal distribution along each coordinate, independently of the total dimension of the space. This results in a sampling scheme that is more representative of the parameter space.
-
-This creates a representative distribution sampling of the parameter space. In contrast to a full-grid sampling, the total number of samples $N$ remains fixed, preventing exponential growth in the number of dimensions.
-
-\todos{poner referencia?}
-
-
-\subsection{Dataset splitting and preprocessing}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Neural network architecture}
-
-\subsection{Model class}
-Following \cite{liu}, the pricer is implemented as a fully connected feed-forward neural network (FCNN). This class of models is particularly well suited for option pricing problems where the input consists of a low-dimensional vector of continuous variables and no explicit spatial or temporal structure is present.\\
-
-The neural network approximates the nonlinear mapping $$f_{NN}:\mathbb R^8\to \mathbb R,$$ where the input vector is given by $$\mathbf x = (\rho, \kappa, \gamma, \bar\nu, \nu_0, m, \tau, r),$$ and the scalar output corresponds to the implied volatility of a European vanilla option.\\
-
-The network is used as a surrogate pricer, replacing the numerical evaluation of the Heston model combined with the implied volatility inversion.
-
-\subsection{Architecture details}
-
-\subsection{Output interpretation}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Training procedure}
-\todos{TODO: rellenar}
-
-\subsection{Loss function}
-
-\subsection{Optimizer and hyperparameters}
-
-\subsection{Regularization and callbacks}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\chapter{Calibration Neural Network for the Heston model}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Calibration problem formulation}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Input representation: implied volatility surfaces}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Synthetic calibration dataset}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{CaNN architecture}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\chapter{Neural Network performance and benchmarking}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Pricing accuracy}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Implied volatility accuracy}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Computational efficiency}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Generalization and robustness}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\chapter{Conclusion and future work}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Market data}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Exotic derivatives}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Greeks and Hedging}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Model extension}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Machine Learning improvements}
 
 
 %----------
@@ -642,28 +404,9 @@ The network is used as a surrogate pricer, replacing the numerical evaluation of
 % If your work includes Appendix, you can uncomment the following lines
 \pagenumbering{gobble} % Appendix pages are not numbered
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\chapter* {Appendix A: Analysis of the error of the COS method}
-\todos{no se si dejarlo como apéndice o meterlo en alguna seccion}\\
-
-For the COS method, we have three sources of error: 
-\begin{itemize}
-    \item The integration range truncation error, $\varepsilon_1$.
-    \item The series truncation error on $[a,b]$, $\varepsilon_2$.
-    \item The error related to approximating $\bar A_k(x)$ by $\bar F_k(x)$, $\varepsilon_3$ \todos{(poner ref a alguna ecuacion)}.
-\end{itemize}
-It is important to note that there is no error in the payoff coefficient $H_k$ for plain vanilla European options.\\
-
-If the integration range $[a,b]$ is chosen sufficiently large, the overall error is dominated by $\varepsilon_2$ \todos{(TODO: argumentarlo)}. Also, $\varepsilon_2$ converges exponentially if $f_X(x) \in C^\infty[a,b]$ \todos{(TODO: justificarlo tamb)}. Otherwise, converges only algebraically.\\
-
-
-To choose an optimal integration range we will use the expression \todos{(TODO: ref a Oorsterlee)}
-\begin{equation}
-    [a,b]=\left[ (x+\zeta_1)-L\sqrt{\zeta_2 +\sqrt{\zeta_4}},\ (x+\zeta_1)+L\sqrt{\zeta_2+\sqrt{\zeta_4}} \right],
-\end{equation}
-where $L\in[6,12]$ is a parameter that depends on the tolerance we want to have, and $\zeta_i$ are the cumulants, computed using the expression \eqref{eq:cumulants}.
+\input{appendices/app_A}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\chapter* {Appendix B: Calibration of the Heston model}
-\label{app:calibration}
+\input{appendices/app_B}
 
 \end{document}

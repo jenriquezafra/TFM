@@ -1,0 +1,126 @@
+\chapter{Mathematical and Financial Background}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Mathematical Framework For Option Pricing}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Stochastic Calculus Background}
+
+\todos{TODO: add Cumulative Distribution Function definition}\\
+\todos{TODO: add Probability Density Function definition (and delete from below)}\\
+
+[Oorsterlee book] The \textit{Characteristic Function} (ChF) for $u\in \mathbb R$ of the random variable $X$ is the Fourier-Stieltjes transform of the cumulative distribution function $F_X(x)$.
+\begin{equation}
+    \phi_X(u) :=\mathbb E\left[ e^{iuX} \right] = \int_{-\infty}^\infty e^{iux}dF_X(x) = \int_{-\infty}^\infty e^{iux}f_X(x)dx,
+\end{equation}
+where $f_X(u)$ is the \textit{Probability Density Function}, given by 
+\begin{equation}
+    f_X(u)=\frac{\partial F_X(u)}{\partial u}.
+\end{equation}
+
+
+Applying the logarithm to the ChF, we define the \textit{Cumulant Characteristic Function} by 
+\begin{equation}
+    \zeta_X(u) = \log \mathbb E\left[e^{iux}\right] = \log \phi_X(u).
+\end{equation}
+If we compute the MacLaurin expansion to $\zeta_X$, we arrive to 
+\begin{equation}
+    \zeta_X(u) = \sum_{k=0}^\infty \frac{\partial^k \zeta_k (u)}{\partial u^k}\bigg| _{u=0}\frac{u^k}{k!}=\sum_{k=0}^{\infty}\zeta_k \frac{u^k}{k!},
+\end{equation}
+where $\zeta_k \equiv\frac{\partial^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}$ is the $k$-th \textit{cumulant}.
+
+
+Furthermore, we can define the \textit{Moment Generating Function}, $\mathcal M_X(u)$, by 
+\begin{equation}
+    \mathcal M_X(u):= \phi_X(-iu) = \mathbb E\left[ e^{ux} \right]. 
+\end{equation}
+
+
+Since the MGF is $\mathcal M_X(u)=\phi_X(-iu)$ and $\zeta_X(u)=\log \mathcal M_X(u)$, we can compute the cumulants, using the ChF, as
+\begin{equation}
+    \label{eq:cumulants}
+    \zeta_k =\frac{\partial ^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}=\frac{\partial ^k}{\partial u^k}\log \phi_X(-iu)\bigg|_{u=0}.
+\end{equation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{The Heston Stochastic Volatility Model}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Pricing Via Characteristic Functions}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{The Fourier-COS method}
+\todos{TODO: rellenar}\\
+
+The COS method is the …\\
+The main reasons we want to use a cosine expansion are:
+\begin{itemize}
+    \item In a cosine Fourier expansion we can represent even functions around 0 exactly.
+    \item We can extend any function $g:[0,\pi]\to \mathbb R$ to become an even function on $[-\pi, \pi]$ as follows: 
+    \begin{equation}
+        \bar g(\theta)=\begin{cases}g(\theta), \quad &\theta \geq 0,\\ g(-\theta), \quad &\theta < 0. \end{cases}
+    \end{equation}
+    \item For functions supported on any other finite interval, say $[a,b]\in\mathbb R$, the Fourier $\cos$ series expansion can be obtained via a change of variables: 
+    $$\theta:= \frac{y-a}{b-a}\pi, \quad y:=\frac{b-a}{\pi}\theta+a.$$
+\end{itemize}
+
+\todos{TODO: falta más teoría para enlazar}\\
+
+We finally arrive to the approximation of the PDF 
+\begin{equation}
+    \hat f_X(y) = \sum_{k=0}^{N-1}\!'\  \bar F_k\cos\left(\pi k\frac{y-a}{b-a}\right),
+\end{equation}
+where $\sum '$ indicates that the first term should be multiplied by $1/2$, and the coefficients depend on the ChF: 
+\begin{equation}
+    \bar F_k:= \frac{2}{b-a}\operatorname{Re} \left[ \phi_X\left( \frac{\pi k}{b-a} \right) \cdot \exp\left( -\frac{ i\pi ak}{b-a} \right)\right].
+\end{equation}
+
+\todos{TODO: no se si poner algo aquí o nueva subsection}\\
+
+The value of a plain vanilla option is given by 
+\begin{equation}
+    V(t_0,x) = e^{-r\tau}\int_\mathbb R V(T,y)f_X(T,y;t_0,x)dy,
+\end{equation}
+where $\tau = T-t_0$, $f_X(T,y;t_0,x)$ is the transition probability density of $X(t)$, and $r$ the interest rate.\\
+
+Applying the COS method to the last expression, we arrive to
+\begin{equation}
+    V(t_0,x)\approx e^{-r\tau} \sum_{k=0}^{N-1}\!'\ \operatorname{Re}\left[ \phi_X\left( \frac{\pi k}{b-a} \right)\cdot \exp \left( -\frac{i\pi ak}{b-a} \right) \right] \cdot H_k,
+\end{equation}
+with $x$ a function of $S(t_0)$, $\phi_X(u)$ the ChF, and $H_K$ the \textit{payoff coefficients}:
+\begin{equation}
+    H_k := \frac{2}{b-a}\int_a^b V(T,y) \cos\left( \frac{y-a}{b-a}\pi k \right)dy.
+\end{equation}
+\todos{TODO: seguir con los payoffs coeffients}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{The COS Method Applied To The Heston Model}
+\todos{TODO: rellenar}\\
+
+We need to define the following functions: 
+\begin{align}    
+    D_1(u)&=\sqrt{\left( \kappa-\gamma \rho iu \right)^2 + \left( u^2+iu \right)\gamma^2},\\
+    g(u)&=\frac{\kappa-\gamma \rho iu - D_1}{\kappa - \gamma\rho iu + D_1}.
+\end{align}
+
+
+Using a vector of strikes $\mathbf K$, we find the COS formula for the Heston model:
+\begin{equation}
+    V(t_0,\mathbf x)\approx \mathbf K e^{-r\tau}\cdot\operatorname{Re} \left\{ \sum_{k=0}^{N-1}\!'\  \varphi_H\left[ \frac{\pi k}{b-a},T; \nu(t_0) \right]U_k\cdot \exp\left[ i\pi k\frac{\mathbf X(t_0)-a}{b-a}\right] \right\},
+\end{equation}
+where \todos{no se si es la ChF?}
+\begin{equation}
+\begin{aligned}
+    \varphi_H\left(t,T;\nu(t_0)\right) =& \exp\left\{iur\tau + \frac{\nu(t_0)}{\gamma^2}\left(\frac{1-e^{-D_1\tau}}{1-g e^{-D_1\tau}}\right) \left( \kappa-i\rho \gamma u - D_1\right) \right\} \cdot \\
+     &\cdot\exp\left\{ \frac{\kappa \bar\nu}{\gamma^2}\left(\tau \left( \kappa-i\rho \gamma u -D_1 \right) -2\log\left( \frac{1-ge^{-D_1\tau}}{1-g} \right) \right)\right\}.    
+\end{aligned}
+\end{equation}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Implied Volatility And Numerical Inversion}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{State Of The Art}
+

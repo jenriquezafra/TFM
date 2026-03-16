@@ -1,0 +1,65 @@
+\chapter{Neural Network pricer for Heston vanilla options}
+Nuestro objetivo en este apartado es construir un surrogate pricer para opciones vanilla bajo el modelo de Heston con volatilidad estocástica usando redes neuronales.\\
+
+El pricing clásico, como es COS (FFT, PDE, etc) es muy preciso, pero es costoso.
+Sin embargo, la red neuronal aproxima el mapa directo $(\Theta; m, \tau, r)\to \sigma_{imp}$.
+Es importante notar que en este capitulo nos centramos en la red de pricing, no de calibración.\\
+
+The objective of the network is to learn a smooth and accurate approximation of the implied volatility as a function of the model parameters and contract characteristics.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Problem Formulation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Synthetic Data Formulation}
+We need data to train the neural network. Para tener una fuente controlada y reproducible, vamos a trabajar con datos sintéticos, generados a partir del método de COS, para alimentar a la red neuronal.\\
+
+Los datos que la red necesita son vectores de tamaño $n$, donde hay $n-1$ parámetros en las primeras columnas, y en la $n$-ésima tenemos la volatilidad implícita, calculada con el método de COS y Brent usando los $n-1$ parámetros.
+
+Esto conlleva un problema principal, y es que vamos a trabajar en alta dimensionalidad: tenemos el set de los parámetros de Heston, $\Theta = \{\rho, \kappa, \nu_0, \bar\nu, \gamma\}$, y el set de los parámetros dados por la opción y el mercado, $\Sigma = \{K, S_0, \tau, r\}$. Esto quiere decir que tenemos que generar un espacio $\mathbb R^9$ de 9 dimensiones. 
+
+Si quisieramos crear un grid "clásico" para poblar este espacio, tomando $N$ puntos de cada parámetro, necesitaríamos $N^9$ puntos, Solamente con tomar $N=100$, ya se vuelve un problema extremadamente costoso.\\
+
+Para reducir un poco este problema, si fijamos el strike price en $K=1$, podemos trabajar en unidades de \textit{moneyness}, $m=S_0/K$, De esta forma, ahora trabajamos en $\mathbb R^8$.\todos{ TODO: quizas esto ponerlo en 3.2.1.}\\
+
+Aún así, el problema de poblar este espacio sigue siendo muy costoso. Por eso, utilizaremos un método de sampleo muy útil en este tipo de problemas, conocido como el \textit{Latin Hypercube Sampling} (LHS).
+
+\subsection{Parameter Ranges And Constraints}
+
+\subsection{Sampling Strategy: Latin Hypercube Sampling}
+The training of the neural network requires generating a large set of model parameters distributed over a high-dimensional domain. In our case, the parameter space is $\mathbb R^8$. A purely random sampling of this space may generate highly populated regions while leaving other regions scarcely explored. As a consequence, the resulting training dataset may be poorly representative, leading to suboptimal training performance.
+
+To avoid this problem, we will use the \textit{Latin Hypercube Sampling} (LHS), a sampling method designed to uniformly cover each dimension. The main idea consists in splitting each dimension of the parameter space into $N$ disjoint subintervals of equal length, and randomly selecting exactly one sample within each subinterval.
+
+Thus, LHS guarantees a one-dimensional marginal distribution along each coordinate, independently of the total dimension of the space. This results in a sampling scheme that is more representative of the parameter space.
+
+This creates a representative distribution sampling of the parameter space. In contrast to a full-grid sampling, the total number of samples $N$ remains fixed, preventing exponential growth in the number of dimensions.
+
+\todos{poner referencia?}
+
+
+\subsection{Dataset Splitting And Preprocessing}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Neural Network Architecture}
+
+\subsection{Model Class}
+Following \cite{liu}, the pricer is implemented as a fully connected feed-forward neural network (FCNN). This class of models is particularly well suited for option pricing problems where the input consists of a low-dimensional vector of continuous variables and no explicit spatial or temporal structure is present.\\
+
+The neural network approximates the nonlinear mapping $$f_{NN}:\mathbb R^8\to \mathbb R,$$ where the input vector is given by $$\mathbf x = (\rho, \kappa, \gamma, \bar\nu, \nu_0, m, \tau, r),$$ and the scalar output corresponds to the implied volatility of a European vanilla option.\\
+
+The network is used as a surrogate pricer, replacing the numerical evaluation of the Heston model combined with the implied volatility inversion.
+
+\subsection{Architecture Details}
+
+\subsection{Output Interpretation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Training Procedure}
+\todos{TODO: rellenar}
+
+\subsection{Loss Function}
+
+\subsection{Optimizer And Hyperparameters}
+
+\subsection{Regularization And Callbacks}
