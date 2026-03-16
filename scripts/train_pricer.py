@@ -356,10 +356,12 @@ def _refresh_optimizer_logs() -> bool:
 
 
 def _print_run_vs_best_history(*, run_name: str, optimizer_mode: str) -> None:
-    if optimizer_mode not in {"mix", "adam"}:
+    optimizer_mode = str(optimizer_mode).strip().lower()
+    if optimizer_mode not in {"mix", "mix_half", "adam"}:
         return
 
-    log_path = experiment_logs_dir / f"{optimizer_mode}_experiments.csv"
+    log_family = "mix" if optimizer_mode in {"mix", "mix_half"} else "adam"
+    log_path = experiment_logs_dir / f"{log_family}_experiments.csv"
     if not log_path.exists():
         print(f"Warning: optimizer log file not found: {log_path}")
         return
@@ -549,7 +551,23 @@ batch_size_val = config["loop"]["batch_size_val"]
 if batch_size_val == "all":
     batch_size_val = n_val
 
-meta_opt_name = (config["meta"]["optimizer"]).lower()
+def _normalize_training_mode(name: str) -> str:
+    raw = str(name).strip().lower()
+    if raw in ("l-bfgs", "lbfgs"):
+        return "lbfgs"
+    if raw in ("mix_half", "mix-half", "mix_once"):
+        return "mix_half"
+    return raw
+
+
+meta_opt_name = _normalize_training_mode(config["meta"]["optimizer"])
+supported_training_modes = {"adam", "lbfgs", "mix", "mix_half"}
+if meta_opt_name not in supported_training_modes:
+    raise ValueError(
+        "Unsupported training mode on meta.optimizer. "
+        "Use one of: 'adam', 'L-BFGS', 'mix', 'mix_half'"
+    )
+
 if batch_size_train == "all":
     batch_size_train_adam = n_train
 else:
@@ -567,7 +585,7 @@ if lbfgs_full_batch:
     batch_size_train_lbfgs = n_train
 else:
     batch_size_train_lbfgs = batch_size_train_adam
-    if meta_opt_name in ("mix", "lbfgs", "l-bfgs"):
+    if meta_opt_name in ("mix", "mix_half", "lbfgs"):
         batch_size_train_lbfgs = min(batch_size_train_lbfgs * 10, n_train)
 
 train_loaders_by_name = {
@@ -663,10 +681,11 @@ def _build_optimizer(normalized_name: str):
     )
 
 
-# mix setup
-meta_opt_name = (config["meta"]["optimizer"]).lower()
+# mixed optimizer setup
 mix_enabled = meta_opt_name == "mix"
+mix_half_enabled = meta_opt_name == "mix_half"
 mix_step = None
+mix_half_switch_epoch = None
 mix_first_opt_name = None
 mix_second_opt_name = None
 optimizers_by_name = {}
@@ -686,6 +705,12 @@ if mix_enabled:
 
     mix_first_opt_name = _normalize_optimizer_name(mix_cfg["first_optimizer"])
     mix_second_opt_name = "lbfgs" if mix_first_opt_name == "adam" else "adam"
+    active_opt_name = mix_first_opt_name
+    optimizers_by_name[mix_first_opt_name] = _build_optimizer(mix_first_opt_name)
+    optimizers_by_name[mix_second_opt_name] = _build_optimizer(mix_second_opt_name)
+elif mix_half_enabled:
+    mix_first_opt_name = "adam"
+    mix_second_opt_name = "lbfgs"
     active_opt_name = mix_first_opt_name
     optimizers_by_name[mix_first_opt_name] = _build_optimizer(mix_first_opt_name)
     optimizers_by_name[mix_second_opt_name] = _build_optimizer(mix_second_opt_name)
@@ -711,8 +736,8 @@ def _build_lr_scheduler_for(optimizer_obj):
     return None
 
 
-if mix_enabled:
-    # In MIX mode we only schedule ADAM's learning rate.
+if mix_enabled or mix_half_enabled:
+    # In mixed modes we only schedule ADAM's learning rate.
     lr_schedulers_by_name = {
         opt_name: (_build_lr_scheduler_for(opt_obj) if opt_name == "adam" else None)
         for opt_name, opt_obj in optimizers_by_name.items()
@@ -727,7 +752,20 @@ optimizer = optimizers_by_name[active_opt_name]
 lr_scheduler = lr_schedulers_by_name[active_opt_name]
 
 ### training with validation
-epochs = config["loop"]["epochs"]
+epochs = int(config["loop"]["epochs"])
+if mix_half_enabled:
+    # Adam for first half, L-BFGS for second half, with a single switch.
+    mix_half_switch_epoch = max(2, (epochs // 2) + 1)
+    if mix_half_switch_epoch > epochs:
+        mix_half_switch_epoch = epochs + 1
+    adam_end_epoch = min(epochs, mix_half_switch_epoch - 1)
+    if mix_half_switch_epoch <= epochs:
+        print(
+            f"[mix_half] schedule: adam epochs 1-{adam_end_epoch}, "
+            f"lbfgs epochs {mix_half_switch_epoch}-{epochs}"
+        )
+    else:
+        print(f"[mix_half] schedule: adam epochs 1-{epochs} (lbfgs not reached)")
 
 # to save some metrics 
 metrics_dir = run_dir / "metrics"
@@ -739,7 +777,7 @@ best_monitor_name = es_monitor
 for epoch in range(1, epochs+1): # each epoch
     epoch_start = time.time()
 
-    # switch optimizers every mix_step epochs if mix mode is enabled
+    # optimizer switching policy for mixed modes
     if mix_enabled:
         block_idx = (epoch - 1) // mix_step
         desired_opt_name = mix_first_opt_name if (block_idx % 2 == 0) else mix_second_opt_name
@@ -748,6 +786,13 @@ for epoch in range(1, epochs+1): # each epoch
             optimizer = optimizers_by_name[active_opt_name]
             lr_scheduler = lr_schedulers_by_name[active_opt_name]
             print(f"[mix] epoch {epoch}: switched optimizer to {active_opt_name}")
+    elif mix_half_enabled:
+        desired_opt_name = mix_first_opt_name if epoch < mix_half_switch_epoch else mix_second_opt_name
+        if desired_opt_name != active_opt_name:
+            active_opt_name = desired_opt_name
+            optimizer = optimizers_by_name[active_opt_name]
+            lr_scheduler = lr_schedulers_by_name[active_opt_name]
+            print(f"[mix_half] epoch {epoch}: switched optimizer to {active_opt_name}")
 
 
     # train
