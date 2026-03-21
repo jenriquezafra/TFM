@@ -9,6 +9,9 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+!thesis/build/
+thesis/build/*
+!thesis/build/main.pdf
 develop-eggs/
 dist/
 downloads/
