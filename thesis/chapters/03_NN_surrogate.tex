@@ -1,30 +1,85 @@
 \chapter{Neural Network pricer for Heston vanilla options}
-Nuestro objetivo en este apartado es construir un surrogate pricer para opciones vanilla bajo el modelo de Heston con volatilidad estocástica usando redes neuronales.\\
 
-El pricing clásico, como es COS (FFT, PDE, etc) es muy preciso, pero es costoso.
-Sin embargo, la red neuronal aproxima el mapa directo $(\Theta; m, \tau, r)\to \sigma_{imp}$.
-Es importante notar que en este capitulo nos centramos en la red de pricing, no de calibración.\\
+The main objective of this chapter is to construct an ANN-based surrogate pricer for European vanilla options under the Heston stochastic-volatility model. The target quantity is implied volatility, and the surrogate is designed to approximate the forward map
+\[
+(\Theta,m,\tau,r)\mapsto \sigma_{imp}.
+\]
 
-The objective of the network is to learn a smooth and accurate approximation of the implied volatility as a function of the model parameters and contract characteristics.
+Reference pricing based on numerical methods (in our pipeline, Heston COS valuation plus implied-volatility inversion) is highly accurate but computationally expensive when repeated many times, as required in calibration and sensitivity workflows. The ANN aims to preserve pricing accuracy while reducing inference time by several orders of magnitude.
+
+Methodologically, this chapter follows the ANN-pricing framework of Liu et al. \cite{liu} as the main reference (architecture family, data ranges, and training philosophy), while explicitly documenting the implementation choices adopted in this project.
+
+This chapter focuses exclusively on the pricing network; the calibration architecture is treated separately in Chapter 4.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Problem Formulation}
 
+In this work, vanilla option pricing under Heston is posed as a supervised regression problem. Given a dataset
+\[
+\mathcal{D}=\{(\mathbf{x}_i,y_i)\}_{i=1}^{N},\qquad
+y_i=\sigma_{imp,i},
+\]
+the neural network approximates the map
+\[
+f_{NN}:\mathbb{R}^{8}\to\mathbb{R}, \qquad
+\mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\mapsto \sigma_{imp},
+\]
+where $m=S_0/K$ is moneyness and $\tau=T-t$ is time-to-maturity. Each label $\sigma_{imp}$ is obtained from Heston-consistent synthetic prices through numerical inversion.
+
+The training objective is to estimate parameters $\mathbf{w}$ such that the empirical prediction error over $\mathcal{D}$ is minimized. In this chapter, we use the ANN only as a pricing surrogate, i.e., as a fast approximation of the reference numerical pipeline in the forward map $(\Theta,m,\tau,r)\mapsto \sigma_{imp}$.
+
+We learn implied volatility instead of option price because the IV representation is directly comparable across contracts with different maturities and moneyness levels, and it is the market-standard quotation format for calibration and diagnostics. In contrast, raw prices mix scale effects (spot/strike/time) that make learning less homogeneous over the domain.
+
+The resulting surrogate is primarily an in-domain approximator. Preliminary out-of-domain checks indicate that the network remains stable for moderate departures from the training bounds, while errors increase in extreme regimes. For this reason, the methodological core of this chapter is developed on the predefined training domain, and the extrapolation behaviour is discussed separately in the generalization and robustness analysis.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Synthetic Data Formulation}
-We need data to train the neural network. Para tener una fuente controlada y reproducible, vamos a trabajar con datos sintéticos, generados a partir del método de COS, para alimentar a la red neuronal.\\
+Training requires a large set of labeled input-output pairs. To obtain a controlled and fully reproducible dataset, we use synthetic data generated under the Heston model. For each sampled input vector, the target implied volatility is computed through the numerical pricing pipeline (COS valuation followed by implied-volatility inversion).
 
-Los datos que la red necesita son vectores de tamaño $n$, donde hay $n-1$ parámetros en las primeras columnas, y en la $n$-ésima tenemos la volatilidad implícita, calculada con el método de COS y Brent usando los $n-1$ parámetros.
+The raw variable set includes Heston parameters $\Theta=\{\rho,\kappa,\gamma,\bar v,v_0\}$ and contract/market variables $\Sigma=\{K,S_0,\tau,r\}$, which defines a 9-dimensional space. In our setup, we fix $K=1$ and represent the underlying level through moneyness $m=S_0/K$, leading to an 8-dimensional input vector:
+\[
+\mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\in\mathbb{R}^8.
+\]
 
-Esto conlleva un problema principal, y es que vamos a trabajar en alta dimensionalidad: tenemos el set de los parámetros de Heston, $\Theta = \{\rho, \kappa, \nu_0, \bar\nu, \gamma\}$, y el set de los parámetros dados por la opción y el mercado, $\Sigma = \{K, S_0, \tau, r\}$. Esto quiere decir que tenemos que generar un espacio $\mathbb R^9$ de 9 dimensiones. 
-
-Si quisieramos crear un grid "clásico" para poblar este espacio, tomando $N$ puntos de cada parámetro, necesitaríamos $N^9$ puntos, Solamente con tomar $N=100$, ya se vuelve un problema extremadamente costoso.\\
-
-Para reducir un poco este problema, si fijamos el strike price en $K=1$, podemos trabajar en unidades de \textit{moneyness}, $m=S_0/K$, De esta forma, ahora trabajamos en $\mathbb R^8$.\todos{ TODO: quizas esto ponerlo en 3.2.1.}\\
-
-Aún así, el problema de poblar este espacio sigue siendo muy costoso. Por eso, utilizaremos un método de sampleo muy útil en este tipo de problemas, conocido como el \textit{Latin Hypercube Sampling} (LHS).
+A full Cartesian grid is computationally prohibitive in this dimension, since using $N$ points per variable scales as $N^9$ (already intractable for moderate $N$). Therefore, we rely on Latin Hypercube Sampling (LHS) to obtain broad coverage of the domain with a fixed number of samples. The specific ranges, constraints, and splitting/preprocessing rules are detailed in the following subsections.
 
 \subsection{Parameter Ranges And Constraints}
+The sampling domain combines Heston parameters, contract variables, and market rate. Following the ranges used in our configuration (largely aligned with \cite{liu}), the training domain is summarized in the table below.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Input ranges used for synthetic data generation}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
+        \hline
+        \textbf{Parameter} & \textbf{Range} \\
+        \hline
+        $\rho$ & $[-0.9,\,0.0]$ \\
+        \hline
+        $\kappa$ & $[0.0,\,3.0]$ \\
+        \hline
+        $\gamma$ & $[0.01,\,0.8]$ \\
+        \hline
+        $\bar v$ & $[0.01,\,0.5]$ \\
+        \hline
+        $v_0$ & $[0.05,\,0.5]$ \\
+        \hline
+        $m$ & $[0.6,\,1.4]$ \\
+        \hline
+        $\tau$ & $[0.05,\,3.0]$ \\
+        \hline
+        $r$ & $[0.0,\,0.05]$ \\
+        \hline
+        \multicolumn{2}{l}{Source: Based on \cite{liu} and project configuration choices}
+    \end{tabular}}
+\end{table}
+
+To avoid non-physical or numerically unstable samples, we enforce $\tau>0$ and apply a Feller-type admissibility filter
+\[
+2\kappa\bar v-\gamma^2 \ge 0,
+\]
+which helps keep the variance process in a realistic regime for data generation and training.
+
+During synthesis we fix the strike to $K=1$ and price European put options. Fixing $K$ is equivalent to expressing spot through moneyness, which reduces the dimensionality from nine variables $(\Theta,S_0,K,\tau,r)$ to eight inputs $(\Theta,m,\tau,r)$ without loss of information for this setup.
 
 \subsection{Sampling Strategy: Latin Hypercube Sampling}
 The training of the neural network requires generating a large set of model parameters distributed over a high-dimensional domain. In our case, the parameter space is $\mathbb R^8$. A purely random sampling of this space may generate highly populated regions while leaving other regions scarcely explored. As a consequence, the resulting training dataset may be poorly representative, leading to suboptimal training performance.
@@ -35,31 +90,181 @@ Thus, LHS guarantees a one-dimensional marginal distribution along each coordina
 
 This creates a representative distribution sampling of the parameter space. In contrast to a full-grid sampling, the total number of samples $N$ remains fixed, preventing exponential growth in the number of dimensions.
 
-\todos{poner referencia?}
-
-
+The use of LHS is supported by the classical design-of-experiments literature, where stratified one-dimensional coverage is shown to improve space-filling behaviour with respect to naive random sampling for a fixed budget \cite{mckay_2000}. In our implementation, sampling is performed directly in the 8-dimensional input domain with a fixed seed and a target of $10^6$ valid samples. This is consistent with standard surrogate-modeling practice, where the quality and coverage of the design points strongly influence final emulator accuracy and robustness \cite{gramacy2020surrogates}.
 \subsection{Dataset Splitting And Preprocessing}
+After generation and filtering, we build a dataset with a target of $10^6$ valid samples and split it into train/validation/test subsets with proportions $0.8/0.1/0.1$. To preserve the distribution of the target variable across splits, we apply stratification by implied-volatility quantile bins.
+
+In the baseline configuration, no explicit feature or target normalization is applied (Liu-style setup). Therefore, the model is trained directly on the physical scale of the variables $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$ and predicts IV in absolute units.
+
+Data quality control is integrated in the synthesis pipeline. Samples with invalid maturity or failing admissibility checks are removed, and the numerical inversion quality is monitored via the residual $|V_{BS}(\sigma_{imp})-V_{\text{target}}|$, with strict retention thresholds to keep only reliable labels for training.
+
+\subsection{Numerical Label Generation (COS + Brent)}
+Each label is produced in two deterministic numerical steps. First, the target option value $V_{\text{target}}$ is computed with the Heston COS solver for a given input vector $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$. Second, implied volatility is obtained by solving
+\[
+V_{BS}(\sigma)=V_{\text{target}}
+\]
+with a Brent root-finding routine under fixed bounds and tolerance \cite{press2007numerical}.
+
+In our implementation, Brent is configured with strict numerical controls (absolute tolerance $10^{-8}$, bounded search interval, and iteration cap), and labels are retained only if the reconstruction error satisfies
+\[
+\left|V_{BS}(\sigma_{imp})-V_{\text{target}}\right|\le 10^{-6}.
+\]
+Hence, the accepted dataset is not affected by uncontrolled observational noise: it is a numerically generated dataset with explicit error bounds on label construction. The remaining training error is therefore dominated by approximation/generalization effects of the ANN rather than by noisy supervision targets.
+\todos{Not completly sure of this}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Neural Network Architecture}
+The pricing surrogate is implemented as a fully connected neural network that approximates a smooth nonlinear map from model/contract inputs to implied volatility. This choice is consistent with the structure of the problem: inputs are low-dimensional continuous features without spatial topology or sequential dependence, and the target is a scalar regression value.
+
+From a function-approximation perspective, a feed-forward multilayer perceptron (MLP) provides enough expressive capacity to capture the interactions between Heston parameters, moneyness, maturity, and rates on the selected domain. Compared with architectures designed for images or sequences (e.g., CNNs or transformers), an MLP is more parsimonious and easier to train for this tabular setting.
 
 \subsection{Model Class}
-Following \cite{liu}, the pricer is implemented as a fully connected feed-forward neural network (FCNN). This class of models is particularly well suited for option pricing problems where the input consists of a low-dimensional vector of continuous variables and no explicit spatial or temporal structure is present.\\
+Following \cite{liu}, we use a fully connected feed-forward network (FCNN). Let $\mathbf{x}\in\mathbb{R}^8$ be
+\[
+\mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r),
+\]
+and let $y=\sigma_{imp}\in\mathbb{R}$ denote the target implied volatility. The model defines a parametric function
+\[
+\hat \sigma_{imp} = f_{NN}(\mathbf{x};\mathbf{w}),
+\]
+with trainable parameters $\mathbf{w}$.
 
-The neural network approximates the nonlinear mapping $$f_{NN}:\mathbb R^8\to \mathbb R,$$ where the input vector is given by $$\mathbf x = (\rho, \kappa, \gamma, \bar\nu, \nu_0, m, \tau, r),$$ and the scalar output corresponds to the implied volatility of a European vanilla option.\\
+Once $\mathbf{w}$ is fixed after training, inference is deterministic: for the same input $\mathbf{x}$, the network always returns the same prediction $\hat \sigma_{imp}$. This property is important for downstream calibration and sensitivity analysis, where numerical consistency across repeated calls is required.
 
-The network is used as a surrogate pricer, replacing the numerical evaluation of the Heston model combined with the implied volatility inversion.
+The FCNN acts as a surrogate only at inference time. Target labels are still generated with the numerical pipeline (Heston COS pricing followed by implied-volatility inversion), so the network learns to emulate that reference solver on the sampled domain.
 
 \subsection{Architecture Details}
+The architecture used in this chapter is
+\[
+8 \rightarrow 200 \rightarrow 200 \rightarrow 200 \rightarrow 200 \rightarrow 1,
+\]
+with ReLU activation in hidden layers and linear activation in the output layer. In compact form,
+\[
+h^{(1)}=\phi(W^{(1)}x+b^{(1)}),\quad \dots,\quad
+h^{(4)}=\phi(W^{(4)}h^{(3)}+b^{(4)}),\quad
+\hat y=W^{(5)}h^{(4)}+b^{(5)},
+\]
+where $\phi(\cdot)=\max(0,\cdot)$.
+
+Weights are initialized with Xavier uniform initialization and biases are initialized to zero. In the baseline setup, dropout is disabled ($p=0$) and no batch normalization layers are used. This configuration follows a controlled, reproducible design intended to isolate the impact of optimization and data quality choices.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Neural network architecture used for the ANN pricer}}
+    {\begin{tabular}{|P{5.2cm}|P{6.6cm}|}
+        \hline
+        \textbf{Hyperparameter} & \textbf{Value} \\
+        \hline
+        Input dimension & 8 \\
+        \hline
+        Hidden layers & 4 \\
+        \hline
+        Hidden width & 200 neurons per layer \\
+        \hline
+        Hidden activation & ReLU \\
+        \hline
+        Output dimension & 1  \\
+        \hline
+        Output activation & Linear \\
+        \hline
+        Weight initialization & Xavier uniform \\
+        \hline
+        Bias initialization & Zeros \\
+        \hline
+        Dropout & $p=0.0$ \\
+        \hline
+        Batch normalization & Disabled \\
+        \hline
+        \multicolumn{2}{l}{Source: Based on \cite{liu}}
+    \end{tabular}}
+\end{table}
+
+
+
 
 \subsection{Output Interpretation}
+The network output is a scalar implied volatility in annualized units (decimal form), not an option price. Therefore, prediction errors are interpreted directly in IV space, which is the representation used in the calibration workflow and in most volatility-surface diagnostics.
+
+Because the output layer is linear, the model is not hard-constrained to produce strictly positive values for every possible input. In practice, training on a physically admissible domain with positive IV labels strongly reduces this risk inside the sampled region. For downstream use, any out-of-domain prediction can be explicitly checked and, if required, filtered before subsequent numerical steps.
+
+This output definition also preserves differentiability of the surrogate with respect to inputs, which is useful in later chapters when the ANN pricer is embedded in calibration and sensitivity pipelines.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Training Procedure}
-\todos{TODO: rellenar}
+Training is fully configuration-driven and follows an epoch-based supervised learning loop. At each epoch, the active optimizer performs parameter updates on the training split, then the model is evaluated on the validation split without gradient computation. For Adam updates, optimization is done with standard mini-batch backpropagation; for L-BFGS updates, each step is computed through a closure that evaluates the loss and its gradient on the selected batch regime.
+
+Each epoch stores train/validation metrics, current optimizer identity, and learning rate. When enabled, the validation monitor can be either the raw validation loss or a trimmed variant that discards the top-tail hardest samples before aggregation. This provides a robust alternative when a small fraction of outlier points may dominate the monitor value.
+
+Execution device is selected automatically (\texttt{mps} when available, otherwise \texttt{cpu}), and data-shuffling reproducibility is controlled through a fixed generator seed from configuration. During training, two checkpoints are maintained: the \textit{last} checkpoint (always overwritten each epoch) and the \textit{best} checkpoint (updated only when the monitored validation metric improves). The best checkpoint is used as the reference model for post-training evaluation and downstream calibration.
 
 \subsection{Loss Function}
+Let $\{(\mathbf{x}_i,\sigma_i)\}_{i=1}^{B}$ denote a mini-batch, where $\sigma_i$ is the target implied volatility and $\hat{\sigma}_i=f_{NN}(\mathbf{x}_i;\mathbf{w})$. The baseline objective is mean squared error (MSE):
+\[
+\mathcal{L}_{\text{MSE}}(\mathbf{w})=\frac{1}{B}\sum_{i=1}^{B}\left(\hat{\sigma}_i-\sigma_i\right)^2.
+\]
+
+MSE is preferred because it is smooth, differentiable everywhere, and strongly penalizes large deviations, which is desirable when the ANN is later used in calibration loops sensitive to local pricing errors. Although MAE and RMSE are available in the implementation, MSE is used as the main training criterion in the reported baseline.
 
 \subsection{Optimizer And Hyperparameters}
+\todos{PUEDE IR CAMBIANDO: se pretende mejorar las runs}
+
+Several optimizer configurations were tested (Adam, mixed schedules, and \texttt{mix\_half}). For model selection, we prioritize out-of-sample absolute-error behaviour (MAE and quantile stability), since these metrics better reflect the typical pointwise error level used later in calibration and sensitivity tasks.
+
+Under this criterion, the selected reference ANN is \texttt{Liu\_like\_v01} (Adam), while \texttt{MIX\_half\_v01} is the second-best candidate. Although \texttt{MIX\_half\_v01} achieves a slightly lower validation MSE, \texttt{Liu\_like\_v01} provides lower validation and test MAE, together with better high-quantile absolute errors.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Reference and runner-up runs used in optimizer selection}}
+    {\begin{tabular}{|P{3.8cm}|P{3.1cm}|P{2.0cm}|P{2.0cm}|}
+        \hline
+        \textbf{Run} & \textbf{Optimizer mode} & \textbf{Val MAE} & \textbf{Test MAE} \\
+        \hline
+        \texttt{Liu\_like\_v01} & Adam & $4.1132\times 10^{-4}$ & $4.2925\times 10^{-4}$ \\
+        \hline
+        \texttt{MIX\_half\_v01} & Adam $\rightarrow$ L-BFGS & $5.1342\times 10^{-4}$ & $5.2377\times 10^{-4}$ \\
+        \hline
+        \multicolumn{4}{l}{Source: Own elaboration from \texttt{outputs/runs/*/metrics/eval\_global.csv}}
+    \end{tabular}}
+\end{table}
+
+The hyperparameters of the selected reference run (\texttt{Liu\_like\_v01}) are summarized below.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Training hyperparameters of the selected run (\texttt{Liu\_like\_v01})}}
+    {\begin{tabular}{|P{5.0cm}|P{6.8cm}|}
+        \hline
+        \textbf{Hyperparameter} & \textbf{Value} \\
+        \hline
+        Training mode & Adam \\
+        \hline
+        Seed (data-loader generator) & 42 \\
+        \hline
+        Epochs & 8000 \\
+        \hline
+        Train batch size & 1024 \\
+        \hline
+        Validation batch size & All validation samples \\
+        \hline
+        Loss & MSE \\
+        \hline
+        Adam learning rate & $10^{-3}$ \\
+        \hline
+        Adam weight decay & 0.0 \\
+        \hline
+        LR scheduler & StepLR, step\_size $=500$, $\gamma=0.5$ \\
+        \hline
+        Early stopping & Disabled \\
+        \hline
+        \multicolumn{2}{l}{Source: Own elaboration from run configuration copies}
+    \end{tabular}}
+\end{table}
 
 \subsection{Regularization And Callbacks}
+\todos{PUEDE IR CAMBIANDO: se pretende mejorar las runs}
+
+Regularization in the baseline is intentionally light: dropout is disabled ($p=0$), batch normalization is disabled, and Adam weight decay is set to zero. In addition, feature/target normalization is turned off in the Liu-style reference setup. This design keeps the training protocol close to the reference architecture and isolates the effect of optimizer scheduling and data quality controls.
+
+Callback management includes: (i) checkpointing of both \textit{best} and \textit{last} models, (ii) StepLR scheduling for Adam, and (iii) an early-stopping module available in the pipeline but disabled in the baseline experiments. When enabled, early stopping supports both standard validation loss and trimmed validation loss monitors.
+
+From an experimental standpoint, this callback configuration improves training robustness without over-constraining the optimization path: checkpoints protect against late-epoch degradation, while the Adam-to-L-BFGS transition plus scheduler supports stable convergence. Generalization is then assessed empirically on held-out validation and test splits rather than enforced through strong explicit regularizers.
