@@ -5,7 +5,7 @@ meta:
 
 data:
     n_samples: 10000000 # target total samples in the master dataset
-    batch_size: 1024  #TODO: move to training
+    batch_size: 1024 
     splits:
       train: 0.8
       val: 0.1
