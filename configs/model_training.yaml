@@ -6,6 +6,14 @@ meta:
 data:
   dir: "data/synth/1M_Feller"
   shuffle: true
+  feature_columns: ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
+  target_column: "iv_brent"
+  row_filters:
+    enabled: false
+    finite_columns: ["iv_brent"]
+    equals: {}
+    greater_equal: {}
+    less_equal: {}
   splits:
     train: 0.8
     val: 0.1
