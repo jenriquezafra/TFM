@@ -34,6 +34,9 @@ calibration_config_path = PROJECT_ROOT / "configs" / "calibration.yaml"
 experiment_logs_dir = PROJECT_ROOT / "outputs" / "experiment_logs"
 calibration_folder_pattern = re.compile(r"^Calibration_(\d+)$")
 
+DEFAULT_FEATURE_COLUMNS = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
+TARGET_FALLBACK_CANDIDATES = ("iv_brent", "IV")
+
 # to save the run outputs
 RUNS_DIR = PROJECT_ROOT / "outputs" / "runs"
 run_id = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
@@ -217,6 +220,104 @@ def _validate_bin_edges(edges, *, name: str) -> np.ndarray:
     if np.any(np.diff(arr) <= 0.0):
         raise ValueError(f"{name} bin edges must be strictly increasing")
     return arr
+
+
+def _resolve_target_column(df: pd.DataFrame, preferred: str | None) -> str:
+    candidates: list[str] = []
+    if preferred:
+        candidates.append(str(preferred))
+    candidates.extend(TARGET_FALLBACK_CANDIDATES)
+    candidates.append(str(df.columns[-1]))
+
+    for candidate in candidates:
+        if candidate in df.columns:
+            return candidate
+    raise KeyError(f"Could not resolve target column from candidates={candidates}")
+
+
+def _resolve_feature_columns(
+    df: pd.DataFrame,
+    *,
+    target_col: str,
+    preferred: list[str] | tuple[str, ...] | None,
+) -> list[str]:
+    if preferred is not None:
+        if not isinstance(preferred, (list, tuple)):
+            raise TypeError("data.feature_columns must be a list/tuple when provided")
+        cols = [str(col) for col in preferred]
+        missing = [col for col in cols if col not in df.columns]
+        if missing:
+            raise KeyError(f"Configured feature columns are missing in dataset: {missing}")
+        return cols
+
+    if all(col in df.columns for col in DEFAULT_FEATURE_COLUMNS):
+        return list(DEFAULT_FEATURE_COLUMNS)
+
+    cols = [str(col) for col in df.columns if str(col) != target_col]
+    if not cols:
+        raise ValueError("No feature columns found after removing target column")
+    return cols
+
+
+def _apply_row_filters(df: pd.DataFrame, *, filters_cfg: dict, split_name: str) -> pd.DataFrame:
+    if not bool(filters_cfg.get("enabled", False)):
+        return df
+
+    out = df.copy()
+    n_before = len(out)
+
+    finite_columns = [str(col) for col in filters_cfg.get("finite_columns", [])]
+    for col in finite_columns:
+        if col not in out.columns:
+            raise KeyError(f"row_filters.finite_columns includes missing column '{col}' on split '{split_name}'")
+        values = pd.to_numeric(out[col], errors="coerce").to_numpy(dtype=np.float64)
+        out = out.loc[np.isfinite(values)].copy()
+
+    equals = filters_cfg.get("equals", {}) or {}
+    for col, value in equals.items():
+        if col not in out.columns:
+            raise KeyError(f"row_filters.equals includes missing column '{col}' on split '{split_name}'")
+        out = out.loc[out[col] == value].copy()
+
+    greater_equal = filters_cfg.get("greater_equal", {}) or {}
+    for col, value in greater_equal.items():
+        if col not in out.columns:
+            raise KeyError(f"row_filters.greater_equal includes missing column '{col}' on split '{split_name}'")
+        values = pd.to_numeric(out[col], errors="coerce").to_numpy(dtype=np.float64)
+        out = out.loc[values >= float(value)].copy()
+
+    less_equal = filters_cfg.get("less_equal", {}) or {}
+    for col, value in less_equal.items():
+        if col not in out.columns:
+            raise KeyError(f"row_filters.less_equal includes missing column '{col}' on split '{split_name}'")
+        values = pd.to_numeric(out[col], errors="coerce").to_numpy(dtype=np.float64)
+        out = out.loc[values <= float(value)].copy()
+
+    out = out.reset_index(drop=True)
+    removed = n_before - len(out)
+    print(f"[data] row_filters on {split_name}: kept={len(out)} removed={removed}")
+    if out.empty:
+        raise ValueError(f"row_filters removed all rows on split '{split_name}'")
+    return out
+
+
+def _drop_non_finite_rows(
+    df: pd.DataFrame,
+    *,
+    feature_cols: list[str],
+    target_col: str,
+    split_name: str,
+) -> pd.DataFrame:
+    required_cols = feature_cols + [target_col]
+    values = df.loc[:, required_cols].to_numpy(dtype=np.float64)
+    finite_mask = np.all(np.isfinite(values), axis=1)
+    dropped = int((~finite_mask).sum())
+    if dropped > 0:
+        print(f"[data] dropped non-finite rows on {split_name}: {dropped}")
+    out = df.loc[finite_mask].reset_index(drop=True)
+    if out.empty:
+        raise ValueError(f"All rows are non-finite on split '{split_name}' for selected features/target")
+    return out
 
 
 def _predict_model(
@@ -460,20 +561,58 @@ train_df = pd.read_parquet(train_path)
 val_df = pd.read_parquet(val_path)
 test_df = pd.read_parquet(test_path)
 
+row_filters_cfg = cfg_data.get("row_filters", {}) or {}
+train_df = _apply_row_filters(train_df, filters_cfg=row_filters_cfg, split_name="train")
+val_df = _apply_row_filters(val_df, filters_cfg=row_filters_cfg, split_name="val")
+test_df = _apply_row_filters(test_df, filters_cfg=row_filters_cfg, split_name="test")
+
 
 #################### train the model ####################
 ### read the data already splitted
 
-train_df_X = train_df.iloc[:, :-1]
-train_df_y = train_df.iloc[:, -1]
+target_col = _resolve_target_column(train_df, cfg_data.get("target_column"))
+feature_cols = _resolve_feature_columns(
+    train_df,
+    target_col=target_col,
+    preferred=cfg_data.get("feature_columns"),
+)
+print(f"[data] target column: {target_col}")
+print(f"[data] feature columns ({len(feature_cols)}): {feature_cols}")
 
-val_df_X = val_df.iloc[:, :-1]
-val_df_y = val_df.iloc[:, -1]
+missing_in_val = [col for col in feature_cols + [target_col] if col not in val_df.columns]
+missing_in_test = [col for col in feature_cols + [target_col] if col not in test_df.columns]
+if missing_in_val:
+    raise KeyError(f"Validation split is missing required columns: {missing_in_val}")
+if missing_in_test:
+    raise KeyError(f"Test split is missing required columns: {missing_in_test}")
 
-test_df_X = test_df.iloc[:, :-1]
-test_df_y = test_df.iloc[:, -1]
-feature_cols = list(train_df_X.columns)
-target_col = str(train_df.columns[-1])
+train_df = _drop_non_finite_rows(
+    train_df,
+    feature_cols=feature_cols,
+    target_col=target_col,
+    split_name="train",
+)
+val_df = _drop_non_finite_rows(
+    val_df,
+    feature_cols=feature_cols,
+    target_col=target_col,
+    split_name="val",
+)
+test_df = _drop_non_finite_rows(
+    test_df,
+    feature_cols=feature_cols,
+    target_col=target_col,
+    split_name="test",
+)
+
+train_df_X = train_df.loc[:, feature_cols]
+train_df_y = train_df.loc[:, target_col]
+
+val_df_X = val_df.loc[:, feature_cols]
+val_df_y = val_df.loc[:, target_col]
+
+test_df_X = test_df.loc[:, feature_cols]
+test_df_y = test_df.loc[:, target_col]
 
 if integrity_enabled:
     overlap_train_val = _count_feature_overlap(
