@@ -9,6 +9,7 @@ from src.pinn.cann_bridge import load_cann_inputs, validate_cann_artifacts
 from src.pinn.config import build_pipeline_plan_from_config, load_yaml
 from src.pinn.contracts import PINNPipelinePlan
 from src.pinn.data_builder import build_supervised_dataset
+from src.pinn.evaluator import evaluate_pinn_run
 from src.pinn.trainer import PINNTrainer
 
 
@@ -104,6 +105,8 @@ def run_pinn_pipeline_from_config(
         "run_dir": str(run_dir),
         "stages": {},
     }
+    model_cfg = load_yaml(plan.architecture_config)
+    training_cfg = load_yaml(plan.training_config)
 
     dataset_path: Path | None = None
     if _is_stage_enabled(plan, "prepare_dataset"):
@@ -153,8 +156,6 @@ def run_pinn_pipeline_from_config(
                     "feature_columns": list(feature_columns),
                 }
 
-        model_cfg = load_yaml(plan.architecture_config)
-        training_cfg = load_yaml(plan.training_config)
         trainer = PINNTrainer(
             output_dir=run_dir / "train",
             training_config=training_cfg,
@@ -171,9 +172,26 @@ def run_pinn_pipeline_from_config(
         execution["stages"]["train"] = {"status": "skipped"}
 
     if _is_stage_enabled(plan, "evaluate"):
+        eval_cfg = training_cfg.get("evaluation", {})
+        eval_result = evaluate_pinn_run(
+            run_dir=run_dir,
+            model_config=model_cfg,
+            training_config=training_cfg,
+            evaluation_config=eval_cfg,
+            dataset_file=dataset_path,
+            checkpoint_file=(
+                execution["stages"]["train"].get("best_checkpoint")
+                if execution["stages"]["train"].get("status") == "completed"
+                else None
+            ),
+            split_indices_file=run_dir / "train" / "metrics" / "split_indices.npz",
+        )
         execution["stages"]["evaluate"] = {
-            "status": "pending",
-            "message": "Evaluate stage is not implemented yet.",
+            "status": "completed",
+            "metrics_yaml": eval_result["metrics_yaml"],
+            "metrics_csv": eval_result["metrics_csv"],
+            "metrics_all": eval_result["metrics_all"],
+            "metrics_val": eval_result["metrics_val"],
         }
     else:
         execution["stages"]["evaluate"] = {"status": "skipped"}
