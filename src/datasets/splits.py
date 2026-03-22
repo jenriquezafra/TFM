@@ -45,7 +45,7 @@ def dataframes_splits_stratified_quantiles(
     pct_val,
     pct_test,
     seed,
-    target_col="IV",
+    target_col="iv_brent",
     n_bins=20,
 ):
     """
@@ -77,14 +77,14 @@ def dataframes_splits_stratified_quantiles(
             strata = pd.Series(np.zeros(len(df), dtype=np.int64), index=df.index)
 
     df_aux = df.copy()
-    df_aux["_iv_stratum"] = strata
+    df_aux["_target_stratum"] = strata
 
     rng = np.random.default_rng(seed)
     train_parts = []
     val_parts = []
     test_parts = []
 
-    for _, group in df_aux.groupby("_iv_stratum", sort=False):
+    for _, group in df_aux.groupby("_target_stratum", sort=False):
         idx = rng.permutation(len(group))
         n_group = len(group)
         n_train = int(n_group * pct_train)
@@ -107,8 +107,8 @@ def dataframes_splits_stratified_quantiles(
     val_df = val_df.iloc[rng.permutation(len(val_df))].reset_index(drop=True)
     test_df = test_df.iloc[rng.permutation(len(test_df))].reset_index(drop=True)
 
-    train_df = train_df.drop(columns=["_iv_stratum"])
-    val_df = val_df.drop(columns=["_iv_stratum"])
-    test_df = test_df.drop(columns=["_iv_stratum"])
+    train_df = train_df.drop(columns=["_target_stratum"])
+    val_df = val_df.drop(columns=["_target_stratum"])
+    test_df = test_df.drop(columns=["_target_stratum"])
 
     return train_df, val_df, test_df

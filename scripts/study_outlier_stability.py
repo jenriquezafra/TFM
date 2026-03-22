@@ -68,6 +68,8 @@ def _resolve_data_dir(*, run_dir: Path) -> Path:
 
 
 def _resolve_target_col(df: pd.DataFrame) -> str:
+    if "iv_brent" in df.columns:
+        return "iv_brent"
     if "IV" in df.columns:
         return "IV"
     return str(df.columns[-1])
