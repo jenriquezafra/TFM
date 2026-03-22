@@ -1,0 +1,42 @@
+meta:
+  experiment_name: "PINN_v01"
+  seed: 42
+  description: "PINN scaffold: learn option price from calibrated CaNN parameters."
+
+inputs:
+  cann:
+    calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_l2-reg"
+    summary_file: "summary.yaml"
+    quotes_file: "quotes_comparison.parquet"
+    parameter_key: "theta_star" # default key in CaNN summary.yaml
+    columns:
+      moneyness: "moneyness"
+      tau: "tau"
+      r: "r"
+      iv_market: "iv_market"
+      iv_pred: "iv_pred"
+
+  pricing_context:
+    # Placeholder contract for the target expected by the PINN.
+    # Keep these fields as config first; actual usage is pending implementation.
+    target_name: "price_market"
+    spot: null
+    strike_column: null
+
+model:
+  architecture_config: "configs/pinn_model_architecture.yaml"
+
+training:
+  training_config: "configs/pinn_training.yaml"
+
+pipeline:
+  stages:
+    prepare_dataset: true
+    train: true
+    evaluate: true
+
+outputs:
+  root_dir: "outputs/pinn"
+  run_name: "PINN_v01"
+  dump_plan_filename: "pipeline_plan.yaml"
+

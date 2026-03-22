@@ -1,0 +1,59 @@
+meta:
+  seed: 42
+  device: "auto" # auto | cpu | mps | cuda
+
+data:
+  supervised_source: "cann_quotes_comparison"
+  target_column: "price_market" # placeholder until target is defined in dataset
+
+sampling:
+  collocation:
+    enabled: true
+    n_interior: 20000
+    n_boundary: 5000
+    n_terminal: 5000
+  boundaries:
+    enabled: true
+    enforce_positive_price: true
+    enforce_intrinsic_lower_bound: true
+
+optimizers:
+  - name: "adam"
+    learn_rate: 1.0e-3
+    weight_decay: 0.0
+  - name: "L-BFGS"
+    learn_rate: 1.0
+    max_iter: 30
+    line_search_fn: "strong_wolfe"
+
+loss:
+  reduction: "mean"
+  weights:
+    data: 1.0
+    pde: 1.0
+    boundary: 0.25
+    no_arbitrage: 0.0
+
+loop:
+  epochs: 5000
+  batch_size_supervised: 512
+  batch_size_collocation: 2048
+  batch_size_boundary: 512
+  log_every: 50
+
+callbacks:
+  checkpoint:
+    enabled: true
+    filename_best: "model_best.pt"
+    filename_last: "model_last.pt"
+  early_stopping:
+    enabled: false
+    monitor: "val_total_loss"
+    patience: 300
+    min_delta: 1.0e-7
+
+evaluation:
+  enabled: true
+  batch_size: 8192
+  metrics: ["mse", "mae", "rmse", "pde_residual_l2"]
+

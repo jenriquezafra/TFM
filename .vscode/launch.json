@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: PINN Dry Run (all)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_pinn_pipeline.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "args": [
+        "--config",
+        "configs/pinn_pipeline.yaml",
+        "--stage",
+        "all",
+        "--dry-run",
+        "--dump-plan"
+      ]
+    },
+    {
+      "name": "Python: PINN Dry Run (prepare_dataset)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_pinn_pipeline.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "args": [
+        "--config",
+        "configs/pinn_pipeline.yaml",
+        "--stage",
+        "prepare_dataset",
+        "--dry-run",
+        "--dump-plan"
+      ]
+    }
+  ]
+}
+

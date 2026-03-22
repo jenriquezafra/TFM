@@ -1,0 +1,84 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PINN: Dry Run (all)",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "scripts/run_pinn_pipeline.py",
+        "--config",
+        "configs/pinn_pipeline.yaml",
+        "--stage",
+        "all",
+        "--dry-run",
+        "--dump-plan"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PINN: Dry Run (prepare_dataset)",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "scripts/run_pinn_pipeline.py",
+        "--config",
+        "configs/pinn_pipeline.yaml",
+        "--stage",
+        "prepare_dataset",
+        "--dry-run",
+        "--dump-plan"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PINN: Dry Run (train)",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "scripts/run_pinn_pipeline.py",
+        "--config",
+        "configs/pinn_pipeline.yaml",
+        "--stage",
+        "train",
+        "--dry-run",
+        "--dump-plan"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PINN: Dry Run (evaluate)",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "scripts/run_pinn_pipeline.py",
+        "--config",
+        "configs/pinn_pipeline.yaml",
+        "--stage",
+        "evaluate",
+        "--dry-run",
+        "--dump-plan"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
+

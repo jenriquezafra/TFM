@@ -1,0 +1,25 @@
+name: "PINN_Heston_Price"
+type: "mlp_pinn"
+
+input:
+  # Expected structure: calibrated theta + market state variables.
+  dim: 8
+  features: ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
+
+hidden:
+  dims: [256, 256, 256, 256]
+  activation: "tanh"
+  initialization: "xavier_uniform"
+  dropout_rate: 0.0
+  batch_norm: false
+
+output:
+  dim: 1
+  name: "price"
+  activation: "linear"
+
+physics:
+  equation: "heston_pde"
+  requires_autograd: true
+  derivative_order: 2
+
