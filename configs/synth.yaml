@@ -4,15 +4,15 @@ meta:
   seed: 42
 
 data:
-    n_samples: 1000000 # target final valid samples after filtering
+    n_samples: 10000000 # target total samples in the master dataset
     batch_size: 1024  #TODO: move to training
     splits:
       train: 0.8
       val: 0.1
       test: 0.1
       stratify:
-        enabled: true
-        target_column: "IV"
+        enabled: false
+        target_column: "iv_brent"
         n_bins: 20
     heston_params:    # taken from Liu
       rho: [-0.9, 0.0]  
@@ -56,12 +56,16 @@ root_finder:
 
 quality_check:
   residual_warn_abs: 1.0e-6
-  residual_keep_abs: 1.0e-6
+  residual_keep_abs: null
   drop_sigma0_hits: false
+  keep_all_rows: true
   force_target_after_filters: true
   generation_chunk_size: 250000
-  max_generation_rounds: 20
+  max_generation_rounds: 60
   feller_filter:
-    enabled: true
+    enabled: false
     slack_tol: 0.0
   progress_every: 1000
+
+output:
+  dtype: "float32"
