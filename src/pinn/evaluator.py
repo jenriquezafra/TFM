@@ -2,12 +2,172 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+import torch
+import yaml
 
-def evaluate_pinn_run(*, run_dir: Path, evaluation_config: dict) -> dict:
+from src.pinn.model import build_pinn_model
+
+
+def _resolve_device(device_pref: str) -> torch.device:
+    pref = str(device_pref).lower()
+    if pref == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    if pref in {"cpu", "cuda", "mps"}:
+        return torch.device(pref)
+    raise ValueError(f"Unsupported device '{device_pref}'")
+
+
+def _predict_in_batches(
+    *,
+    model: torch.nn.Module,
+    x: np.ndarray,
+    batch_size: int,
+    device: torch.device,
+) -> np.ndarray:
+    model.eval()
+    preds = []
+    with torch.inference_mode():
+        for start in range(0, x.shape[0], batch_size):
+            stop = min(start + batch_size, x.shape[0])
+            xb = torch.from_numpy(x[start:stop]).to(device)
+            yb = model(xb).detach().cpu().numpy()
+            preds.append(yb.astype(np.float64, copy=False))
+    return np.concatenate(preds, axis=0).reshape(-1)
+
+
+def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    residual = y_pred - y_true
+    mse = float(np.mean(residual**2))
+    mae = float(np.mean(np.abs(residual)))
+    return {
+        "n_samples": int(y_true.size),
+        "mse": mse,
+        "rmse": float(np.sqrt(mse)),
+        "mae": mae,
+    }
+
+
+def _split_indices_from_training_cfg(
+    *,
+    n_samples: int,
+    seed: int,
+    val_fraction: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    idx = np.arange(n_samples)
+    rng = np.random.default_rng(seed)
+    rng.shuffle(idx)
+
+    n_val = int(round(n_samples * val_fraction))
+    n_val = max(1, min(n_val, n_samples - 1))
+    return idx[n_val:], idx[:n_val]
+
+
+def evaluate_pinn_run(
+    *,
+    run_dir: Path,
+    model_config: dict,
+    training_config: dict,
+    evaluation_config: dict,
+    dataset_file: Path | str | None = None,
+    checkpoint_file: Path | str | None = None,
+    split_indices_file: Path | str | None = None,
+) -> dict:
     """
-    Evaluate a trained PINN run.
+    Evaluate supervised PINN run (all/train/val metrics).
     """
-    raise NotImplementedError(
-        "PINN scaffold only: evaluation logic not implemented yet."
+    run_dir = Path(run_dir)
+    dataset_path = (
+        Path(dataset_file)
+        if dataset_file is not None
+        else run_dir / "data" / "supervised_dataset.npz"
     )
+    checkpoint_path = (
+        Path(checkpoint_file)
+        if checkpoint_file is not None
+        else run_dir / "train" / "checkpoints" / "model_best.pt"
+    )
+    split_idx_path = (
+        Path(split_indices_file)
+        if split_indices_file is not None
+        else run_dir / "train" / "metrics" / "split_indices.npz"
+    )
+
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+
+    arrays = np.load(dataset_path)
+    x = arrays["X"].astype(np.float32)
+    y = arrays["y"].astype(np.float32).reshape(-1)
+
+    meta_cfg = training_config.get("meta", {})
+    data_cfg = training_config.get("data", {})
+    seed = int(meta_cfg.get("seed", 42))
+    val_fraction = float(data_cfg.get("val_fraction", 0.2))
+
+    if split_idx_path.exists():
+        split = np.load(split_idx_path)
+        train_idx = split["train_idx"].astype(np.int64)
+        val_idx = split["val_idx"].astype(np.int64)
+    else:
+        train_idx, val_idx = _split_indices_from_training_cfg(
+            n_samples=x.shape[0],
+            seed=seed,
+            val_fraction=val_fraction,
+        )
+
+    device = _resolve_device(meta_cfg.get("device", "auto"))
+    model = build_pinn_model(model_config)
+    state = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(state)
+    model.to(device)
+
+    batch_size = int(evaluation_config.get("batch_size", 8192))
+    pred_all = _predict_in_batches(model=model, x=x, batch_size=batch_size, device=device)
+
+    metrics_all = _compute_metrics(y_true=y, y_pred=pred_all)
+    metrics_train = _compute_metrics(y_true=y[train_idx], y_pred=pred_all[train_idx])
+    metrics_val = _compute_metrics(y_true=y[val_idx], y_pred=pred_all[val_idx])
+
+    metrics_payload = {
+        "dataset_file": str(dataset_path),
+        "checkpoint_file": str(checkpoint_path),
+        "split_indices_file": str(split_idx_path),
+        "device": str(device),
+        "metrics_all": metrics_all,
+        "metrics_train": metrics_train,
+        "metrics_val": metrics_val,
+    }
+
+    eval_dir = run_dir / "eval"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics_yaml = eval_dir / "eval_metrics.yaml"
+    with open(metrics_yaml, "w", encoding="utf-8") as f:
+        yaml.safe_dump(metrics_payload, f, sort_keys=False)
+
+    metrics_table = pd.DataFrame(
+        [
+            {"split": "all", **metrics_all},
+            {"split": "train", **metrics_train},
+            {"split": "val", **metrics_val},
+        ]
+    )
+    metrics_csv = eval_dir / "eval_metrics.csv"
+    metrics_table.to_csv(metrics_csv, index=False)
+
+    return {
+        "metrics_yaml": str(metrics_yaml),
+        "metrics_csv": str(metrics_csv),
+        "metrics_all": metrics_all,
+        "metrics_train": metrics_train,
+        "metrics_val": metrics_val,
+    }
 
