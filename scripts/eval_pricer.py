@@ -261,7 +261,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Dataset directory containing train.parquet/val.parquet/test.parquet",
     )
-    parser.add_argument("--target-col", default="IV")
+    parser.add_argument("--target-col", default="iv_brent")
     parser.add_argument("--splits", default="train,val,test")
     parser.add_argument("--batch-size", type=int, default=8192)
     parser.add_argument(
@@ -314,16 +314,19 @@ def main() -> None:
         if not split_path.exists():
             raise FileNotFoundError(f"Split file not found: {split_path}")
         split_df = pd.read_parquet(split_path)
-        if args.target_col not in split_df.columns:
+        target_col = args.target_col
+        if target_col not in split_df.columns and target_col == "iv_brent" and "IV" in split_df.columns:
+            target_col = "IV"
+        if target_col not in split_df.columns:
             raise KeyError(f"Target column '{args.target_col}' not found in {split_path}")
 
         feature_cols = _resolve_feature_columns(
             df=split_df,
-            target_col=args.target_col,
+            target_col=target_col,
             normalization_stats=normalization_stats,
         )
         x_np = split_df[feature_cols].to_numpy(dtype=np.float64)
-        y_true = split_df[args.target_col].to_numpy(dtype=np.float64).reshape(-1)
+        y_true = split_df[target_col].to_numpy(dtype=np.float64).reshape(-1)
 
         y_pred = predict_iv(
             model=model,
