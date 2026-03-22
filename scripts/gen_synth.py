@@ -79,6 +79,92 @@ def _build_candidate_dataframe(
     return synth_df
 
 
+def _solve_single_iv(
+    *,
+    rootfinder: str,
+    params_heston: np.ndarray,
+    S0: np.float64,
+    K: np.float64,
+    tau: np.float64,
+    r: np.float64,
+    cos_params: np.ndarray,
+    cos_interval_rule: str,
+    opt_type: str,
+    brent_cfg: dict | None,
+    lm_cfg: dict | None,
+) -> tuple[np.float64, dict, bool]:
+    if rootfinder == "brent_iv":
+        if brent_cfg is None:
+            raise ValueError("Missing Brent configuration")
+        iv, details = IV_Brent(
+            params_Heston=params_heston,
+            S0=S0,
+            K=K,
+            tau=tau,
+            r=r,
+            COS_params=cos_params,
+            cos_interval_rule=cos_interval_rule,
+            opt_type=opt_type,
+            iv_bounds=brent_cfg["iv_bounds"],
+            tol=brent_cfg["tol"],
+            max_iter=brent_cfg["max_iter"],
+            return_details=True,
+        )
+        return np.float64(iv), details, True
+
+    if rootfinder == "LM":
+        if lm_cfg is None:
+            raise ValueError("Missing LM configuration")
+        iv, details = IV_LM(
+            params_Heston=params_heston,
+            S0=S0,
+            K=K,
+            tau=tau,
+            r=r,
+            COS_params=cos_params,
+            cos_interval_rule=cos_interval_rule,
+            opt_type=opt_type,
+            sigma0=lm_cfg["sigma0"],
+            return_details=True,
+        )
+        return np.float64(iv), details, bool(details["success"])
+
+    raise ValueError(f"Root finder method '{rootfinder}' is not supported")
+
+
+def _iv_at_floor(iv: np.float64, floor_iv: np.float64, rel_tol: np.float64) -> bool:
+    if (not np.isfinite(iv)) or (not np.isfinite(floor_iv)):
+        return False
+    threshold = np.float64(floor_iv * (1.0 + max(0.0, rel_tol)))
+    return bool(iv <= threshold)
+
+
+def _retry_improves_solution(
+    *,
+    base_iv: np.float64,
+    base_residual_abs: np.float64,
+    retry_iv: np.float64,
+    retry_residual_abs: np.float64,
+    floor_iv: np.float64,
+    floor_rel_tol: np.float64,
+) -> bool:
+    base_floor = _iv_at_floor(base_iv, floor_iv, floor_rel_tol)
+    retry_floor = _iv_at_floor(retry_iv, floor_iv, floor_rel_tol)
+
+    if base_floor and (not retry_floor):
+        return True
+    if retry_floor and (not base_floor):
+        return False
+
+    base_res_ok = np.isfinite(base_residual_abs)
+    retry_res_ok = np.isfinite(retry_residual_abs)
+    if retry_res_ok and base_res_ok:
+        return bool(retry_residual_abs <= base_residual_abs)
+    if retry_res_ok and (not base_res_ok):
+        return True
+    return False
+
+
 def _compute_iv_and_filters_for_chunk(
     synth_df: pd.DataFrame,
     *,
@@ -94,6 +180,12 @@ def _compute_iv_and_filters_for_chunk(
     feller_enabled: bool,
     feller_slack_tol: np.float64,
     keep_all_rows: bool,
+    adaptive_retry_enabled: bool,
+    adaptive_floor_iv: np.float64 | None,
+    adaptive_floor_rel_tol: np.float64,
+    adaptive_l_multiplier: np.float64,
+    adaptive_n_multiplier: np.float64,
+    adaptive_max_retries: int,
     progress_every: int,
     brent_cfg: dict | None,
     lm_cfg: dict | None,
@@ -127,6 +219,11 @@ def _compute_iv_and_filters_for_chunk(
     price_cos_values = np.full(shape=n_chunk, fill_value=np.nan, dtype=np.float64)
     brent_abs_residual = np.full(shape=n_chunk, fill_value=np.nan, dtype=np.float64)
     brent_success = np.zeros(shape=n_chunk, dtype=bool)
+    retry_triggered = np.zeros(shape=n_chunk, dtype=bool)
+    retry_accepted = np.zeros(shape=n_chunk, dtype=bool)
+    retry_attempts = np.zeros(shape=n_chunk, dtype=np.int64)
+    cos_N_used = np.full(shape=n_chunk, fill_value=int(cos_params[0]), dtype=np.int64)
+    cos_L_used = np.full(shape=n_chunk, fill_value=np.float64(cos_params[1]), dtype=np.float64)
 
     lm_sigma0 = None if lm_cfg is None else np.float64(lm_cfg["sigma0"])
 
@@ -146,46 +243,88 @@ def _compute_iv_and_filters_for_chunk(
             price_cos_values[i] = np.nan
         else:
             try:
-                if rootfinder == "brent_iv":
-                    if brent_cfg is None:
-                        raise ValueError("Missing Brent configuration")
-                    iv, details = IV_Brent(
-                        params_Heston=params_heston,
-                        S0=S0,
-                        K=np.float64(K),
-                        tau=tau,
-                        r=r,
-                        COS_params=cos_params,
-                        cos_interval_rule=cos_interval_rule,
-                        opt_type=opt_type,
-                        iv_bounds=brent_cfg["iv_bounds"],
-                        tol=brent_cfg["tol"],
-                        max_iter=brent_cfg["max_iter"],
-                        return_details=True,
-                    )
-                    brent_success[i] = True
-                elif rootfinder == "LM":
-                    if lm_cfg is None:
-                        raise ValueError("Missing LM configuration")
-                    iv, details = IV_LM(
-                        params_Heston=params_heston,
-                        S0=S0,
-                        K=np.float64(K),
-                        tau=tau,
-                        r=r,
-                        COS_params=cos_params,
-                        cos_interval_rule=cos_interval_rule,
-                        opt_type=opt_type,
-                        sigma0=lm_cfg["sigma0"],
-                        return_details=True,
-                    )
-                    brent_success[i] = bool(details["success"])
-                else:
-                    raise ValueError(f"Root finder method '{rootfinder}' is not supported")
+                active_cos_params = np.array(cos_params, dtype=np.float64, copy=True)
+                iv, details, solved_ok = _solve_single_iv(
+                    rootfinder=rootfinder,
+                    params_heston=params_heston,
+                    S0=S0,
+                    K=np.float64(K),
+                    tau=tau,
+                    r=r,
+                    cos_params=active_cos_params,
+                    cos_interval_rule=cos_interval_rule,
+                    opt_type=opt_type,
+                    brent_cfg=brent_cfg,
+                    lm_cfg=lm_cfg,
+                )
+
+                if (
+                    rootfinder == "brent_iv"
+                    and adaptive_retry_enabled
+                    and (adaptive_floor_iv is not None)
+                    and _iv_at_floor(iv, adaptive_floor_iv, adaptive_floor_rel_tol)
+                ):
+                    retry_triggered[i] = True
+                    best_iv = np.float64(iv)
+                    best_details = details
+                    best_success = bool(solved_ok)
+                    best_cos_params = np.array(active_cos_params, dtype=np.float64, copy=True)
+
+                    for _ in range(adaptive_max_retries):
+                        retry_attempts[i] += 1
+                        retry_N = int(np.ceil(active_cos_params[0] * adaptive_n_multiplier))
+                        retry_L = np.float64(active_cos_params[1] * adaptive_l_multiplier)
+
+                        retry_N = max(retry_N, 2)
+                        if adaptive_n_multiplier > 1.0 and retry_N <= int(active_cos_params[0]):
+                            retry_N = int(active_cos_params[0]) + 1
+                        if adaptive_l_multiplier > 1.0 and retry_L <= np.float64(active_cos_params[1]):
+                            retry_L = np.nextafter(np.float64(active_cos_params[1]), np.inf)
+
+                        retry_cos_params = np.array([retry_N, retry_L], dtype=np.float64)
+                        active_cos_params = retry_cos_params
+
+                        try:
+                            retry_iv, retry_details, retry_ok = _solve_single_iv(
+                                rootfinder=rootfinder,
+                                params_heston=params_heston,
+                                S0=S0,
+                                K=np.float64(K),
+                                tau=tau,
+                                r=r,
+                                cos_params=retry_cos_params,
+                                cos_interval_rule=cos_interval_rule,
+                                opt_type=opt_type,
+                                brent_cfg=brent_cfg,
+                                lm_cfg=lm_cfg,
+                            )
+                        except Exception:
+                            continue
+
+                        if _retry_improves_solution(
+                            base_iv=best_iv,
+                            base_residual_abs=np.float64(best_details.get("price_residual_abs", np.nan)),
+                            retry_iv=np.float64(retry_iv),
+                            retry_residual_abs=np.float64(retry_details.get("price_residual_abs", np.nan)),
+                            floor_iv=np.float64(adaptive_floor_iv),
+                            floor_rel_tol=adaptive_floor_rel_tol,
+                        ):
+                            best_iv = np.float64(retry_iv)
+                            best_details = retry_details
+                            best_success = bool(retry_ok)
+                            best_cos_params = np.array(retry_cos_params, dtype=np.float64, copy=True)
+                            retry_accepted[i] = True
+
+                    iv = best_iv
+                    details = best_details
+                    solved_ok = best_success
+                    cos_N_used[i] = int(best_cos_params[0])
+                    cos_L_used[i] = np.float64(best_cos_params[1])
 
                 iv_values[i] = np.float64(iv)
                 brent_abs_residual[i] = np.float64(details.get("price_residual_abs", np.nan))
                 price_cos_values[i] = np.float64(details.get("target_price", np.nan))
+                brent_success[i] = bool(solved_ok)
             except Exception:
                 iv_values[i] = np.nan
                 brent_abs_residual[i] = np.nan
@@ -223,6 +362,10 @@ def _compute_iv_and_filters_for_chunk(
                 f"mean|BS(IV)-V_tgt|={mean_res:.3e} | "
                 f"bad(>{residual_warn_abs:.1e})={bad_count}"
             )
+            if rootfinder == "brent_iv" and adaptive_retry_enabled:
+                triggered_so_far = int(retry_triggered[: i + 1].sum())
+                accepted_so_far = int(retry_accepted[: i + 1].sum())
+                msg = f"{msg} | retry trig/ok={triggered_so_far}/{accepted_so_far}"
             if rootfinder == "LM":
                 sigma0_hits = int(np.isclose(iv_values[: i + 1], lm_sigma0, atol=1e-12, rtol=0).sum())
                 msg = f"{msg} | IV==sigma0({lm_sigma0:.3f})={sigma0_hits}"
@@ -247,6 +390,14 @@ def _compute_iv_and_filters_for_chunk(
         print(f"{prefix}   bad count (>{residual_warn_abs:.1e}): {int((valid_residual > residual_warn_abs).sum())}")
     else:
         print(f"{prefix} IV quality summary: no valid residuals found")
+    if rootfinder == "brent_iv" and adaptive_retry_enabled:
+        n_retry_triggered = int(retry_triggered.sum())
+        n_retry_accepted = int(retry_accepted.sum())
+        print(
+            f"{prefix} Adaptive COS retry summary | "
+            f"triggered={n_retry_triggered} accepted={n_retry_accepted} "
+            f"({100.0 * n_retry_accepted / max(n_retry_triggered, 1):.2f}% accepted when triggered)"
+        )
 
     keep_for_training_mask = np.isfinite(iv_values)
     keep_for_training_mask &= tau_keep_mask
@@ -283,12 +434,17 @@ def _compute_iv_and_filters_for_chunk(
             "feller_keep": feller_filter_mask,
             "keep_for_training": keep_for_training_mask,
             "selected_for_final_dataset": selected_mask,
+            "adaptive_retry_triggered": retry_triggered,
+            "adaptive_retry_accepted": retry_accepted,
+            "adaptive_retry_attempts": retry_attempts,
+            "cos_n_used": cos_N_used,
+            "cos_l_used": cos_L_used,
             "generation_round": np.full(n_chunk, round_idx, dtype=np.int64),
         }
     )
     if rootfinder == "LM":
         quality_df["iv_equals_sigma0"] = np.isclose(iv_values, lm_sigma0, atol=1e-12, rtol=0)
-    quality_float_cols = ["iv_brent", "price_cos", "brent_abs_residual", "feller_slack"]
+    quality_float_cols = ["iv_brent", "price_cos", "brent_abs_residual", "feller_slack", "cos_l_used"]
     for col in quality_float_cols:
         quality_df[col] = quality_df[col].astype(np.float32, copy=False)
 
@@ -367,6 +523,28 @@ if residual_keep_abs is not None:
 drop_sigma0_hits = bool(quality_cfg.get("drop_sigma0_hits", False))
 keep_all_rows = bool(quality_cfg.get("keep_all_rows", False))
 
+adaptive_retry_cfg = quality_cfg.get("adaptive_cos_floor_retry", {})
+adaptive_retry_enabled = bool(adaptive_retry_cfg.get("enabled", False))
+adaptive_floor_rel_tol = np.float64(adaptive_retry_cfg.get("floor_rel_tol", 1.0e-6))
+adaptive_l_multiplier = np.float64(adaptive_retry_cfg.get("l_multiplier", 1.5))
+adaptive_n_multiplier = np.float64(adaptive_retry_cfg.get("n_multiplier", 1.0))
+adaptive_max_retries = int(adaptive_retry_cfg.get("max_retries", 1))
+if adaptive_max_retries <= 0:
+    adaptive_max_retries = 1
+if adaptive_l_multiplier < 1.0:
+    raise ValueError("quality_check.adaptive_cos_floor_retry.l_multiplier must be >= 1.0")
+if adaptive_n_multiplier < 1.0:
+    raise ValueError("quality_check.adaptive_cos_floor_retry.n_multiplier must be >= 1.0")
+if adaptive_floor_rel_tol < 0.0:
+    raise ValueError("quality_check.adaptive_cos_floor_retry.floor_rel_tol must be >= 0.0")
+
+adaptive_floor_iv = None
+if rootfinder == "brent_iv" and brent_cfg is not None:
+    adaptive_floor_iv = np.float64(brent_cfg["iv_bounds"][0])
+elif adaptive_retry_enabled:
+    print("Warning: adaptive_cos_floor_retry is only supported for root_finder.method='brent_iv'. Disabling.")
+    adaptive_retry_enabled = False
+
 progress_every = int(quality_cfg.get("progress_every", 1000))
 if progress_every <= 0:
     progress_every = 1000
@@ -389,6 +567,13 @@ print(
     f"keep_all_rows={keep_all_rows} | "
     f"force_target_after_filters={force_target_after_filters}"
 )
+if adaptive_retry_enabled:
+    print(
+        "Adaptive COS retry enabled | "
+        f"floor_iv={adaptive_floor_iv:.3e} | floor_rel_tol={adaptive_floor_rel_tol:.3e} | "
+        f"Lx={adaptive_l_multiplier:.3f} | Nx={adaptive_n_multiplier:.3f} | "
+        f"max_retries={adaptive_max_retries}"
+    )
 if force_target_after_filters:
     print(
         f"Chunk generation enabled | chunk_size={generation_chunk_size} | "
@@ -446,6 +631,12 @@ for round_idx in range(1, max_generation_rounds + 1):
         feller_enabled=feller_enabled,
         feller_slack_tol=feller_slack_tol,
         keep_all_rows=keep_all_rows,
+        adaptive_retry_enabled=adaptive_retry_enabled,
+        adaptive_floor_iv=adaptive_floor_iv,
+        adaptive_floor_rel_tol=adaptive_floor_rel_tol,
+        adaptive_l_multiplier=adaptive_l_multiplier,
+        adaptive_n_multiplier=adaptive_n_multiplier,
+        adaptive_max_retries=adaptive_max_retries,
         progress_every=progress_every,
         brent_cfg=brent_cfg,
         lm_cfg=lm_cfg,
