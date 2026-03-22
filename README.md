@@ -65,6 +65,54 @@ Note:
 - 'scripts/' only orchestrade experiments and ensure reproducibility
 - Notebooks are used for exploration only
 
+## PINN scaffold
+
+A PINN scaffold has been added to start the PINN workstream:
+
+- Core package: `src/pinn/`
+- Entry point: `scripts/run_pinn_pipeline.py`
+- Configs:
+  - `configs/pinn_pipeline.yaml`
+  - `configs/pinn_model_architecture.yaml`
+  - `configs/pinn_training.yaml`
+- VSCode:
+  - `.vscode/tasks.json`
+  - `.vscode/launch.json`
+
+Run scaffold validation:
+
+```bash
+.venv/bin/python scripts/run_pinn_pipeline.py \
+  --config configs/pinn_pipeline.yaml \
+  --stage all \
+  --dry-run \
+  --dump-plan
+```
+
+Plan output is written to:
+- `outputs/pinn/PINN_v01/pipeline_plan.yaml`
+
+Design notes:
+- `summary.yaml` and `quotes_comparison.parquet` from CaNN are treated as mandatory inputs.
+- Stage status:
+  - `prepare_dataset`: implemented
+  - `train` (supervised baseline, MSE): implemented
+  - `evaluate`: pending
+
+Run execution:
+
+```bash
+.venv/bin/python scripts/run_pinn_pipeline.py \
+  --config configs/pinn_pipeline.yaml \
+  --stage all \
+  --dump-plan
+```
+
+Execution writes:
+- `outputs/pinn/PINN_v01/pipeline_execution.yaml`
+- `outputs/pinn/PINN_v01/data/supervised_dataset.npz`
+- `outputs/pinn/PINN_v01/train/checkpoints/model_best.pt`
+
 ## Optimizer experiment logs (MIX / ADAM)
 
 To build optimizer-specific experiment logs from `outputs/runs/*`:
