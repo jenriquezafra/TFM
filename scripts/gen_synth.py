@@ -14,11 +14,20 @@ config_path = PROJECT_ROOT / "configs" / "synth.yaml"
 
 from src.datasets.make_synth import generate_all
 from src.datasets.splits import dataframes_splits, dataframes_splits_stratified_quantiles
+from src.solvers.heston_cos import COS_solver_scalar
 from src.solvers.implied_vol import IV_Brent, IV_LM
 
 
 PARAM_ORDER = ["rho", "kappa", "gamma", "bar_v", "v0"]
-COLS = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r", "IV"]
+FEATURE_COLS = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
+MASTER_COLS = FEATURE_COLS + [
+    "price_cos",
+    "iv_brent",
+    "feller_slack",
+    "feller_ok",
+    "brent_success",
+    "brent_abs_residual",
+]
 
 
 def as_bounds(value, name):
@@ -61,8 +70,8 @@ def _build_candidate_dataframe(
     X_params, X_grid, X_r = all_samples
     X = np.hstack([X_params, X_grid, X_r])
 
-    synth_df = pd.DataFrame(data=np.nan, index=range(n_samples), columns=COLS)
-    synth_df.iloc[:, :-1] = X
+    synth_df = pd.DataFrame(data=np.nan, index=range(n_samples), columns=FEATURE_COLS)
+    synth_df.iloc[:, :] = X
 
     for param_name, param_value in fixed_params.items():
         synth_df.loc[:, param_name] = np.float64(param_value)
@@ -84,6 +93,7 @@ def _compute_iv_and_filters_for_chunk(
     drop_sigma0_hits: bool,
     feller_enabled: bool,
     feller_slack_tol: np.float64,
+    keep_all_rows: bool,
     progress_every: int,
     brent_cfg: dict | None,
     lm_cfg: dict | None,
@@ -103,17 +113,20 @@ def _compute_iv_and_filters_for_chunk(
         2.0 * synth_df["kappa"].to_numpy(dtype=np.float64) * synth_df["bar_v"].to_numpy(dtype=np.float64)
         - synth_df["gamma"].to_numpy(dtype=np.float64) ** 2
     )
-    feller_keep_mask = np.isfinite(feller_slack) & (feller_slack >= -feller_slack_tol)
+    feller_ok_mask = np.isfinite(feller_slack) & (feller_slack >= 0.0)
+    feller_filter_mask = np.isfinite(feller_slack) & (feller_slack >= -feller_slack_tol)
     if feller_enabled:
-        feller_violations = int((~feller_keep_mask).sum())
+        feller_violations = int((~feller_filter_mask).sum())
         print(
-            f"{prefix} Feller filter enabled: violations={feller_violations}/{n_chunk} "
+            f"{prefix} Feller filter enabled (tol={feller_slack_tol:.3e}): "
+            f"violations={feller_violations}/{n_chunk} "
             f"({100.0 * feller_violations / n_chunk:.4f}%)"
         )
 
     iv_values = np.full(shape=n_chunk, fill_value=np.nan, dtype=np.float64)
-    price_residual_abs = np.full(shape=n_chunk, fill_value=np.nan, dtype=np.float64)
-    solver_success = np.zeros(shape=n_chunk, dtype=bool)
+    price_cos_values = np.full(shape=n_chunk, fill_value=np.nan, dtype=np.float64)
+    brent_abs_residual = np.full(shape=n_chunk, fill_value=np.nan, dtype=np.float64)
+    brent_success = np.zeros(shape=n_chunk, dtype=bool)
 
     lm_sigma0 = None if lm_cfg is None else np.float64(lm_cfg["sigma0"])
 
@@ -121,15 +134,17 @@ def _compute_iv_and_filters_for_chunk(
     print(f"{prefix} Generating IVs with '{rootfinder}' for {n_chunk} samples")
 
     for i in range(n_chunk):
-        if (not tau_keep_mask[i]) or (feller_enabled and (not feller_keep_mask[i])):
+        params_heston = synth_df.iloc[i, :5].to_numpy(dtype=np.float64)
+        S0 = np.float64(synth_df.iloc[i]["moneyness"])
+        tau = np.float64(synth_df.iloc[i]["tau"])
+        r = np.float64(synth_df.iloc[i]["r"])
+
+        if not tau_keep_mask[i]:
             iv_values[i] = np.nan
-            price_residual_abs[i] = np.nan
-            solver_success[i] = False
+            brent_abs_residual[i] = np.nan
+            brent_success[i] = False
+            price_cos_values[i] = np.nan
         else:
-            params_heston = synth_df.iloc[i, :5].to_numpy(dtype=np.float64)
-            S0 = np.float64(synth_df.iloc[i]["moneyness"])
-            tau = np.float64(synth_df.iloc[i]["tau"])
-            r = np.float64(synth_df.iloc[i]["r"])
             try:
                 if rootfinder == "brent_iv":
                     if brent_cfg is None:
@@ -148,7 +163,7 @@ def _compute_iv_and_filters_for_chunk(
                         max_iter=brent_cfg["max_iter"],
                         return_details=True,
                     )
-                    solver_success[i] = True
+                    brent_success[i] = True
                 elif rootfinder == "LM":
                     if lm_cfg is None:
                         raise ValueError("Missing LM configuration")
@@ -164,16 +179,32 @@ def _compute_iv_and_filters_for_chunk(
                         sigma0=lm_cfg["sigma0"],
                         return_details=True,
                     )
-                    solver_success[i] = bool(details["success"])
+                    brent_success[i] = bool(details["success"])
                 else:
                     raise ValueError(f"Root finder method '{rootfinder}' is not supported")
 
                 iv_values[i] = np.float64(iv)
-                price_residual_abs[i] = np.float64(details["price_residual_abs"])
+                brent_abs_residual[i] = np.float64(details.get("price_residual_abs", np.nan))
+                price_cos_values[i] = np.float64(details.get("target_price", np.nan))
             except Exception:
                 iv_values[i] = np.nan
-                price_residual_abs[i] = np.nan
-                solver_success[i] = False
+                brent_abs_residual[i] = np.nan
+                brent_success[i] = False
+                try:
+                    price_cos_values[i] = np.float64(
+                        COS_solver_scalar(
+                            params_Heston=params_heston,
+                            S0=S0,
+                            K=np.float64(K),
+                            tau=tau,
+                            r=r,
+                            COS_params=cos_params,
+                            interval_rule=cos_interval_rule,
+                            opt_type=opt_type,
+                        )
+                    )
+                except Exception:
+                    price_cos_values[i] = np.nan
 
         if ((i + 1) % progress_every == 0) or (i == n_chunk - 1):
             processed = i + 1
@@ -181,7 +212,7 @@ def _compute_iv_and_filters_for_chunk(
             rate = processed / max(elapsed, 1e-12)
             eta = (n_chunk - processed) / max(rate, 1e-12)
             pct = 100.0 * processed / n_chunk
-            valid = price_residual_abs[: i + 1]
+            valid = brent_abs_residual[: i + 1]
             valid = valid[np.isfinite(valid)]
             mean_res = float(valid.mean()) if len(valid) > 0 else np.nan
             bad_count = int((valid > residual_warn_abs).sum()) if len(valid) > 0 else 0
@@ -198,9 +229,14 @@ def _compute_iv_and_filters_for_chunk(
             print(msg)
 
     synth_df = synth_df.copy()
-    synth_df.loc[:, "IV"] = iv_values
+    synth_df.loc[:, "price_cos"] = price_cos_values
+    synth_df.loc[:, "iv_brent"] = iv_values
+    synth_df.loc[:, "feller_slack"] = feller_slack
+    synth_df.loc[:, "feller_ok"] = feller_ok_mask
+    synth_df.loc[:, "brent_success"] = brent_success
+    synth_df.loc[:, "brent_abs_residual"] = brent_abs_residual
 
-    valid_residual = price_residual_abs[np.isfinite(price_residual_abs)]
+    valid_residual = brent_abs_residual[np.isfinite(brent_abs_residual)]
     if len(valid_residual) > 0:
         print(f"{prefix} IV quality summary")
         print(f"{prefix}   valid residuals: {len(valid_residual)}/{n_chunk}")
@@ -212,45 +248,58 @@ def _compute_iv_and_filters_for_chunk(
     else:
         print(f"{prefix} IV quality summary: no valid residuals found")
 
-    keep_mask = np.isfinite(iv_values)
-    keep_mask &= tau_keep_mask
+    keep_for_training_mask = np.isfinite(iv_values)
+    keep_for_training_mask &= tau_keep_mask
     if feller_enabled:
-        keep_mask &= feller_keep_mask
+        keep_for_training_mask &= feller_filter_mask
     if residual_keep_abs is not None:
-        keep_mask &= np.isfinite(price_residual_abs) & (price_residual_abs <= residual_keep_abs)
+        keep_for_training_mask &= np.isfinite(brent_abs_residual) & (brent_abs_residual <= residual_keep_abs)
     if rootfinder == "LM" and drop_sigma0_hits:
-        keep_mask &= ~np.isclose(iv_values, lm_sigma0, atol=1e-12, rtol=0)
+        keep_for_training_mask &= ~np.isclose(iv_values, lm_sigma0, atol=1e-12, rtol=0)
 
-    kept = int(keep_mask.sum())
-    removed = int(n_chunk - kept)
+    if keep_all_rows:
+        selected_mask = np.ones(n_chunk, dtype=bool)
+    else:
+        selected_mask = keep_for_training_mask
+
+    selected = int(selected_mask.sum())
+    removed = int(n_chunk - selected)
     if removed > 0:
         print(
-            f"{prefix} Filtering rows before aggregation: "
-            f"kept={kept} removed={removed} ({100.0 * removed / n_chunk:.3f}%)"
+            f"{prefix} Selection before aggregation: "
+            f"selected={selected} removed={removed} ({100.0 * removed / n_chunk:.3f}%)"
         )
 
     quality_df = pd.DataFrame(
         {
             "row_local": np.arange(n_chunk, dtype=np.int64),
-            "IV": iv_values,
-            "price_residual_abs": price_residual_abs,
-            "solver_success": solver_success,
+            "iv_brent": iv_values,
+            "price_cos": price_cos_values,
+            "brent_abs_residual": brent_abs_residual,
+            "brent_success": brent_success,
             "tau_keep": tau_keep_mask,
             "feller_slack": feller_slack,
-            "feller_keep": feller_keep_mask,
-            "keep_for_training": keep_mask,
+            "feller_ok": feller_ok_mask,
+            "feller_keep": feller_filter_mask,
+            "keep_for_training": keep_for_training_mask,
+            "selected_for_final_dataset": selected_mask,
             "generation_round": np.full(n_chunk, round_idx, dtype=np.int64),
         }
     )
     if rootfinder == "LM":
         quality_df["iv_equals_sigma0"] = np.isclose(iv_values, lm_sigma0, atol=1e-12, rtol=0)
+    quality_float_cols = ["iv_brent", "price_cos", "brent_abs_residual", "feller_slack"]
+    for col in quality_float_cols:
+        quality_df[col] = quality_df[col].astype(np.float32, copy=False)
 
-    kept_df = synth_df.loc[keep_mask].copy()
-    kept_df["row_local"] = np.flatnonzero(keep_mask).astype(np.int64)
-    kept_df["generation_round"] = np.int64(round_idx)
-    kept_df = kept_df.reset_index(drop=True)
+    selected_df = synth_df.loc[selected_mask].copy()
+    for col in MASTER_COLS:
+        selected_df[col] = selected_df[col].astype(np.float32, copy=False)
+    selected_df["row_local"] = np.flatnonzero(selected_mask).astype(np.int64)
+    selected_df["generation_round"] = np.int64(round_idx)
+    selected_df = selected_df.reset_index(drop=True)
 
-    return kept_df, quality_df
+    return selected_df, quality_df
 
 
 ####################################### LOAD CONFIGS ########################################
@@ -267,7 +316,7 @@ split_val = float(splits_cfg.get("val", 0.1))
 split_test = float(splits_cfg.get("test", 0.1))
 stratify_cfg = splits_cfg.get("stratify", {})
 stratify_enabled = bool(stratify_cfg.get("enabled", False))
-stratify_target_col = str(stratify_cfg.get("target_column", "IV"))
+stratify_target_col = str(stratify_cfg.get("target_column", "iv_brent"))
 stratify_n_bins = int(stratify_cfg.get("n_bins", 20))
 
 params_cfg = data_cfg["heston_params"]
@@ -316,6 +365,7 @@ residual_keep_abs = quality_cfg.get("residual_keep_abs", None)
 if residual_keep_abs is not None:
     residual_keep_abs = np.float64(residual_keep_abs)
 drop_sigma0_hits = bool(quality_cfg.get("drop_sigma0_hits", False))
+keep_all_rows = bool(quality_cfg.get("keep_all_rows", False))
 
 progress_every = int(quality_cfg.get("progress_every", 1000))
 if progress_every <= 0:
@@ -335,7 +385,8 @@ if max_generation_rounds <= 0:
 
 print(
     "Synthetic generation setup | "
-    f"target_valid_samples={target_n} | rootfinder={rootfinder} | "
+    f"target_samples={target_n} | rootfinder={rootfinder} | "
+    f"keep_all_rows={keep_all_rows} | "
     f"force_target_after_filters={force_target_after_filters}"
 )
 if force_target_after_filters:
@@ -360,7 +411,10 @@ for round_idx in range(1, max_generation_rounds + 1):
 
     remaining = max(0, target_n - kept_total)
     if force_target_after_filters:
-        chunk_n = max(generation_chunk_size, remaining)
+        if keep_all_rows:
+            chunk_n = min(generation_chunk_size, remaining) if remaining > 0 else generation_chunk_size
+        else:
+            chunk_n = max(generation_chunk_size, remaining)
     else:
         chunk_n = target_n
 
@@ -391,6 +445,7 @@ for round_idx in range(1, max_generation_rounds + 1):
         drop_sigma0_hits=drop_sigma0_hits,
         feller_enabled=feller_enabled,
         feller_slack_tol=feller_slack_tol,
+        keep_all_rows=keep_all_rows,
         progress_every=progress_every,
         brent_cfg=brent_cfg,
         lm_cfg=lm_cfg,
@@ -425,7 +480,7 @@ for round_idx in range(1, max_generation_rounds + 1):
     print(msg)
 
 if kept_total == 0:
-    raise RuntimeError("No samples survived filtering. Check quality thresholds and solver settings.")
+    raise RuntimeError("No samples were selected for the final dataset.")
 
 if force_target_after_filters and kept_total < target_n:
     raise RuntimeError(
@@ -441,16 +496,29 @@ if force_target_after_filters and len(synth_df) > target_n:
     selected_idx = rng.permutation(len(synth_df))[:target_n]
     synth_df = synth_df.iloc[selected_idx].reset_index(drop=True)
 
-selected_row_ids = set(synth_df["row_id"].tolist())
-quality_df["selected_for_final_dataset"] = quality_df["row_id"].isin(selected_row_ids)
+if keep_all_rows and len(synth_df) == generated_total and len(quality_df) == generated_total:
+    quality_df["selected_for_final_dataset"] = True
+else:
+    selected_row_ids = set(synth_df["row_id"].tolist())
+    quality_df["selected_for_final_dataset"] = quality_df["row_id"].isin(selected_row_ids)
 
 print(
-    "\nFinal filtering summary | "
+    "\nFinal selection summary | "
     f"generated_total={generated_total} | kept_total={kept_total} | "
     f"final_selected={len(synth_df)}"
 )
 
-final_df = synth_df.loc[:, COLS].reset_index(drop=True)
+final_df = synth_df.loc[:, MASTER_COLS].reset_index(drop=True)
+
+output_cfg = config.get("output", {})
+output_dtype = str(output_cfg.get("dtype", "float32")).strip().lower()
+if output_dtype == "float32":
+    final_df = final_df.astype(np.float32, copy=False)
+elif output_dtype == "float64":
+    final_df = final_df.astype(np.float64, copy=False)
+else:
+    raise ValueError(f"Unsupported output.dtype='{output_dtype}'. Use 'float32' or 'float64'.")
+
 print(final_df.head())
 
 ################################# SAVE DATASET #####################################
