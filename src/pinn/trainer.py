@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -69,14 +68,14 @@ def _build_optimizer(model: nn.Module, optim_cfg: dict) -> torch.optim.Optimizer
     )
 
 
-@dataclass
 class PINNTrainer:
     """
     Minimal trainer: supervised only (MSE), no PDE terms yet.
     """
 
-    output_dir: Path
-    training_config: dict
+    def __init__(self, *, output_dir: Path, training_config: dict):
+        self.output_dir = Path(output_dir)
+        self.training_config = dict(training_config)
 
     def train(self, *, model_config: dict, dataset_manifest: dict) -> Path:
         dataset_file = dataset_manifest.get("dataset_file")
@@ -192,6 +191,13 @@ class PINNTrainer:
         history_path = metrics_dir / "train_history.csv"
         history_df.to_csv(history_path, index=False)
 
+        split_indices_path = metrics_dir / "split_indices.npz"
+        np.savez(
+            split_indices_path,
+            train_idx=train_idx.astype(np.int64),
+            val_idx=val_idx.astype(np.int64),
+        )
+
         summary = {
             "dataset_file": str(dataset_path),
             "device": str(device),
@@ -209,6 +215,7 @@ class PINNTrainer:
             "best_checkpoint": str(best_ckpt),
             "last_checkpoint": str(last_ckpt),
             "history_file": str(history_path),
+            "split_indices_file": str(split_indices_path),
         }
         summary_path = metrics_dir / "train_summary.yaml"
         with open(summary_path, "w", encoding="utf-8") as f:
