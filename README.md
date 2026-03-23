@@ -97,7 +97,7 @@ Design notes:
 - Stage status:
   - `prepare_dataset`: implemented
   - `train` (supervised baseline, MSE): implemented
-  - `evaluate`: pending
+  - `evaluate` (all/train/val metrics): implemented
 
 Run execution:
 
