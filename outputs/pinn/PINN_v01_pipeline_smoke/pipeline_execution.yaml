@@ -1,18 +1,22 @@
-timestamp: 2026-03-22_20-46-30
+timestamp: 2026-03-22_23-57-33
 config_path: /tmp/pinn_pipeline_smoke.yaml
 run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke
 stages:
   prepare_dataset:
-    status: completed
-    dataset_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/data/supervised_dataset.npz
-    target_column_requested: price_market
-    feature_columns:
-    - moneyness
-    - tau
-    - r
+    status: skipped
   train:
-    status: completed
-    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/train/checkpoints/model_best.pt
+    status: skipped
   evaluate:
-    status: pending
-    message: Evaluate stage is not implemented yet.
+    status: completed
+    metrics_yaml: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/eval/eval_metrics.yaml
+    metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/eval/eval_metrics.csv
+    metrics_all:
+      n_samples: 35
+      mse: 0.0024402285232280213
+      rmse: 0.04939866924551735
+      mae: 0.0416169319834028
+    metrics_val:
+      n_samples: 7
+      mse: 0.0037162827659874714
+      rmse: 0.06096132188517135
+      mae: 0.056828205074582784

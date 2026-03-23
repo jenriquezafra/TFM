@@ -13,3 +13,4 @@ best_val_mse: 0.003716281848028302
 best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/train/checkpoints/model_best.pt
 last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/train/checkpoints/model_last.pt
 history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/train/metrics/train_history.csv
+split_indices_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/train/metrics/split_indices.npz

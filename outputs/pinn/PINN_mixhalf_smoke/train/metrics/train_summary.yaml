@@ -1,0 +1,15 @@
+dataset_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mixhalf_smoke/data/supervised_dataset.npz
+device: cpu
+optimizer_mode: mix_half
+mix_half_switch_epoch: 4
+epochs: 6
+batch_size_supervised: 16
+batch_size_val: 64
+val_fraction: 0.2
+n_train: 28
+n_val: 7
+best_val_mse: 3.690913104037463e-07
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mixhalf_smoke/train/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mixhalf_smoke/train/checkpoints/model_last.pt
+history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mixhalf_smoke/train/metrics/train_history.csv
+split_indices_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mixhalf_smoke/train/metrics/split_indices.npz

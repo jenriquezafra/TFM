@@ -1,0 +1,19 @@
+dataset_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/data/supervised_dataset.npz
+checkpoint_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/train/checkpoints/model_best.pt
+split_indices_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_v01_pipeline_smoke/train/metrics/split_indices.npz
+device: cpu
+metrics_all:
+  n_samples: 35
+  mse: 0.0024402285232280213
+  rmse: 0.04939866924551735
+  mae: 0.0416169319834028
+metrics_train:
+  n_samples: 28
+  mse: 0.0021212149625381587
+  rmse: 0.04605664949318566
+  mae: 0.0378141137106078
+metrics_val:
+  n_samples: 7
+  mse: 0.0037162827659874714
+  rmse: 0.06096132188517135
+  mae: 0.056828205074582784

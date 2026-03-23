@@ -1,11 +1,11 @@
 project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
-config_path: /tmp/pinn_pipeline_smoke.yaml
-experiment_name: PINN_v01_smoke
-description: PINN smoke pipeline
+config_path: /tmp/pinn_pipeline_mixhalf_smoke.yaml
+experiment_name: PINN_mixhalf_smoke
+description: PINN mix_half smoke
 architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture.yaml
-training_config: /tmp/pinn_training_smoke.yaml
+training_config: /tmp/pinn_training_mixhalf_smoke.yaml
 outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn
-run_name: PINN_v01_pipeline_smoke
+run_name: PINN_mixhalf_smoke
 plan_filename: pipeline_plan.yaml
 plan_path: null
 cann_inputs:
@@ -16,12 +16,12 @@ cann_inputs:
 pipeline:
   stages:
   - name: prepare_dataset
-    enabled: false
+    enabled: true
     description: Read calibrated parameters from CaNN and build supervised + physics
       datasets.
     owner_module: src.pinn.data_builder
   - name: train
-    enabled: false
+    enabled: true
     description: Train the PINN with data loss and PDE residual losses.
     owner_module: src.pinn.trainer
   - name: evaluate
