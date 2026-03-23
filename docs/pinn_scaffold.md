@@ -53,7 +53,7 @@ Comportamiento actual:
 - Ejecucion real:
   - `prepare_dataset`: implementada
   - `train`: implementada (supervisado + MSE)
-  - `evaluate`: pendiente
+  - `evaluate`: implementada (metricas all/train/val)
 
 ## 5) Configs
 
@@ -87,3 +87,4 @@ Salida adicional esperada:
 - `outputs/pinn/PINN_v01/pipeline_execution.yaml`
 - `outputs/pinn/PINN_v01/data/supervised_dataset.npz`
 - `outputs/pinn/PINN_v01/train/checkpoints/model_best.pt`
+- `outputs/pinn/PINN_v01/eval/eval_metrics.yaml`
