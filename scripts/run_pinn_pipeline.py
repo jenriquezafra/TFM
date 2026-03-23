@@ -13,7 +13,7 @@ DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "pinn_pipeline.yaml"
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run PINN pipeline (prepare_dataset + train; evaluate pending)."
+        description="Run PINN pipeline (prepare_dataset + train + evaluate)."
     )
     parser.add_argument(
         "--config",
