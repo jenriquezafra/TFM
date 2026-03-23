@@ -1,10 +1,12 @@
 meta:
   seed: 42
   device: "auto" # auto | cpu | mps | cuda
+  optimizer: "mix_half" # adam | sgd | L-BFGS | mix_half
 
 data:
   supervised_source: "cann_quotes_comparison"
   target_column: "price_market" # placeholder until target is defined in dataset
+  val_fraction: 0.2
 
 sampling:
   collocation:
@@ -25,6 +27,8 @@ optimizers:
     learn_rate: 1.0
     max_iter: 30
     line_search_fn: "strong_wolfe"
+    historic_size: 100
+    full_batch: true
 
 loss:
   reduction: "mean"
@@ -37,6 +41,8 @@ loss:
 loop:
   epochs: 5000
   batch_size_supervised: 512
+  batch_size_val: 8192
+  mix_half_switch_epoch: null # null -> middle of training
   batch_size_collocation: 2048
   batch_size_boundary: 512
   log_every: 50
@@ -51,9 +57,13 @@ callbacks:
     monitor: "val_total_loss"
     patience: 300
     min_delta: 1.0e-7
+  lr_scheduler:
+    enabled: true
+    name: "step"
+    step_size: 500
+    gamma: 0.5
 
 evaluation:
   enabled: true
   batch_size: 8192
   metrics: ["mse", "mae", "rmse", "pde_residual_l2"]
-
