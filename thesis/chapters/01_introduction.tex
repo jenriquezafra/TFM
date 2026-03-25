@@ -2,7 +2,53 @@
 \label{ch:introduction}
 
 \section{Motivation}
+\begin{itemize}
+\item  emepezar el capítulo explicando el contexto práctico de valoración de derivados bajo volatilidad local y por qué importa que los métodos sean eficientes y numéricamente estables
+
+\item  dejar claro el problema principal: los métodos muy precisos suelen ser caros en calibración o en lotes grandes de precios, y eso limita su uso 
+
+\item  justificar por qué compensa explorar modelos sustitutos y aproximaciones neuronales para reducir coste computacional sin perder control del error
+
+\item  aclarar desde el principio el caso de uso que tengo en mente (prototipo de investigación frente a sistema listo para producción) para no prometer más de lo que realmente cubre el trabajo
+\todos{ver si la narrativa final se centra solo en opciones vanilla}
+\end{itemize}
 
 \section{Main Objectives}
+\begin{itemize}
+\item el objetivo es diseñar y evaluar algoritmos computacionales para valorar derivados bajo modelos de volatilidad local, teniendo en cuenta el equilibrio entre velocidad y precision
 
-\section{Key contributions}
+\item objetivo 1: montar un pipeline reproducible de datos, configuración de modelos y ejecución de experimentos para poder repetir benchmarks de forma consistente.
+\todos{actualizar con referencias exactas a scripts y módulos cuando cierre definitivamente el pipeline}
+
+\item objetivo 2: desarrollar y comparar enfoques sustitutos (modelos neuronales, LTSM, etc) frente a referencias numéricas bajo condiciones de evaluación comunes
+
+\item objetivo 3: medir el rendimiento con métricas de error de precio, coste computacional y estabilidad en distintos regímenes de mercado y regiones de parámetros
+
+\item objetivo 4: evaluar limitaciones prácticas y fijar fronteras claras sobre qué parte está preparada para uso aplicado y qué parte sigue siendo exploratoria
+\todos{decidir si incluyo objetivos explícitos de latencia para inferencia y calibración en la versión final}
+\end{itemize}
+
+\section{Key Contributions}
+\begin{itemize}
+\item 1-> presentar un marco experimental para comparar métodos numéricos clásicos y sustitutos neuronales en tareas de volatilidad local
+
+\item 2-> aportar evidencia de dónde los modelos sustitutos aceleran y dónde fallan al generalizar, incluyendo escenarios de estres
+\todos{añadir el conjunto final de escenarios de estrés cuando termine los experimentos pendientes de robustez}
+
+\item 3-> recoger aprendizajes de implementación sobre estrategia de entrenamiento, control de error y criterios de selección de modelos que puedan reutilizarse en problemas parecidos
+
+\item 4-> discutir amenazas a la validez, como calidad de datos, sesgo de discretización, riesgo de extrapolación y dependencia del benchmark elegido
+\todos{incluir sensibilidad a costes de transacción y slippage solo si termino a tiempo la integración con el flujo de cartera}
+
+\item 5-> cerrar con un roadmap futuro priorizado por impacto esperado y complejidad de implementación
+\end{itemize}
+
+\section{Scope and Structure}
+\begin{itemize}
+\item delimitar explícitamente el alcance, indicando qué cubro y qué dejo fuera, sobre todo en universo de activos, rango de vencimientos y supuestos de microestructura
+
+\item resumir la validación a alto nivel: datos usados, lógica de partición entre entrenamiento, validación y test, y criterios para seleccionar benchmarks
+\todos{cerrar la lista de benchmarks y el periodo de datos después de la última revisión de calidad}
+
+\item cerrar la introducción con una guía breve capítulo a capítulo para que se entienda rápido el recorrido desde fundamentos teóricos hasta métodos, resultados y conclusiones
+\end{itemize}

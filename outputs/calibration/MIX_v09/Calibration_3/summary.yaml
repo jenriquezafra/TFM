@@ -1,0 +1,58 @@
+timestamp: 2026-03-24_18-00-27
+model_bucket: MIX_v09
+calibration_id: 3
+run_tag: ''
+quotes_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_amd_20260324_w1_balanced.csv
+market_quotes_copy: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/MIX_v09/Calibration_3/market_quotes_input.csv
+model_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_v09
+checkpoint: model_best.pt
+device: mps
+n_quotes: 35
+parameter_order:
+- rho
+- kappa
+- gamma
+- bar_v
+- v0
+theta_star:
+- -0.5743852278650912
+- 0.6111849808988232
+- 0.8843276859332702
+- 0.5799494859820145
+- 0.33282292036463024
+objective_fun: 0.0399797540257941
+success: true
+message: Optimization terminated successfully.
+nit: 30
+nfev: 31
+residual_rmse: 0.029431123893820677
+weighted_mse: 0.0008661910536534223
+de_settings:
+  maxiter: 500
+  popsize: 15
+  tol: 0.01
+  mutation:
+  - 0.5
+  - 1.0
+  recombination: 0.7
+  seed: null
+  polish: false
+regularization:
+  type: l2_squared
+  lambda: 0.005
+bounds:
+  rho:
+  - -0.95
+  - -0.2
+  kappa:
+  - 0.3
+  - 4.0
+  gamma:
+  - 0.05
+  - 0.9
+  bar_v:
+  - 0.05
+  - 0.6
+  v0:
+  - 0.05
+  - 0.6

@@ -1,0 +1,63 @@
+meta:
+  seed: 42
+  description: 'CaNN calibration (Liu-style): frozen forward NN + Differential Evolution'
+model:
+  model_dir: latest
+  checkpoint: model_best.pt
+  device: auto
+data:
+  market_quotes_path: data/market/market_quotes.csv
+  format: auto
+  columns:
+    moneyness: moneyness
+    tau: tau
+    r: r
+    iv_market: iv_market
+    weight: weight
+  default_weight: 1.0
+calibration:
+  parameter_order:
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - v0
+  bounds:
+    rho:
+    - -0.99
+    - 0.0
+    kappa:
+    - 0.0
+    - 6.0
+    gamma:
+    - 0.01
+    - 1.5
+    bar_v:
+    - 0.01
+    - 1.0
+    v0:
+    - 0.01
+    - 1.0
+  regularization:
+    type: none
+    lambda: 0.0
+  de:
+    maxiter: 500
+    popsize: 15
+    tol: 0.01
+    mutation:
+    - 0.5
+    - 1.0
+    recombination: 0.7
+    seed: null
+    polish: false
+inference:
+  batch_size: 4096
+synthetic_truth:
+  theta_true: null
+  truth_file: null
+outputs:
+  dir: outputs/calibration
+  save_residual_heatmap: false
+  save_quotes_parquet: true
+  save_quotes_csv: false

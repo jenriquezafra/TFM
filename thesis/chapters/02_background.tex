@@ -2,10 +2,25 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Mathematical Framework For Option Pricing}
+\begin{itemize}
+    \item hablar del marco matematico general de valoracion de opciones para que el resto del capitulo tenga una base comun.
+    \item comentar de forma explicita la notacion de tiempos, activos, variables de estado y parametros para evitar ambiguedades en capitulos posteriores.
+    \item dejar claro, breve, la idea de medida neutral al riesgo y por que el precio se expresa como esperanza descontada del payoff (Feynman-Kac)
+    \item cerrar la seccion conectando este marco general con los modelos concretos que uso despues (heston y formulacion con ChF)
+\end{itemize}
+\todos{decidir sobre si incluir aqui una derivacion formal completa o dejar detalles tecnicos para un apendice}\\
+\todos{ver si me conviene incluir una tabla corta de simbolos para facilitar la lectura.}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Stochastic Calculus Background}
+\begin{itemize}
+    \item recordar solo el calculo estocastico minimo necesario para entender las ecuaciones del modelo y no convertir esta parte en un curso completo.
+    \item introducir primero objetos basicos (movimiento browniano, procesos ito, esperanza condicional) y luego pasar a funciones caracteristicas y cumulantes.
+    \item mantener foco en la intuicion financiera de cada definicion para que no quede como una lista aislada de formulas.
+    \item cerrar enlazando estos conceptos con el metodo cos que aparece mas adelante.
+\end{itemize}
+\todos{revisar consistencia de notacion entre esta seccion y la seccion de heston }
 
 \todos{TODO: add Cumulative Distribution Function definition}\\
 \todos{TODO: add Probability Density Function definition (and delete from below)}\\
@@ -45,13 +60,34 @@ Since the MGF is $\mathcal M_X(u)=\phi_X(-iu)$ and $\zeta_X(u)=\log \mathcal M_X
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The Heston Stochastic Volatility Model}
+\begin{itemize}
+    \item presentar la dinamica del modelo de heston, indicando que la volatilidad sigue proceso CIR (mean regresion y tal)
+    \item explicar el papel de cada parametro ($\kappa$, $\bar\nu$, $\gamma$, $\rho$) y como afecta a la forma de la sonrisa de IV
+    \item anotar la condicion de feller y comentar cuando se cumple o no en calibraciones 
+    \item cerrar conectando el modelo con la ChFque necesito para aplicar la valoracion por fourier
+\end{itemize}
+\todos{anadir referencia bibliografica de heston (1993) y una referencia de implementacion numerica estable.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Pricing Via Characteristic Functions}
+\begin{itemize}
+    \item explicar por que pasar al dominio de fourier simplifica la valoracion cuando dispongo de ChF cerrada
+    \item derivar el esquema general de precio usando transformadas y dejar claro la hipotesis de integrabilidad 
+    \item justificar la eleccion de esta via frente a alternativas como pde o monte carlo 
+    \item cerrar dejando preparada la transicion natural al metodo fourier-cos
+\end{itemize}
+\todos{comprobar si incluyo una comparativa breve de coste computacional teorico frente a metodos alternativos.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The Fourier-COS method}
-\todos{TODO: rellenar}\\
+
+\begin{itemize}
+    \item presentar el metodo cos como aproximacion espectral de densidades y precios en un intervalo truncado
+    \item comentar con cuidado como elegir el intervalo $[a,b]$ a partir de cumulantes y que impacto tiene esa eleccion en el error (un poco en apendice ya)
+    \item separar claramente error de truncacion y error por numero finito de terminos para luego interpretar mejor los resultados numericos (tambien en apendice ahora)
+    \item ir diciendo formula, significado de cada termino y como se implementa (vectorizado)
+\end{itemize}
+\todos{anadir como una guia practica para elegir $N$ y evitar artefactos numericos en extremos de K y vencimiento}
 
 The COS method is the …\\
 The main reasons we want to use a cosine expansion are:
@@ -97,6 +133,13 @@ with $x$ a function of $S(t_0)$, $\phi_X(u)$ the ChF, and $H_K$ the \textit{payo
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{The COS Method Applied To The Heston Model}
 \todos{TODO: rellenar}\\
+\begin{itemize}
+    \item presentr la teoria anterior al caso heston, con definiciones consistentes de variables y convenciones de signos
+    \item verificar que la expresion de $\varphi_H$ que uso coincide con una formulacion estandar y numericamente estable
+    \item dejar claro como paso de la formula escalar a evaluacion vectorizada en mallas de strikes y vencimientos
+    \item cerrar con una lista corta de sanity checks numericas antes de usar esta formula en benchmarks
+\end{itemize}
+\todos{revisar simbolos de entrada/salida en esta subseccion para que coincidan exactamente con la implementacion en codigo.}
 
 We need to define the following functions: 
 \begin{align}    
@@ -120,7 +163,20 @@ where \todos{no se si es la ChF?}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Implied Volatility And Numerical Inversion}
+\begin{itemize}
+    \item explicar como paso de precios a volatilidad implicita y por que esta inversion es clave para comparar modelos.
+    \item documentar el metodo numerico de inversion que uso (por ejemplo, newton o brent), incluyendo tolerancias y criterios de parada.
+    \item comentar problemas tipicos de inversion (no convergencia, soluciones no fisicas, sensibilidad a la semilla) y como los trato.
+    \item cerrar definiendo claramente que metricas en volatilidad implicita voy a reportar en resultados.
+\end{itemize}
+\todos{decidir si reporto errores en precio, en iv o ambos segun el objetivo de cada experimento.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{State Of The Art}
-
+\begin{itemize}
+    \item resumir el estado del arte en tres bloques: metodos clasicos de valoracion, metodos espectrales y modelos sustitutos basados en redes neuronales.
+    \item destacar no solo resultados positivos sino tambien limites reportados (generalizacion, estabilidad fuera de distribucion y coste de entrenamiento).
+    \item posicionar mi trabajo de forma explicita: que parte reutiliza ideas existentes y que parte aporta una comparacion o implementacion nueva.
+    \item cerrar con una tabla comparativa breve que justifique las decisiones metodologicas de los capitulos siguientes.
+\end{itemize}
+\todos{cerrar el set final de referencias recientes y priorizar articulos con codigo reproducible.}
