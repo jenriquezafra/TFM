@@ -14,7 +14,7 @@ config_path = PROJECT_ROOT / "configs" / "synth.yaml"
 
 from src.datasets.make_synth import generate_all
 from src.datasets.splits import dataframes_splits, dataframes_splits_stratified_quantiles
-from src.solvers.heston_cos import COS_solver_scalar
+from src.solvers.heston_cos import COS_solver_scalar, _cos_integration_bounds
 from src.solvers.implied_vol import IV_Brent, IV_LM
 
 
@@ -165,6 +165,32 @@ def _retry_improves_solution(
     return False
 
 
+def _cos_interval_has_sign_change(
+    *,
+    params_heston: np.ndarray,
+    tau: np.float64,
+    r: np.float64,
+    cos_params: np.ndarray,
+    cos_interval_rule: str,
+) -> bool:
+    try:
+        _, L = np.array(cos_params, dtype=np.float64)
+        a, b = _cos_integration_bounds(
+            params_Heston=params_heston,
+            tau=tau,
+            r=r,
+            L=np.float64(L),
+            t0=0.0,
+            interval_rule=cos_interval_rule,
+        )
+    except Exception:
+        return False
+
+    if (not np.isfinite(a)) or (not np.isfinite(b)) or (b <= a):
+        return False
+    return bool((a <= 0.0) and (b >= 0.0))
+
+
 def _compute_iv_and_filters_for_chunk(
     synth_df: pd.DataFrame,
     *,
@@ -183,6 +209,9 @@ def _compute_iv_and_filters_for_chunk(
     adaptive_retry_enabled: bool,
     adaptive_floor_iv: np.float64 | None,
     adaptive_floor_rel_tol: np.float64,
+    adaptive_trigger_on_floor: bool,
+    adaptive_trigger_tau_threshold: np.float64 | None,
+    adaptive_require_sign_change: bool,
     adaptive_l_multiplier: np.float64,
     adaptive_n_multiplier: np.float64,
     adaptive_max_retries: int,
@@ -220,8 +249,12 @@ def _compute_iv_and_filters_for_chunk(
     brent_abs_residual = np.full(shape=n_chunk, fill_value=np.nan, dtype=np.float64)
     brent_success = np.zeros(shape=n_chunk, dtype=bool)
     retry_triggered = np.zeros(shape=n_chunk, dtype=bool)
+    retry_triggered_floor = np.zeros(shape=n_chunk, dtype=bool)
+    retry_triggered_tau = np.zeros(shape=n_chunk, dtype=bool)
     retry_accepted = np.zeros(shape=n_chunk, dtype=bool)
     retry_attempts = np.zeros(shape=n_chunk, dtype=np.int64)
+    interval_sign_change_base = np.zeros(shape=n_chunk, dtype=bool)
+    interval_sign_change_final = np.zeros(shape=n_chunk, dtype=bool)
     cos_N_used = np.full(shape=n_chunk, fill_value=int(cos_params[0]), dtype=np.int64)
     cos_L_used = np.full(shape=n_chunk, fill_value=np.float64(cos_params[1]), dtype=np.float64)
 
@@ -258,17 +291,39 @@ def _compute_iv_and_filters_for_chunk(
                     lm_cfg=lm_cfg,
                 )
 
+                base_sign_change = _cos_interval_has_sign_change(
+                    params_heston=params_heston,
+                    tau=tau,
+                    r=r,
+                    cos_params=active_cos_params,
+                    cos_interval_rule=cos_interval_rule,
+                )
+                interval_sign_change_base[i] = bool(base_sign_change)
+                interval_sign_change_final[i] = bool(base_sign_change)
+
+                trigger_by_floor = (
+                    bool(adaptive_trigger_on_floor)
+                    and (adaptive_floor_iv is not None)
+                    and _iv_at_floor(iv, adaptive_floor_iv, adaptive_floor_rel_tol)
+                )
+                trigger_by_tau = (
+                    (adaptive_trigger_tau_threshold is not None)
+                    and (tau < np.float64(adaptive_trigger_tau_threshold))
+                )
+
                 if (
                     rootfinder == "brent_iv"
                     and adaptive_retry_enabled
-                    and (adaptive_floor_iv is not None)
-                    and _iv_at_floor(iv, adaptive_floor_iv, adaptive_floor_rel_tol)
+                    and (trigger_by_floor or trigger_by_tau)
                 ):
                     retry_triggered[i] = True
+                    retry_triggered_floor[i] = bool(trigger_by_floor)
+                    retry_triggered_tau[i] = bool(trigger_by_tau)
                     best_iv = np.float64(iv)
                     best_details = details
                     best_success = bool(solved_ok)
                     best_cos_params = np.array(active_cos_params, dtype=np.float64, copy=True)
+                    best_sign_change = bool(base_sign_change)
 
                     for _ in range(adaptive_max_retries):
                         retry_attempts[i] += 1
@@ -301,7 +356,20 @@ def _compute_iv_and_filters_for_chunk(
                         except Exception:
                             continue
 
-                        if _retry_improves_solution(
+                        retry_sign_change = _cos_interval_has_sign_change(
+                            params_heston=params_heston,
+                            tau=tau,
+                            r=r,
+                            cos_params=retry_cos_params,
+                            cos_interval_rule=cos_interval_rule,
+                        )
+                        if adaptive_require_sign_change and (not retry_sign_change):
+                            continue
+
+                        accept_retry = False
+                        if adaptive_require_sign_change and (not best_sign_change) and retry_sign_change:
+                            accept_retry = True
+                        elif _retry_improves_solution(
                             base_iv=best_iv,
                             base_residual_abs=np.float64(best_details.get("price_residual_abs", np.nan)),
                             retry_iv=np.float64(retry_iv),
@@ -309,10 +377,14 @@ def _compute_iv_and_filters_for_chunk(
                             floor_iv=np.float64(adaptive_floor_iv),
                             floor_rel_tol=adaptive_floor_rel_tol,
                         ):
+                            accept_retry = True
+
+                        if accept_retry:
                             best_iv = np.float64(retry_iv)
                             best_details = retry_details
                             best_success = bool(retry_ok)
                             best_cos_params = np.array(retry_cos_params, dtype=np.float64, copy=True)
+                            best_sign_change = bool(retry_sign_change)
                             retry_accepted[i] = True
 
                     iv = best_iv
@@ -320,6 +392,7 @@ def _compute_iv_and_filters_for_chunk(
                     solved_ok = best_success
                     cos_N_used[i] = int(best_cos_params[0])
                     cos_L_used[i] = np.float64(best_cos_params[1])
+                    interval_sign_change_final[i] = bool(best_sign_change)
 
                 iv_values[i] = np.float64(iv)
                 brent_abs_residual[i] = np.float64(details.get("price_residual_abs", np.nan))
@@ -364,8 +437,13 @@ def _compute_iv_and_filters_for_chunk(
             )
             if rootfinder == "brent_iv" and adaptive_retry_enabled:
                 triggered_so_far = int(retry_triggered[: i + 1].sum())
+                triggered_floor_so_far = int(retry_triggered_floor[: i + 1].sum())
+                triggered_tau_so_far = int(retry_triggered_tau[: i + 1].sum())
                 accepted_so_far = int(retry_accepted[: i + 1].sum())
-                msg = f"{msg} | retry trig/ok={triggered_so_far}/{accepted_so_far}"
+                msg = (
+                    f"{msg} | retry trig/ok={triggered_so_far}/{accepted_so_far}"
+                    f" | trig_floor/tau={triggered_floor_so_far}/{triggered_tau_so_far}"
+                )
             if rootfinder == "LM":
                 sigma0_hits = int(np.isclose(iv_values[: i + 1], lm_sigma0, atol=1e-12, rtol=0).sum())
                 msg = f"{msg} | IV==sigma0({lm_sigma0:.3f})={sigma0_hits}"
@@ -392,10 +470,13 @@ def _compute_iv_and_filters_for_chunk(
         print(f"{prefix} IV quality summary: no valid residuals found")
     if rootfinder == "brent_iv" and adaptive_retry_enabled:
         n_retry_triggered = int(retry_triggered.sum())
+        n_retry_triggered_floor = int(retry_triggered_floor.sum())
+        n_retry_triggered_tau = int(retry_triggered_tau.sum())
         n_retry_accepted = int(retry_accepted.sum())
         print(
             f"{prefix} Adaptive COS retry summary | "
             f"triggered={n_retry_triggered} accepted={n_retry_accepted} "
+            f"| triggered_floor={n_retry_triggered_floor} triggered_tau={n_retry_triggered_tau} "
             f"({100.0 * n_retry_accepted / max(n_retry_triggered, 1):.2f}% accepted when triggered)"
         )
 
@@ -435,8 +516,12 @@ def _compute_iv_and_filters_for_chunk(
             "keep_for_training": keep_for_training_mask,
             "selected_for_final_dataset": selected_mask,
             "adaptive_retry_triggered": retry_triggered,
+            "adaptive_retry_triggered_floor": retry_triggered_floor,
+            "adaptive_retry_triggered_tau": retry_triggered_tau,
             "adaptive_retry_accepted": retry_accepted,
             "adaptive_retry_attempts": retry_attempts,
+            "adaptive_interval_sign_change_base": interval_sign_change_base,
+            "adaptive_interval_sign_change_final": interval_sign_change_final,
             "cos_n_used": cos_N_used,
             "cos_l_used": cos_L_used,
             "generation_round": np.full(n_chunk, round_idx, dtype=np.int64),
@@ -523,26 +608,39 @@ if residual_keep_abs is not None:
 drop_sigma0_hits = bool(quality_cfg.get("drop_sigma0_hits", False))
 keep_all_rows = bool(quality_cfg.get("keep_all_rows", False))
 
-adaptive_retry_cfg = quality_cfg.get("adaptive_cos_floor_retry", {})
+adaptive_retry_cfg = quality_cfg.get("adaptive_cos_l_retry", None)
+if adaptive_retry_cfg is None:
+    adaptive_retry_cfg = quality_cfg.get("adaptive_cos_floor_retry", {})
 adaptive_retry_enabled = bool(adaptive_retry_cfg.get("enabled", False))
 adaptive_floor_rel_tol = np.float64(adaptive_retry_cfg.get("floor_rel_tol", 1.0e-6))
+adaptive_trigger_on_floor = bool(adaptive_retry_cfg.get("trigger_floor", True))
+adaptive_trigger_tau_threshold = adaptive_retry_cfg.get("trigger_tau_below", None)
+if adaptive_trigger_tau_threshold is not None:
+    adaptive_trigger_tau_threshold = np.float64(adaptive_trigger_tau_threshold)
+adaptive_require_sign_change = bool(adaptive_retry_cfg.get("require_sign_change", False))
 adaptive_l_multiplier = np.float64(adaptive_retry_cfg.get("l_multiplier", 1.5))
 adaptive_n_multiplier = np.float64(adaptive_retry_cfg.get("n_multiplier", 1.0))
 adaptive_max_retries = int(adaptive_retry_cfg.get("max_retries", 1))
 if adaptive_max_retries <= 0:
     adaptive_max_retries = 1
 if adaptive_l_multiplier < 1.0:
-    raise ValueError("quality_check.adaptive_cos_floor_retry.l_multiplier must be >= 1.0")
+    raise ValueError("quality_check.adaptive_cos_l_retry.l_multiplier must be >= 1.0")
 if adaptive_n_multiplier < 1.0:
-    raise ValueError("quality_check.adaptive_cos_floor_retry.n_multiplier must be >= 1.0")
+    raise ValueError("quality_check.adaptive_cos_l_retry.n_multiplier must be >= 1.0")
 if adaptive_floor_rel_tol < 0.0:
-    raise ValueError("quality_check.adaptive_cos_floor_retry.floor_rel_tol must be >= 0.0")
+    raise ValueError("quality_check.adaptive_cos_l_retry.floor_rel_tol must be >= 0.0")
+if adaptive_trigger_tau_threshold is not None and adaptive_trigger_tau_threshold <= 0.0:
+    raise ValueError("quality_check.adaptive_cos_l_retry.trigger_tau_below must be > 0.0")
+
+if adaptive_retry_enabled and (not adaptive_trigger_on_floor) and (adaptive_trigger_tau_threshold is None):
+    print("Warning: adaptive_cos_l_retry enabled but no trigger configured. Disabling.")
+    adaptive_retry_enabled = False
 
 adaptive_floor_iv = None
 if rootfinder == "brent_iv" and brent_cfg is not None:
     adaptive_floor_iv = np.float64(brent_cfg["iv_bounds"][0])
 elif adaptive_retry_enabled:
-    print("Warning: adaptive_cos_floor_retry is only supported for root_finder.method='brent_iv'. Disabling.")
+    print("Warning: adaptive_cos_l_retry is only supported for root_finder.method='brent_iv'. Disabling.")
     adaptive_retry_enabled = False
 
 progress_every = int(quality_cfg.get("progress_every", 1000))
@@ -568,8 +666,13 @@ print(
     f"force_target_after_filters={force_target_after_filters}"
 )
 if adaptive_retry_enabled:
+    trigger_tau_text = (
+        "off" if adaptive_trigger_tau_threshold is None else f"{np.float64(adaptive_trigger_tau_threshold):.3f}"
+    )
     print(
         "Adaptive COS retry enabled | "
+        f"trigger_floor={adaptive_trigger_on_floor} | trigger_tau_below={trigger_tau_text} | "
+        f"require_sign_change={adaptive_require_sign_change} | "
         f"floor_iv={adaptive_floor_iv:.3e} | floor_rel_tol={adaptive_floor_rel_tol:.3e} | "
         f"Lx={adaptive_l_multiplier:.3f} | Nx={adaptive_n_multiplier:.3f} | "
         f"max_retries={adaptive_max_retries}"
@@ -634,6 +737,9 @@ for round_idx in range(1, max_generation_rounds + 1):
         adaptive_retry_enabled=adaptive_retry_enabled,
         adaptive_floor_iv=adaptive_floor_iv,
         adaptive_floor_rel_tol=adaptive_floor_rel_tol,
+        adaptive_trigger_on_floor=adaptive_trigger_on_floor,
+        adaptive_trigger_tau_threshold=adaptive_trigger_tau_threshold,
+        adaptive_require_sign_change=adaptive_require_sign_change,
         adaptive_l_multiplier=adaptive_l_multiplier,
         adaptive_n_multiplier=adaptive_n_multiplier,
         adaptive_max_retries=adaptive_max_retries,
