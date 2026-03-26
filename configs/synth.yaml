@@ -59,12 +59,15 @@ quality_check:
   residual_keep_abs: null
   drop_sigma0_hits: false
   keep_all_rows: true
-  adaptive_cos_floor_retry:
+  adaptive_cos_l_retry:
     enabled: true
+    trigger_floor: true
+    trigger_tau_below: 0.25
+    require_sign_change: true
     floor_rel_tol: 1.0e-6
     l_multiplier: 1.5
     n_multiplier: 1.0
-    max_retries: 1
+    max_retries: 3
   force_target_after_filters: true
   generation_chunk_size: 250000
   max_generation_rounds: 60

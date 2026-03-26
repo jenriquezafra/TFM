@@ -3,12 +3,12 @@ meta:
   description: "CaNN calibration (Liu-style): frozen forward NN + Differential Evolution"
 
 model:
-  model_dir: "latest"           # folder under outputs/runs, or 'latest'
+  model_dir: "Liu_like_v01"           # folder under outputs/runs, or 'latest'
   checkpoint: "model_best.pt"   # model_best.pt | model_last.pt
   device: "auto"                # auto | cpu | mps | cuda
 
 data:
-  market_quotes_path: "data/market/market_quotes.csv"  # csv/parquet with observed quotes
+  market_quotes_path: "data/market/market_quotes_liu_35.csv"  # csv/parquet with observed quotes
   format: "auto"                                        # auto | csv | parquet
   columns:
     moneyness: "moneyness"
