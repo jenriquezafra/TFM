@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-03-24_18-05-12",
+  "timestamp": "2026-03-26_17-54-06",
   "model_bucket": "Liu_like_v01",
   "calibration_id": 1,
-  "run_tag": "",
-  "quotes_file": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_amd_20260324.csv",
+  "run_tag": "liu_l2_clean",
+  "quotes_file": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.csv",
   "market_quotes_copy": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_1/market_quotes_input.csv",
   "model_run_dir": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_v01",
   "checkpoint": "model_best.pt",
@@ -17,33 +17,33 @@
     "v0"
   ],
   "theta_star": [
-    -0.8979904981579869,
-    2.706600085574817,
-    0.7984173303165778,
-    0.39244537654125444,
-    0.3424750972161681
+    -0.5242347655932657,
+    1.057134759894577,
+    0.2995288905286281,
+    0.19758221161453815,
+    0.21970916908566768
   ],
-  "objective_fun": 0.03148777519216532,
+  "objective_fun": 2.673047434519471e-06,
   "success": true,
   "message": "Optimization terminated successfully.",
-  "nit": 28,
-  "nfev": 29,
-  "residual_rmse": 0.029994178098026823,
-  "weighted_mse": 0.000899650719776152,
+  "nit": 126,
+  "nfev": 133,
+  "residual_rmse": 0.000201444547696343,
+  "weighted_mse": 4.057990579658421e-08,
   "de_settings": {
-    "maxiter": 400,
-    "popsize": 12,
-    "tol": 0.01,
+    "maxiter": 1000,
+    "popsize": 20,
+    "tol": 0.0001,
     "mutation": [
       0.5,
       1.0
     ],
     "recombination": 0.7,
     "seed": null,
-    "polish": false
+    "polish": true
   },
   "regularization": {
-    "type": "none",
+    "type": "l2",
     "lambda": 1e-06
   },
   "bounds": {
@@ -67,5 +67,33 @@
       0.05,
       0.5
     ]
+  },
+  "theta_true": [
+    -0.45,
+    1.0,
+    0.35,
+    0.2,
+    0.22
+  ],
+  "theta_true_source": "quotes_sidecar:/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.truth.yaml",
+  "parameter_abs_error": {
+    "rho": 0.07423476559326564,
+    "kappa": 0.05713475989457706,
+    "gamma": 0.0504711094713719,
+    "bar_v": 0.002417788385461861,
+    "v0": 0.000290830914332324
+  },
+  "parameter_rel_error": {
+    "rho": 0.16496614576281252,
+    "kappa": 0.05713475989457706,
+    "gamma": 0.14420316991820545,
+    "bar_v": 0.012088941927309305,
+    "v0": 0.0013219587015105636
+  },
+  "parameter_error_artifacts": {
+    "table_csv": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_1/parameter_errors.csv",
+    "abs_bar_png": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_1/parameter_error_abs_bar.png",
+    "abs_heatmap_png": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_1/parameter_error_abs_heatmap.png",
+    "rel_heatmap_png": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_1/parameter_error_rel_heatmap.png"
   }
 }
