@@ -28,17 +28,17 @@ calibration:
     v0: [0.05, 0.5]
 
   regularization:
-    type: "none"      # none | l1 | l2 | l2_squared
+    type: "l2"      # none | l1 | l2 | l2_squared
     lambda: 1.0e-6
 
   de:
-    maxiter: 300
-    popsize: 10        # SciPy multiplier (effective population = popsize * n_params)
-    tol: 0.01
+    maxiter: 1000
+    popsize: 20        # SciPy multiplier (effective population = popsize * n_params)
+    tol: 0.0001
     mutation: [0.5, 1.0]
     recombination: 0.7
     seed: null         # null -> fallback to meta.seed
-    polish: false
+    polish: true
 
 inference:
   batch_size: 4096
