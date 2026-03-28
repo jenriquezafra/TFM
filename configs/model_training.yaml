@@ -1,17 +1,18 @@
 meta:
   seed: 42
-  optimizer: "mix_half" # adam | L-BFGS | mix | mix_half
+  optimizer: "adam" # adam | L-BFGS | mix | mix_half
 
 
 data:
-  dir: "data/synth/1M_Feller"
+  dir: "data/synth/10M_Feller_tags"
   shuffle: true
   feature_columns: ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
   target_column: "iv_brent"
   row_filters:
-    enabled: false
+    enabled: true
     finite_columns: ["iv_brent"]
-    equals: {}
+    equals:
+      feller_ok: 1.0
     greater_equal: {}
     less_equal: {}
   splits:
@@ -54,12 +55,12 @@ loop:
 
 callbacks:
   early_stopping:   # Liu doesnt use ES
-    enabled: False
+    enabled: true
     monitor: "val_loss"   # val_loss | val_loss_trimmed
     trim_top_fraction: 0.01
-    patience: 800
+    patience: 500
     min_delta: 1.0e-8
-    warmup_epochs: 2200
+    warmup_epochs: 1000
     mode: "min"
 
   checkpoint:
