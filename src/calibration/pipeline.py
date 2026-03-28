@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +45,10 @@ class CalibrationRunArtifacts:
     quotes_comparison_csv: Path | None
     config_source_copy: Path
     config_used: Path
+    curvature_json: Path | None
+    hessian_theta_star_csv: Path | None
+    jacobian_theta_star_png: Path | None
+    hessian_theta_star_png: Path | None
 
 
 def load_yaml(path: Path) -> dict:
@@ -346,6 +352,96 @@ def _save_parameter_error_artifacts(
     plt.close(fig)
 
     return table_path, abs_bar_path, abs_hm_path, rel_hm_path
+
+
+def _run_auto_curvature(
+    *,
+    project_root: Path,
+    summary_json: Path,
+    out_dir: Path,
+    regularization: str,
+    lambda_reg: float,
+    out_cfg: dict,
+) -> dict[str, str] | None:
+    """
+    Optionally compute curvature/Hessian right after calibration using the exact summary
+    just written for this run, keeping calibration and curvature aligned.
+    """
+    if not bool(out_cfg.get("auto_eval_curvature", True)):
+        return None
+
+    eval_script = project_root / "scripts" / "eval_calibration_curvature.py"
+    if not eval_script.exists():
+        print(
+            "[WARN] Auto-curvature requested but script not found: "
+            f"{eval_script}"
+        )
+        return None
+
+    cmd = [
+        sys.executable,
+        str(eval_script),
+        "--summary-path",
+        str(summary_json),
+        "--theta-key",
+        "theta_star",
+        "--regularization",
+        str(regularization),
+        "--lambda-reg",
+        str(float(lambda_reg)),
+    ]
+
+    curvature_dtype = out_cfg.get("curvature_dtype", None)
+    if curvature_dtype is not None:
+        cmd.extend(["--dtype", str(curvature_dtype)])
+
+    curvature_device = out_cfg.get("curvature_device", None)
+    if curvature_device is not None:
+        cmd.extend(["--device", str(curvature_device)])
+
+    if bool(out_cfg.get("curvature_no_plots", False)):
+        cmd.append("--no-plots")
+
+    proc = subprocess.run(
+        cmd,
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        print(
+            "[WARN] Auto-curvature failed. "
+            f"returncode={proc.returncode}. "
+            "Calibration outputs were still saved."
+        )
+        if proc.stdout.strip():
+            print("[WARN] Auto-curvature stdout:")
+            print(proc.stdout.strip())
+        if proc.stderr.strip():
+            print("[WARN] Auto-curvature stderr:")
+            print(proc.stderr.strip())
+        return None
+
+    curvature_json = out_dir / "curvature_theta_star.json"
+    hessian_csv = out_dir / "hessian_theta_star.csv"
+    jacobian_plot = out_dir / "jacobian_theta_star.png"
+    hessian_plot = out_dir / "hessian_theta_star.png"
+
+    artifacts: dict[str, str] = {}
+    if curvature_json.exists():
+        artifacts["json"] = str(curvature_json)
+    if hessian_csv.exists():
+        artifacts["hessian_csv"] = str(hessian_csv)
+    if jacobian_plot.exists():
+        artifacts["jacobian_plot"] = str(jacobian_plot)
+    if hessian_plot.exists():
+        artifacts["hessian_plot"] = str(hessian_plot)
+
+    if artifacts:
+        print("Auto-curvature finished for theta_star.")
+        return artifacts
+    return None
 
 
 def run_calibration_from_config(
@@ -675,6 +771,21 @@ def run_calibration_from_config(
     with open(summary_json, "w") as f:
         json.dump(summary, f, indent=2)
 
+    curvature_artifacts = _run_auto_curvature(
+        project_root=project_root,
+        summary_json=summary_json,
+        out_dir=out_dir,
+        regularization=reg_type,
+        lambda_reg=lambda_reg,
+        out_cfg=out_cfg,
+    )
+    if curvature_artifacts is not None:
+        summary["curvature_theta_star_artifacts"] = curvature_artifacts
+        with open(summary_yaml, "w") as f:
+            yaml.safe_dump(summary, f, sort_keys=False)
+        with open(summary_json, "w") as f:
+            json.dump(summary, f, indent=2)
+
     print(f"Calibration finished. Success={bool(result.success)}")
     print(f"Best objective: {float(result.fun):.8e}")
     print(f"Best theta ({', '.join(param_order)}): {np.array2string(theta_star, precision=6)}")
@@ -696,4 +807,24 @@ def run_calibration_from_config(
         quotes_comparison_csv=quotes_csv_path,
         config_source_copy=config_source_copy,
         config_used=config_used,
+        curvature_json=(
+            Path(curvature_artifacts["json"])
+            if curvature_artifacts is not None and "json" in curvature_artifacts
+            else None
+        ),
+        hessian_theta_star_csv=(
+            Path(curvature_artifacts["hessian_csv"])
+            if curvature_artifacts is not None and "hessian_csv" in curvature_artifacts
+            else None
+        ),
+        jacobian_theta_star_png=(
+            Path(curvature_artifacts["jacobian_plot"])
+            if curvature_artifacts is not None and "jacobian_plot" in curvature_artifacts
+            else None
+        ),
+        hessian_theta_star_png=(
+            Path(curvature_artifacts["hessian_plot"])
+            if curvature_artifacts is not None and "hessian_plot" in curvature_artifacts
+            else None
+        ),
     )
