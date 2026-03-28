@@ -1,6 +1,7 @@
 import sys
 import time
 import re
+import argparse
 import yaml
 import torch
 import shutil
@@ -34,6 +35,26 @@ calibration_config_path = PROJECT_ROOT / "configs" / "calibration.yaml"
 experiment_logs_dir = PROJECT_ROOT / "outputs" / "experiment_logs"
 calibration_folder_pattern = re.compile(r"^Calibration_(\d+)$")
 
+
+def _resolve_training_config_path() -> Path:
+    parser = argparse.ArgumentParser(description="Train ANN pricer.")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=str(config_path),
+        help="Path to training YAML config (absolute or relative to project root).",
+    )
+    args = parser.parse_args()
+    path = Path(args.config)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
+
+
+config_path = _resolve_training_config_path()
+if not config_path.exists():
+    raise FileNotFoundError(f"Training config not found: {config_path}")
+
 DEFAULT_FEATURE_COLUMNS = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
 TARGET_FALLBACK_CANDIDATES = ("iv_brent", "IV")
 
@@ -50,7 +71,7 @@ run_dir = RUNS_DIR / run_id
 
 # to save the config used
 shutil.copy(
-    PROJECT_ROOT / "configs" / "model_training.yaml",
+    config_path,
     run_dir / "model_training_copy.yaml"
 )
 shutil.copy(
