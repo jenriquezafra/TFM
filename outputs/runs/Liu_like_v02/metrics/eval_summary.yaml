@@ -1,0 +1,50 @@
+normalization:
+  enabled: false
+  normalize_target: false
+  stats_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-29_00:24:59/metrics/normalization_stats.yaml
+global:
+  train:
+    n_samples: 6254255
+    mse: 1.5994153585904018e-06
+    rmse: 0.0012646799431438778
+    mae: 0.0005985894031150099
+    abs_err_p50: 0.0004627704620361328
+    abs_err_p90: 0.00121229887008667
+    abs_err_p99: 0.0024739503860473633
+  val:
+    n_samples: 781884
+    mse: 3.896186779209912e-06
+    rmse: 0.001973876080003482
+    mae: 0.0006092091806874316
+    abs_err_p50: 0.0004628300666809082
+    abs_err_p90: 0.0012125670909881592
+    abs_err_p99: 0.002486313879489905
+  test:
+    n_samples: 782471
+    mse: 3.745338447583066e-06
+    rmse: 0.001935287691167147
+    mae: 0.0006087667301113943
+    abs_err_p50: 0.0004636049270629883
+    abs_err_p90: 0.0012139678001403809
+    abs_err_p99: 0.002483505010604861
+bins:
+  moneyness:
+  - 0.6
+  - 0.8
+  - 0.9
+  - 1.0
+  - 1.1
+  - 1.2
+  - 1.4
+  tau:
+  - 0.05
+  - 0.25
+  - 0.5
+  - 1.0
+  - 2.0
+  - 3.0
+artifacts:
+  global_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-29_00:24:59/metrics/eval_global.parquet
+  global_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-29_00:24:59/metrics/eval_global.csv
+  region_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-29_00:24:59/metrics/eval_by_region.parquet
+  region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-29_00:24:59/metrics/eval_by_region.csv
