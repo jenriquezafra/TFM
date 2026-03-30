@@ -23,19 +23,15 @@ def _read_table(path: Path) -> pd.DataFrame:
     return df
 
 
-def _resolve_target_column(
+def _validate_target_column(
     quotes_df: pd.DataFrame,
     *,
     target_column: str,
-    fallback_target_columns: Sequence[str],
 ) -> str:
     if target_column in quotes_df.columns:
         return target_column
-    for candidate in fallback_target_columns:
-        if candidate in quotes_df.columns:
-            return candidate
     raise KeyError(
-        f"Target column '{target_column}' not found and no fallback matched. "
+        f"Required target column '{target_column}' not found. "
         f"Available columns: {list(quotes_df.columns)}"
     )
 
@@ -46,7 +42,6 @@ def build_supervised_xy(
     quotes_df: pd.DataFrame,
     feature_columns: Sequence[str] = ("moneyness", "tau", "r"),
     target_column: str = "price_market",
-    fallback_target_columns: Sequence[str] = ("iv_market",),
 ) -> tuple[np.ndarray, np.ndarray, str]:
     """
     Build X,y from CaNN quotes and calibrated theta.
@@ -58,10 +53,9 @@ def build_supervised_xy(
             f"Available columns: {list(quotes_df.columns)}"
         )
 
-    target_col_used = _resolve_target_column(
+    target_col_used = _validate_target_column(
         quotes_df,
         target_column=target_column,
-        fallback_target_columns=fallback_target_columns,
     )
 
     theta = np.asarray(theta_star, dtype=np.float32).reshape(1, -1)
@@ -89,7 +83,6 @@ def build_supervised_dataset(
     output_dir: Path,
     feature_columns: Sequence[str] = ("moneyness", "tau", "r"),
     target_column: str = "price_market",
-    fallback_target_columns: Sequence[str] = ("iv_market",),
 ) -> Path:
     """
     Build and persist supervised dataset artifacts from CaNN outputs.
@@ -100,7 +93,6 @@ def build_supervised_dataset(
         quotes_df=quotes_df,
         feature_columns=feature_columns,
         target_column=target_column,
-        fallback_target_columns=fallback_target_columns,
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -121,7 +113,6 @@ def build_supervised_dataset(
         + list(feature_columns),
         "target_column_requested": target_column,
         "target_column_used": target_col_used,
-        "fallback_target_columns": list(fallback_target_columns),
     }
     manifest_path = output_dir / "supervised_dataset_manifest.yaml"
     with open(manifest_path, "w", encoding="utf-8") as f:

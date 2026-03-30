@@ -91,8 +91,6 @@ def run_pinn_pipeline_from_config(
     col_m = str(cann_columns.get("moneyness", "moneyness"))
     col_tau = str(cann_columns.get("tau", "tau"))
     col_r = str(cann_columns.get("r", "r"))
-    fallback_target = str(cann_columns.get("iv_market", "iv_market"))
-
     target_column = str(pricing_cfg.get("target_name", "price_market"))
     feature_columns = (col_m, col_tau, col_r)
 
@@ -120,7 +118,6 @@ def run_pinn_pipeline_from_config(
             output_dir=run_dir / "data",
             feature_columns=feature_columns,
             target_column=target_column,
-            fallback_target_columns=(fallback_target,),
         )
         execution["stages"]["prepare_dataset"] = {
             "status": "completed",
@@ -145,7 +142,6 @@ def run_pinn_pipeline_from_config(
                 output_dir=run_dir / "data",
                 feature_columns=feature_columns,
                 target_column=target_column,
-                fallback_target_columns=(fallback_target,),
             )
             if execution["stages"]["prepare_dataset"].get("status") == "skipped":
                 execution["stages"]["prepare_dataset"] = {
