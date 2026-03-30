@@ -8,7 +8,7 @@ import yaml
 from src.pinn.cann_bridge import load_cann_inputs, validate_cann_artifacts
 from src.pinn.config import build_pipeline_plan_from_config, load_yaml
 from src.pinn.contracts import PINNPipelinePlan
-from src.pinn.data_builder import build_supervised_dataset
+from src.pinn.data_builder import build_collocation_dataset, build_supervised_dataset
 from src.pinn.evaluator import evaluate_pinn_run
 from src.pinn.trainer import PINNTrainer
 
@@ -107,23 +107,42 @@ def run_pinn_pipeline_from_config(
     training_cfg = load_yaml(plan.training_config)
 
     dataset_path: Path | None = None
+    collocation_dataset_path: Path | None = None
     if _is_stage_enabled(plan, "prepare_dataset"):
-        theta_star, _, _ = load_cann_inputs(
+        theta_star, parameter_order, quotes_df = load_cann_inputs(
             plan.cann,
             required_quote_columns=feature_columns,
         )
-        dataset_path = build_supervised_dataset(
-            cann_quotes_path=plan.cann.quotes_file,
-            theta_star=theta_star,
+        if target_column in quotes_df.columns:
+            dataset_path = build_supervised_dataset(
+                cann_quotes_path=plan.cann.quotes_file,
+                theta_star=theta_star,
+                output_dir=run_dir / "data",
+                feature_columns=feature_columns,
+                target_column=target_column,
+            )
+        collocation_dataset_path = build_collocation_dataset(
+            sampling_config=training_cfg.get("sampling", {}),
             output_dir=run_dir / "data",
-            feature_columns=feature_columns,
-            target_column=target_column,
+            theta_star=theta_star,
+            parameter_order=parameter_order,
         )
-        execution["stages"]["prepare_dataset"] = {
+        stage_summary = {
             "status": "completed",
-            "dataset_file": str(dataset_path),
+            "collocation_dataset_file": str(collocation_dataset_path),
             "target_column_requested": target_column,
             "feature_columns": list(feature_columns),
+        }
+        if dataset_path is not None:
+            stage_summary["dataset_file"] = str(dataset_path)
+        else:
+            stage_summary["dataset_file"] = None
+            stage_summary["dataset_status"] = "skipped_target_missing"
+            stage_summary["dataset_skip_reason"] = (
+                f"Target column '{target_column}' not present in CaNN quotes."
+            )
+        execution["stages"]["prepare_dataset"] = {
+            **stage_summary,
         }
     else:
         execution["stages"]["prepare_dataset"] = {"status": "skipped"}
