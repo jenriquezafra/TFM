@@ -34,10 +34,10 @@ Entrada esperada desde calibracion:
   - `parameter_order` (orden de parametros)
 - `quotes_comparison.parquet`:
   - `moneyness`, `tau`, `r`
-  - `iv_market`, `iv_pred` (actualmente disponibles)
+  - `price_market` (target obligatorio para PINN)
 
 Notas:
-- El target de precio esta declarado como placeholder (`price_market`) hasta definir fuente final.
+- No existe fallback de target: si `price_market` no esta presente, el pipeline falla.
 - `src/pinn/cann_bridge.py` valida que artefactos existan antes de arrancar etapas.
 
 ## 4) Pipeline declarado
