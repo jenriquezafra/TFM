@@ -231,6 +231,20 @@ From an implementation viewpoint, the three sets can be regenerated dynamically 
 
 This sampling strategy preserves the fully unsupervised nature of the method. No prices from COS, FFT, or Monte Carlo are required to build the training objective. Numerical pricing methods remain useful for ex-post validation and benchmarking, but not as a source of labels for fitting the PINN itself.
 
+\subsection{Input scaling}
+\todos{Probablemente cambie !!}
+
+
+Although the pricing problem is formulated in physical variables, the actual optimization of the PINN benefits from an affine rescaling of its inputs. The motivation is purely numerical: the state variables $(\tau,m,v)$ and the Heston parameters do not share comparable magnitudes, and this imbalance may lead to poorly conditioned gradients and unstable convergence. As emphasized in \cite{hainaut2024pinn}, centering and scaling the inputs helps mitigate optimization issues such as vanishing or highly unbalanced gradients.
+
+In the present work, the first implementation will use a simple affine transformation of each input variable,
+\[
+\tilde x = a_x + b_x x,
+\]
+applied componentwise. At minimum, this transformation will be used for the PDE state variables $(\tau,m,v)$. If the network is later extended to a fully parametric PINN over $(\rho,\kappa,\gamma,\bar v,r)$, the same rescaling principle can be applied to those parameters as well. The exact coefficients $(a_x,b_x)$ may be defined either from prescribed domain bounds or from summary statistics of the sampled training points.
+
+Once the network is expressed in scaled coordinates, all derivatives entering the PDE residual must be interpreted with respect to the transformed variables. In practice, this does not alter the mathematical structure of the approach: the residual is still computed by automatic differentiation, and the change of variables is handled through the computational graph and the chain rule. Therefore, scaling is introduced as a numerical stabilization device rather than as a modification of the underlying financial model.
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
