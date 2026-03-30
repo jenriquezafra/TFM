@@ -105,9 +105,18 @@ def run_pinn_pipeline_from_config(
     }
     model_cfg = load_yaml(plan.architecture_config)
     training_cfg = load_yaml(plan.training_config)
+    sampling_cfg = training_cfg.get("sampling", {})
+
+    sampling_output_raw = sampling_cfg.get("output_dir")
+    if sampling_output_raw:
+        sampling_output_dir = Path(sampling_output_raw)
+        if not sampling_output_dir.is_absolute():
+            sampling_output_dir = project_root / sampling_output_dir
+    else:
+        sampling_output_dir = project_root / "data" / "synth" / plan.run_name
 
     dataset_path: Path | None = None
-    collocation_dataset_path: Path | None = None
+    collocation_manifest_path: Path | None = None
     if _is_stage_enabled(plan, "prepare_dataset"):
         theta_star, parameter_order, quotes_df = load_cann_inputs(
             plan.cann,
@@ -121,15 +130,16 @@ def run_pinn_pipeline_from_config(
                 feature_columns=feature_columns,
                 target_column=target_column,
             )
-        collocation_dataset_path = build_collocation_dataset(
-            sampling_config=training_cfg.get("sampling", {}),
-            output_dir=run_dir / "data",
+        collocation_manifest_path = build_collocation_dataset(
+            sampling_config=sampling_cfg,
+            output_dir=sampling_output_dir,
             theta_star=theta_star,
             parameter_order=parameter_order,
         )
         stage_summary = {
             "status": "completed",
-            "collocation_dataset_file": str(collocation_dataset_path),
+            "collocation_manifest_file": str(collocation_manifest_path),
+            "collocation_output_dir": str(sampling_output_dir),
             "target_column_requested": target_column,
             "feature_columns": list(feature_columns),
         }

@@ -231,7 +231,9 @@ def _validate_lhs_set(
 def _write_collocation_manifest(
     *,
     manifest_path: Path,
-    dataset_path: Path,
+    interior_path: Path,
+    terminal_path: Path,
+    lower_path: Path,
     sampling_config: dict,
     feature_order: Sequence[str],
     interior: np.ndarray,
@@ -244,7 +246,12 @@ def _write_collocation_manifest(
 ) -> None:
     mode = str(sampling_config.get("mode", "fixed_theta")).strip().lower()
     manifest = {
-        "dataset_file": str(dataset_path),
+        "dataset_format": "parquet",
+        "datasets": {
+            "interior": str(interior_path),
+            "terminal": str(terminal_path),
+            "lower": str(lower_path),
+        },
         "feature_order": list(feature_order),
         "sampling_strategy": str(sampling_config.get("strategy", "lhs_static")),
         "sampling_mode": mode,
@@ -476,18 +483,31 @@ def build_lhs_pinn_sets(
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    dataset_path = output_dir / "collocation_sets.npz"
-    np.savez(
-        dataset_path,
-        interior=interior,
-        terminal=terminal,
-        lower=lower,
+    interior_path = output_dir / "interior.parquet"
+    terminal_path = output_dir / "terminal.parquet"
+    lower_path = output_dir / "lower.parquet"
+    pd.DataFrame(interior, columns=PINN_FEATURE_ORDER).to_parquet(
+        interior_path,
+        engine="pyarrow",
+        index=False,
+    )
+    pd.DataFrame(terminal, columns=PINN_FEATURE_ORDER).to_parquet(
+        terminal_path,
+        engine="pyarrow",
+        index=False,
+    )
+    pd.DataFrame(lower, columns=PINN_FEATURE_ORDER).to_parquet(
+        lower_path,
+        engine="pyarrow",
+        index=False,
     )
 
     manifest_path = output_dir / "collocation_sets_manifest.yaml"
     _write_collocation_manifest(
         manifest_path=manifest_path,
-        dataset_path=dataset_path,
+        interior_path=interior_path,
+        terminal_path=terminal_path,
+        lower_path=lower_path,
         sampling_config=sampling_config,
         feature_order=PINN_FEATURE_ORDER,
         interior=interior,
@@ -499,7 +519,7 @@ def build_lhs_pinn_sets(
         r_bounds=r_bounds,
     )
 
-    return dataset_path
+    return manifest_path
 
 
 def build_boundary_dataset(*, boundary_config: dict, output_dir: Path) -> Path:
