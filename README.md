@@ -94,6 +94,7 @@ Plan output is written to:
 
 Design notes:
 - `summary.yaml` and `quotes_comparison.parquet` from CaNN are treated as mandatory inputs.
+- `price_market` is a mandatory target column for the PINN dataset build. There is no fallback to IV columns.
 - Stage status:
   - `prepare_dataset`: implemented
   - `train` (supervised baseline, MSE): implemented
