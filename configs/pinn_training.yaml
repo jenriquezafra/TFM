@@ -5,7 +5,7 @@ meta:
 
 data:
   supervised_source: "cann_quotes_comparison"
-  target_column: "price_market" # placeholder until target is defined in dataset
+  target_column: "price_market"
   val_fraction: 0.2
 
 sampling:

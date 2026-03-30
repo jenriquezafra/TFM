@@ -5,7 +5,7 @@ meta:
 
 inputs:
   cann:
-    calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_l2-reg"
+    calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_l2_reg"
     summary_file: "summary.yaml"
     quotes_file: "quotes_comparison.parquet"
     parameter_key: "theta_star" # default key in CaNN summary.yaml
@@ -17,8 +17,7 @@ inputs:
       iv_pred: "iv_pred"
 
   pricing_context:
-    # Placeholder contract for the target expected by the PINN.
-    # Keep these fields as config first; actual usage is pending implementation.
+    # The PINN target is strictly the market price column.
     target_name: "price_market"
     spot: null
     strike_column: null
@@ -39,4 +38,3 @@ outputs:
   root_dir: "outputs/pinn"
   run_name: "PINN_v01"
   dump_plan_filename: "pipeline_plan.yaml"
-
