@@ -1,1 +1,71 @@
-\chapter{PINN For Greeks Computation}
+\chapter{Physics-Informed Neural Pricing under the Heston Model}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Problem formulation}
+
+\begin{itemize}
+    \item hablar muy bien de los inputs (heston params optimizados y tal)
+    \item hablar sobre el output, que es V para vanilla option
+    \item hablar sobre greeks por autodiff ?
+    \item hablar de nuevo un poco sobre el pipeline 
+\end{itemize}
+
+\subsection{PINN Theoretical Framework}
+\todos{no estoy seguro de donde poner esto, o si quitarlo incluso}
+
+\begin{itemize}
+    \item función aproximadora
+    \item idea de residuo de la PDE
+    \item concepto de la loss en una PINN
+\end{itemize}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Heston Pricing PDE}
+
+\begin{itemize}
+    \item presentar la PDE de heston y hablar sobre ella
+    \item definir la terminal condition payoff (depende de put/call !)
+    \item hablar de las boundary conditions y cuales imponemos
+\end{itemize}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Neural Network Architecture}
+\todos{en general parecido a chapter 3}
+
+\subsection{Model Class}
+
+\subsection{Architecture Details}
+
+\subsection{Model Inputs and Outputs}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Training Procedure}
+
+\subsection{Loss Function}
+
+\subsection{Optimizer and Hyperparameters}
+
+\subsection{Sampling strategy}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Greeks Computation}
+
+\subsection{Defition of Greeks}
+
+\begin{itemize}
+    \item definir greeks
+    \item como obtenerlas derivando la red
+\end{itemize}
+
+\subsection{Automatic Differentiation of the PINN}
+
+\begin{itemize}
+    \item definir autodiff
+    \item comparar con otros metodos como finite difs 
+    \item interpretación
+\end{itemize}
