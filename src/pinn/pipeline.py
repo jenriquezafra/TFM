@@ -158,25 +158,25 @@ def run_pinn_pipeline_from_config(
         execution["stages"]["prepare_dataset"] = {"status": "skipped"}
 
     if _is_stage_enabled(plan, "train"):
-        if dataset_path is None:
-            dataset_path = run_dir / "data" / "supervised_dataset.npz"
-        if not dataset_path.exists():
-            theta_star, _, _ = load_cann_inputs(
+        if collocation_manifest_path is None:
+            collocation_manifest_path = sampling_output_dir / "collocation_sets_manifest.yaml"
+        if not collocation_manifest_path.exists():
+            theta_star, parameter_order, _ = load_cann_inputs(
                 plan.cann,
                 required_quote_columns=feature_columns,
             )
-            dataset_path = build_supervised_dataset(
-                cann_quotes_path=plan.cann.quotes_file,
+            collocation_manifest_path = build_collocation_dataset(
+                sampling_config=sampling_cfg,
+                output_dir=sampling_output_dir,
                 theta_star=theta_star,
-                output_dir=run_dir / "data",
-                feature_columns=feature_columns,
-                target_column=target_column,
+                parameter_order=parameter_order,
             )
             if execution["stages"]["prepare_dataset"].get("status") == "skipped":
                 execution["stages"]["prepare_dataset"] = {
                     "status": "completed",
                     "mode": "auto_from_train",
-                    "dataset_file": str(dataset_path),
+                    "collocation_manifest_file": str(collocation_manifest_path),
+                    "collocation_output_dir": str(sampling_output_dir),
                     "target_column_requested": target_column,
                     "feature_columns": list(feature_columns),
                 }
@@ -187,37 +187,46 @@ def run_pinn_pipeline_from_config(
         )
         best_ckpt = trainer.train(
             model_config=model_cfg,
-            dataset_manifest={"dataset_file": str(dataset_path)},
+            dataset_manifest={
+                "collocation_manifest_file": str(collocation_manifest_path),
+            },
         )
         execution["stages"]["train"] = {
             "status": "completed",
+            "collocation_manifest_file": str(collocation_manifest_path),
             "best_checkpoint": str(best_ckpt),
         }
     else:
         execution["stages"]["train"] = {"status": "skipped"}
 
     if _is_stage_enabled(plan, "evaluate"):
-        eval_cfg = training_cfg.get("evaluation", {})
-        eval_result = evaluate_pinn_run(
-            run_dir=run_dir,
-            model_config=model_cfg,
-            training_config=training_cfg,
-            evaluation_config=eval_cfg,
-            dataset_file=dataset_path,
-            checkpoint_file=(
-                execution["stages"]["train"].get("best_checkpoint")
-                if execution["stages"]["train"].get("status") == "completed"
-                else None
-            ),
-            split_indices_file=run_dir / "train" / "metrics" / "split_indices.npz",
-        )
-        execution["stages"]["evaluate"] = {
-            "status": "completed",
-            "metrics_yaml": eval_result["metrics_yaml"],
-            "metrics_csv": eval_result["metrics_csv"],
-            "metrics_all": eval_result["metrics_all"],
-            "metrics_val": eval_result["metrics_val"],
-        }
+        if dataset_path is None:
+            execution["stages"]["evaluate"] = {
+                "status": "skipped",
+                "reason": "Supervised evaluator requires dataset_file; PINN evaluator pending.",
+            }
+        else:
+            eval_cfg = training_cfg.get("evaluation", {})
+            eval_result = evaluate_pinn_run(
+                run_dir=run_dir,
+                model_config=model_cfg,
+                training_config=training_cfg,
+                evaluation_config=eval_cfg,
+                dataset_file=dataset_path,
+                checkpoint_file=(
+                    execution["stages"]["train"].get("best_checkpoint")
+                    if execution["stages"]["train"].get("status") == "completed"
+                    else None
+                ),
+                split_indices_file=run_dir / "train" / "metrics" / "split_indices.npz",
+            )
+            execution["stages"]["evaluate"] = {
+                "status": "completed",
+                "metrics_yaml": eval_result["metrics_yaml"],
+                "metrics_csv": eval_result["metrics_csv"],
+                "metrics_all": eval_result["metrics_all"],
+                "metrics_val": eval_result["metrics_val"],
+            }
     else:
         execution["stages"]["evaluate"] = {"status": "skipped"}
 

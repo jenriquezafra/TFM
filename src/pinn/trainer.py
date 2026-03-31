@@ -9,6 +9,7 @@ import torch.nn as nn
 import yaml
 from torch.utils.data import DataLoader, TensorDataset
 
+from src.pinn.losses import PINNLossTerms, compute_weighted_pinn_loss
 from src.pinn.model import build_pinn_model
 from src.utils.callbacks import build_step_lr
 
@@ -108,7 +109,7 @@ def _build_scheduler(
     if not enabled:
         return None
 
-    # Keep scheduler only for Adam in mixed mode (same behavior as ANN training flow).
+    # Keep scheduler only for Adam in mixed mode.
     if optimizer_name != "adam":
         return None
 
@@ -123,56 +124,98 @@ def _build_scheduler(
     raise ValueError(f"Unsupported lr scheduler '{sched_name}'. Use 'step'.")
 
 
-def _split_indices(
-    n_samples: int,
+def _load_yaml(path: Path) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        payload = yaml.safe_load(f) or {}
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected YAML dictionary in {path}, got {type(payload)!r}")
+    return payload
+
+
+def _load_parquet_matrix(*, path: Path, feature_order: list[str]) -> np.ndarray:
+    if not path.exists():
+        raise FileNotFoundError(f"Collocation file not found: {path}")
+    df = pd.read_parquet(path)
+    missing = [col for col in feature_order if col not in df.columns]
+    if missing:
+        raise KeyError(
+            f"Collocation file {path} missing columns {missing}. "
+            f"Available: {list(df.columns)}"
+        )
+    x = df.loc[:, feature_order].to_numpy(dtype=np.float32)
+    if x.ndim != 2:
+        raise ValueError(f"Expected 2D matrix in {path}, got shape {x.shape}")
+    if not np.isfinite(x).all():
+        raise ValueError(f"Collocation matrix contains non-finite values: {path}")
+    return x
+
+
+def _split_array(
+    x: np.ndarray,
     *,
     val_fraction: float,
     seed: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    if n_samples < 2:
-        raise ValueError("Need at least 2 samples to create train/val split.")
-    if not (0.0 < val_fraction < 1.0):
-        raise ValueError(f"val_fraction must be in (0,1). Got {val_fraction}.")
+    if x.ndim != 2:
+        raise ValueError(f"Expected 2D array, got shape {x.shape}")
+    if x.shape[0] == 0:
+        raise ValueError("Cannot split empty dataset.")
+    if val_fraction <= 0.0:
+        return x, x
+    if val_fraction >= 1.0:
+        raise ValueError(f"val_fraction must be < 1.0. Got {val_fraction}.")
+    if x.shape[0] == 1:
+        return x, x
 
-    idx = np.arange(n_samples)
+    idx = np.arange(x.shape[0])
     rng = np.random.default_rng(seed)
     rng.shuffle(idx)
-
-    n_val = int(round(n_samples * val_fraction))
-    n_val = max(1, min(n_val, n_samples - 1))
+    n_val = int(round(x.shape[0] * val_fraction))
+    n_val = max(1, min(n_val, x.shape[0] - 1))
     val_idx = idx[:n_val]
     train_idx = idx[n_val:]
-    return train_idx, val_idx
+    return x[train_idx], x[val_idx]
 
 
-def _evaluate_mse_in_batches(
+def _build_loader(x: np.ndarray, *, batch_size: int, shuffle: bool) -> DataLoader:
+    if batch_size <= 0:
+        raise ValueError(f"batch_size must be > 0. Got {batch_size}.")
+    ds = TensorDataset(torch.from_numpy(x))
+    return DataLoader(ds, batch_size=min(batch_size, len(ds)), shuffle=shuffle)
+
+
+def _cycle_loader(loader: DataLoader):
+    while True:
+        for (xb,) in loader:
+            yield xb
+
+
+def _evaluate_epoch_loss(
     *,
     model: nn.Module,
-    x: np.ndarray,
-    y: np.ndarray,
-    batch_size: int,
+    loss_config: dict,
     device: torch.device,
-    loss_fn: nn.Module,
-) -> float:
+    x_val: dict[str, np.ndarray],
+) -> tuple[float, PINNLossTerms]:
     model.eval()
-    total_loss = 0.0
-    total_count = 0
-    with torch.inference_mode():
-        for start in range(0, x.shape[0], batch_size):
-            stop = min(start + batch_size, x.shape[0])
-            xb = torch.from_numpy(x[start:stop]).to(device)
-            yb = torch.from_numpy(y[start:stop]).to(device)
-            pred = model(xb)
-            batch_loss = loss_fn(pred, yb)
-            n_batch = int(stop - start)
-            total_loss += float(batch_loss.item()) * n_batch
-            total_count += n_batch
-    return total_loss / max(total_count, 1)
+    with torch.enable_grad():
+        batch_payload = {
+            "interior": torch.from_numpy(x_val["interior"]).to(device),
+            "terminal": torch.from_numpy(x_val["terminal"]).to(device),
+            "lower": torch.from_numpy(x_val["lower"]).to(device),
+        }
+        total, terms = compute_weighted_pinn_loss(
+            model=model,
+            loss_config=loss_config,
+            batch_payload=batch_payload,
+        )
+    return float(total.detach().item()), terms
 
 
 class PINNTrainer:
     """
-    Supervised trainer for PINN baseline:
+    PINN trainer (unsupervised):
+    - consumes LHS collocation sets: interior / terminal / lower
     - supports: adam / sgd / lbfgs / mix_half
     - mix_half: Adam (with LR scheduler) then LBFGS at half training.
     """
@@ -182,27 +225,49 @@ class PINNTrainer:
         self.training_config = dict(training_config)
 
     def train(self, *, model_config: dict, dataset_manifest: dict) -> Path:
-        dataset_file = dataset_manifest.get("dataset_file")
-        if dataset_file is None:
-            raise KeyError("dataset_manifest must include key 'dataset_file'")
+        collocation_manifest_file = dataset_manifest.get("collocation_manifest_file")
+        if collocation_manifest_file is None:
+            raise KeyError("dataset_manifest must include key 'collocation_manifest_file'")
 
-        dataset_path = Path(dataset_file)
-        if not dataset_path.exists():
-            raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
+        collocation_manifest_path = Path(collocation_manifest_file)
+        if not collocation_manifest_path.exists():
+            raise FileNotFoundError(
+                f"Collocation manifest file not found: {collocation_manifest_path}"
+            )
 
-        arrays = np.load(dataset_path)
-        x = arrays["X"].astype(np.float32)
-        y = arrays["y"].astype(np.float32)
-        if x.ndim != 2:
-            raise ValueError(f"Expected X as 2D array, got shape {x.shape}")
-        if y.ndim != 2 or y.shape[1] != 1:
-            raise ValueError(f"Expected y as shape [N,1], got shape {y.shape}")
-        if x.shape[0] != y.shape[0]:
-            raise ValueError(f"X/y row mismatch: {x.shape[0]} vs {y.shape[0]}")
+        collocation_manifest = _load_yaml(collocation_manifest_path)
+        datasets_cfg = collocation_manifest.get("datasets", {})
+        required_keys = ("interior", "terminal", "lower")
+        missing = [key for key in required_keys if key not in datasets_cfg]
+        if missing:
+            raise KeyError(
+                f"Collocation manifest missing datasets keys {missing}. "
+                f"Available: {list(datasets_cfg.keys())}"
+            )
+
+        feature_order = collocation_manifest.get("feature_order")
+        if not isinstance(feature_order, list) or not feature_order:
+            raise ValueError(
+                "Collocation manifest must include a non-empty 'feature_order' list."
+            )
+
+        x_interior = _load_parquet_matrix(
+            path=Path(datasets_cfg["interior"]),
+            feature_order=feature_order,
+        )
+        x_terminal = _load_parquet_matrix(
+            path=Path(datasets_cfg["terminal"]),
+            feature_order=feature_order,
+        )
+        x_lower = _load_parquet_matrix(
+            path=Path(datasets_cfg["lower"]),
+            feature_order=feature_order,
+        )
 
         meta_cfg = self.training_config.get("meta", {})
         loop_cfg = self.training_config.get("loop", {})
         data_cfg = self.training_config.get("data", {})
+        loss_cfg = self.training_config.get("loss", {})
         cb_ckpt_cfg = self.training_config.get("callbacks", {}).get("checkpoint", {})
 
         seed = int(meta_cfg.get("seed", 42))
@@ -211,8 +276,8 @@ class PINNTrainer:
 
         device = _resolve_device(meta_cfg.get("device", "auto"))
         epochs = int(loop_cfg.get("epochs", 200))
-        batch_size_train = int(loop_cfg.get("batch_size_supervised", 256))
-        batch_size_val = int(loop_cfg.get("batch_size_val", 8192))
+        batch_size_collocation = int(loop_cfg.get("batch_size_collocation", 2048))
+        batch_size_boundary = int(loop_cfg.get("batch_size_boundary", 512))
         val_fraction = float(data_cfg.get("val_fraction", 0.2))
 
         mode = _normalize_training_mode(meta_cfg.get("optimizer", "adam"))
@@ -223,31 +288,34 @@ class PINNTrainer:
                 f"Use one of: {sorted(supported_modes)}"
             )
 
-        train_idx, val_idx = _split_indices(
-            x.shape[0],
-            val_fraction=val_fraction,
-            seed=seed,
+        x_interior_train, x_interior_val = _split_array(
+            x_interior, val_fraction=val_fraction, seed=seed
         )
-        x_train_np = x[train_idx]
-        y_train_np = y[train_idx]
-        x_val_np = x[val_idx]
-        y_val_np = y[val_idx]
+        x_terminal_train, x_terminal_val = _split_array(
+            x_terminal, val_fraction=val_fraction, seed=seed + 1
+        )
+        x_lower_train, x_lower_val = _split_array(
+            x_lower, val_fraction=val_fraction, seed=seed + 2
+        )
 
-        # Build loaders by optimizer flavor.
-        train_ds = TensorDataset(
-            torch.from_numpy(x_train_np),
-            torch.from_numpy(y_train_np),
-        )
+        x_train = {
+            "interior": x_interior_train,
+            "terminal": x_terminal_train,
+            "lower": x_lower_train,
+        }
+        x_val = {
+            "interior": x_interior_val,
+            "terminal": x_terminal_val,
+            "lower": x_lower_val,
+        }
+
+        model = build_pinn_model(model_config).to(device)
 
         optimizers_by_name: dict[str, torch.optim.Optimizer] = {}
         schedulers_by_name: dict[str, torch.optim.lr_scheduler.LRScheduler | None] = {}
-        train_loaders_by_name: dict[str, DataLoader] = {}
-
-        model = build_pinn_model(model_config).to(device)
-        loss_fn = nn.MSELoss()
+        train_loaders_by_name: dict[str, tuple[DataLoader, DataLoader, DataLoader]] = {}
 
         mix_half_switch_epoch: int | None = None
-
         if mode == "mix_half":
             adam_cfg = _get_optimizer_cfg(self.training_config, "adam")
             lbfgs_cfg = _get_optimizer_cfg(self.training_config, "lbfgs")
@@ -262,7 +330,6 @@ class PINNTrainer:
                 optimizer_name="lbfgs",
                 optimizer_cfg=lbfgs_cfg,
             )
-
             schedulers_by_name["adam"] = _build_scheduler(
                 training_config=self.training_config,
                 optimizer_name="adam",
@@ -271,19 +338,33 @@ class PINNTrainer:
             schedulers_by_name["lbfgs"] = None
 
             lbfgs_full_batch = bool(lbfgs_cfg.get("full_batch", True))
-            lbfgs_batch_size = len(train_ds) if lbfgs_full_batch else int(
-                lbfgs_cfg.get("batch_size", max(batch_size_train, min(8192, batch_size_train * 4)))
+            lbfgs_batch_size = int(
+                lbfgs_cfg.get(
+                    "batch_size",
+                    max(batch_size_collocation, min(8192, batch_size_collocation * 4)),
+                )
             )
-
-            train_loaders_by_name["adam"] = DataLoader(
-                train_ds,
-                batch_size=batch_size_train,
-                shuffle=True,
+            train_loaders_by_name["adam"] = (
+                _build_loader(x_train["interior"], batch_size=batch_size_collocation, shuffle=True),
+                _build_loader(x_train["terminal"], batch_size=batch_size_boundary, shuffle=True),
+                _build_loader(x_train["lower"], batch_size=batch_size_boundary, shuffle=True),
             )
-            train_loaders_by_name["lbfgs"] = DataLoader(
-                train_ds,
-                batch_size=lbfgs_batch_size,
-                shuffle=not lbfgs_full_batch,
+            train_loaders_by_name["lbfgs"] = (
+                _build_loader(
+                    x_train["interior"],
+                    batch_size=len(x_train["interior"]) if lbfgs_full_batch else lbfgs_batch_size,
+                    shuffle=not lbfgs_full_batch,
+                ),
+                _build_loader(
+                    x_train["terminal"],
+                    batch_size=len(x_train["terminal"]) if lbfgs_full_batch else lbfgs_batch_size,
+                    shuffle=not lbfgs_full_batch,
+                ),
+                _build_loader(
+                    x_train["lower"],
+                    batch_size=len(x_train["lower"]) if lbfgs_full_batch else lbfgs_batch_size,
+                    shuffle=not lbfgs_full_batch,
+                ),
             )
 
             default_switch = max(2, (epochs // 2) + 1)
@@ -295,7 +376,6 @@ class PINNTrainer:
                 mix_half_switch_epoch = epochs + 1
 
             active_optimizer_name = "adam"
-
         else:
             opt_name = mode
             opt_cfg = _get_optimizer_cfg(self.training_config, opt_name)
@@ -312,19 +392,34 @@ class PINNTrainer:
 
             if opt_name == "lbfgs":
                 lbfgs_full_batch = bool(opt_cfg.get("full_batch", True))
-                lbfgs_batch_size = len(train_ds) if lbfgs_full_batch else int(
-                    opt_cfg.get("batch_size", max(batch_size_train, min(8192, batch_size_train * 4)))
+                lbfgs_batch_size = int(
+                    opt_cfg.get(
+                        "batch_size",
+                        max(batch_size_collocation, min(8192, batch_size_collocation * 4)),
+                    )
                 )
-                train_loaders_by_name[opt_name] = DataLoader(
-                    train_ds,
-                    batch_size=lbfgs_batch_size,
-                    shuffle=not lbfgs_full_batch,
+                train_loaders_by_name[opt_name] = (
+                    _build_loader(
+                        x_train["interior"],
+                        batch_size=len(x_train["interior"]) if lbfgs_full_batch else lbfgs_batch_size,
+                        shuffle=not lbfgs_full_batch,
+                    ),
+                    _build_loader(
+                        x_train["terminal"],
+                        batch_size=len(x_train["terminal"]) if lbfgs_full_batch else lbfgs_batch_size,
+                        shuffle=not lbfgs_full_batch,
+                    ),
+                    _build_loader(
+                        x_train["lower"],
+                        batch_size=len(x_train["lower"]) if lbfgs_full_batch else lbfgs_batch_size,
+                        shuffle=not lbfgs_full_batch,
+                    ),
                 )
             else:
-                train_loaders_by_name[opt_name] = DataLoader(
-                    train_ds,
-                    batch_size=batch_size_train,
-                    shuffle=True,
+                train_loaders_by_name[opt_name] = (
+                    _build_loader(x_train["interior"], batch_size=batch_size_collocation, shuffle=True),
+                    _build_loader(x_train["terminal"], batch_size=batch_size_boundary, shuffle=True),
+                    _build_loader(x_train["lower"], batch_size=batch_size_boundary, shuffle=True),
                 )
 
             active_optimizer_name = opt_name
@@ -346,7 +441,6 @@ class PINNTrainer:
         best_val_loss = float("inf")
 
         for epoch in range(1, epochs + 1):
-            # mix_half switching policy
             if mode == "mix_half":
                 desired = "adam" if epoch < mix_half_switch_epoch else "lbfgs"
                 if desired != active_optimizer_name:
@@ -355,42 +449,78 @@ class PINNTrainer:
                     lr_scheduler = schedulers_by_name[active_optimizer_name]
 
             model.train()
-            train_loss_sum = 0.0
-            train_count = 0
+            loader_interior, loader_terminal, loader_lower = train_loaders_by_name[active_optimizer_name]
+            n_steps = max(len(loader_interior), len(loader_terminal), len(loader_lower))
+            it_interior = _cycle_loader(loader_interior)
+            it_terminal = _cycle_loader(loader_terminal)
+            it_lower = _cycle_loader(loader_lower)
 
-            train_loader = train_loaders_by_name[active_optimizer_name]
-            for xb, yb in train_loader:
-                xb = xb.to(device)
-                yb = yb.to(device)
+            train_loss_sum = 0.0
+            train_pde_sum = 0.0
+            train_term_sum = 0.0
+            train_low_sum = 0.0
+            train_no_arb_sum = 0.0
+
+            for _ in range(n_steps):
+                xb_interior = next(it_interior).to(device)
+                xb_terminal = next(it_terminal).to(device)
+                xb_lower = next(it_lower).to(device)
 
                 if active_optimizer_name == "lbfgs":
+                    terms_holder: dict[str, PINNLossTerms] = {}
+
                     def closure() -> torch.Tensor:
                         optimizer.zero_grad()
-                        pred_local = model(xb)
-                        loss_local = loss_fn(pred_local, yb)
-                        loss_local.backward()
-                        return loss_local
+                        total_local, terms_local = compute_weighted_pinn_loss(
+                            model=model,
+                            loss_config=loss_cfg,
+                            batch_payload={
+                                "interior": xb_interior,
+                                "terminal": xb_terminal,
+                                "lower": xb_lower,
+                            },
+                        )
+                        total_local.backward()
+                        terms_holder["value"] = terms_local
+                        return total_local
 
-                    loss = optimizer.step(closure)
+                    loss_tensor = optimizer.step(closure)
+                    step_total = float(loss_tensor.item())
+                    step_terms = terms_holder["value"]
                 else:
                     optimizer.zero_grad()
-                    pred = model(xb)
-                    loss = loss_fn(pred, yb)
-                    loss.backward()
+                    loss_tensor, step_terms = compute_weighted_pinn_loss(
+                        model=model,
+                        loss_config=loss_cfg,
+                        batch_payload={
+                            "interior": xb_interior,
+                            "terminal": xb_terminal,
+                            "lower": xb_lower,
+                        },
+                    )
+                    loss_tensor.backward()
                     optimizer.step()
+                    step_total = float(loss_tensor.detach().item())
 
-                n_batch = int(xb.shape[0])
-                train_loss_sum += float(loss.item()) * n_batch
-                train_count += n_batch
+                train_loss_sum += step_total
+                train_pde_sum += step_terms.pde
+                train_term_sum += step_terms.term
+                train_low_sum += step_terms.low
+                train_no_arb_sum += step_terms.no_arbitrage
 
-            train_loss = train_loss_sum / max(train_count, 1)
-            val_loss = _evaluate_mse_in_batches(
+            train_total = train_loss_sum / max(n_steps, 1)
+            train_terms = PINNLossTerms(
+                pde=train_pde_sum / max(n_steps, 1),
+                term=train_term_sum / max(n_steps, 1),
+                low=train_low_sum / max(n_steps, 1),
+                no_arbitrage=train_no_arb_sum / max(n_steps, 1),
+            )
+
+            val_total, val_terms = _evaluate_epoch_loss(
                 model=model,
-                x=x_val_np,
-                y=y_val_np,
-                batch_size=batch_size_val,
+                loss_config=loss_cfg,
                 device=device,
-                loss_fn=loss_fn,
+                x_val=x_val,
             )
 
             if lr_scheduler is not None:
@@ -402,13 +532,21 @@ class PINNTrainer:
                     "epoch": epoch,
                     "optimizer": active_optimizer_name,
                     "lr": current_lr,
-                    "train_mse": float(train_loss),
-                    "val_mse": float(val_loss),
+                    "train_total": float(train_total),
+                    "train_pde": float(train_terms.pde),
+                    "train_term": float(train_terms.term),
+                    "train_low": float(train_terms.low),
+                    "train_no_arbitrage": float(train_terms.no_arbitrage),
+                    "val_total": float(val_total),
+                    "val_pde": float(val_terms.pde),
+                    "val_term": float(val_terms.term),
+                    "val_low": float(val_terms.low),
+                    "val_no_arbitrage": float(val_terms.no_arbitrage),
                 }
             )
 
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            if val_total < best_val_loss:
+                best_val_loss = val_total
                 torch.save(model.state_dict(), best_ckpt)
 
         torch.save(model.state_dict(), last_ckpt)
@@ -417,29 +555,25 @@ class PINNTrainer:
         history_path = metrics_dir / "train_history.csv"
         history_df.to_csv(history_path, index=False)
 
-        split_indices_path = metrics_dir / "split_indices.npz"
-        np.savez(
-            split_indices_path,
-            train_idx=train_idx.astype(np.int64),
-            val_idx=val_idx.astype(np.int64),
-        )
-
         summary = {
-            "dataset_file": str(dataset_path),
+            "collocation_manifest_file": str(collocation_manifest_path),
             "device": str(device),
             "optimizer_mode": mode,
             "mix_half_switch_epoch": mix_half_switch_epoch,
             "epochs": epochs,
-            "batch_size_supervised": batch_size_train,
-            "batch_size_val": batch_size_val,
+            "batch_size_collocation": batch_size_collocation,
+            "batch_size_boundary": batch_size_boundary,
             "val_fraction": val_fraction,
-            "n_train": int(len(train_idx)),
-            "n_val": int(len(val_idx)),
-            "best_val_mse": float(best_val_loss),
+            "n_train_interior": int(len(x_train["interior"])),
+            "n_train_terminal": int(len(x_train["terminal"])),
+            "n_train_lower": int(len(x_train["lower"])),
+            "n_val_interior": int(len(x_val["interior"])),
+            "n_val_terminal": int(len(x_val["terminal"])),
+            "n_val_lower": int(len(x_val["lower"])),
+            "best_val_total": float(best_val_loss),
             "best_checkpoint": str(best_ckpt),
             "last_checkpoint": str(last_ckpt),
             "history_file": str(history_path),
-            "split_indices_file": str(split_indices_path),
         }
         summary_path = metrics_dir / "train_summary.yaml"
         with open(summary_path, "w", encoding="utf-8") as f:

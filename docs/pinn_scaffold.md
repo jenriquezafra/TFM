@@ -51,9 +51,9 @@ Etapas (controladas por `configs/pinn_pipeline.yaml`):
 Comportamiento actual:
 - `--dry-run`: valida rutas y genera plan YAML.
 - Ejecucion real:
-  - `prepare_dataset`: implementada (supervisado + LHS interior/terminal/lower)
-  - `train`: implementada (supervisado + MSE)
-  - `evaluate`: implementada (metricas all/train/val)
+  - `prepare_dataset`: implementada (LHS interior/terminal/lower)
+  - `train`: implementada (PINN no supervisada: residual PDE + terminal + lower)
+  - `evaluate`: pendiente de migracion a metrica PINN (el evaluator actual es supervisado)
 
 ## 5) Configs
 
