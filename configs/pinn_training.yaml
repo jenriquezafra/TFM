@@ -1,12 +1,16 @@
 meta:
   seed: 42
   device: "auto" # auto | cpu | mps | cuda
-  optimizer: "mix_half" # adam | sgd | L-BFGS | mix_half
+  optimizer: "adam" # adam | sgd | L-BFGS | mix_half
 
 data:
   supervised_source: "cann_quotes_comparison"
   target_column: "price_market"
   val_fraction: 0.2
+  input_scaling:
+    enabled: true
+    method: "standardize_train" # affine: x_scaled = a + b*x, with a=-mean/std, b=1/std
+    eps: 1.0e-8
 
 sampling:
   strategy: "lhs_static" # lhs_static | lhs
@@ -49,7 +53,7 @@ loss:
 
 loop:
   epochs: 4000
-  mix_half_switch_epoch: 2001
+  mix_half_switch_epoch: null
   batch_size_collocation: 2048
   batch_size_boundary: 512
   log_every: 50
