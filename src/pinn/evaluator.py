@@ -29,13 +29,25 @@ def _predict_in_batches(
     x: np.ndarray,
     batch_size: int,
     device: torch.device,
+    input_affine: dict | None = None,
 ) -> np.ndarray:
+    x_eval = x
+    if input_affine is not None:
+        a = np.asarray(input_affine.get("a", []), dtype=np.float32).reshape(1, -1)
+        b = np.asarray(input_affine.get("b", []), dtype=np.float32).reshape(1, -1)
+        if a.shape[1] != x.shape[1] or b.shape[1] != x.shape[1]:
+            raise ValueError(
+                "input_scaling dimension mismatch in evaluator: "
+                f"x has {x.shape[1]}, a has {a.shape[1]}, b has {b.shape[1]}."
+            )
+        x_eval = a + b * x
+
     model.eval()
     preds = []
     with torch.inference_mode():
-        for start in range(0, x.shape[0], batch_size):
-            stop = min(start + batch_size, x.shape[0])
-            xb = torch.from_numpy(x[start:stop]).to(device)
+        for start in range(0, x_eval.shape[0], batch_size):
+            stop = min(start + batch_size, x_eval.shape[0])
+            xb = torch.from_numpy(x_eval[start:stop]).to(device)
             yb = model(xb).detach().cpu().numpy()
             preds.append(yb.astype(np.float64, copy=False))
     return np.concatenate(preds, axis=0).reshape(-1)
@@ -66,6 +78,34 @@ def _split_indices_from_training_cfg(
     n_val = int(round(n_samples * val_fraction))
     n_val = max(1, min(n_val, n_samples - 1))
     return idx[n_val:], idx[:n_val]
+
+
+def _load_input_affine_from_train_summary(*, run_dir: Path, x_dim: int) -> dict | None:
+    summary_path = run_dir / "train" / "metrics" / "train_summary.yaml"
+    if not summary_path.exists():
+        return None
+
+    with open(summary_path, "r", encoding="utf-8") as f:
+        payload = yaml.safe_load(f) or {}
+    if not isinstance(payload, dict):
+        return None
+
+    scaling = payload.get("input_scaling", {})
+    if not isinstance(scaling, dict):
+        return None
+    if not bool(scaling.get("enabled", False)):
+        return None
+
+    a = np.asarray(scaling.get("a", []), dtype=np.float32).reshape(-1)
+    b = np.asarray(scaling.get("b", []), dtype=np.float32).reshape(-1)
+    if a.size != x_dim or b.size != x_dim:
+        return None
+
+    return {
+        "a": a.tolist(),
+        "b": b.tolist(),
+        "method": str(scaling.get("method", "unknown")),
+    }
 
 
 def evaluate_pinn_run(
@@ -128,9 +168,16 @@ def evaluate_pinn_run(
     state = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(state)
     model.to(device)
+    input_affine = _load_input_affine_from_train_summary(run_dir=run_dir, x_dim=x.shape[1])
 
     batch_size = int(evaluation_config.get("batch_size", 8192))
-    pred_all = _predict_in_batches(model=model, x=x, batch_size=batch_size, device=device)
+    pred_all = _predict_in_batches(
+        model=model,
+        x=x,
+        batch_size=batch_size,
+        device=device,
+        input_affine=input_affine,
+    )
 
     metrics_all = _compute_metrics(y_true=y, y_pred=pred_all)
     metrics_train = _compute_metrics(y_true=y[train_idx], y_pred=pred_all[train_idx])
@@ -141,6 +188,8 @@ def evaluate_pinn_run(
         "checkpoint_file": str(checkpoint_path),
         "split_indices_file": str(split_idx_path),
         "device": str(device),
+        "input_scaling_applied": bool(input_affine is not None),
+        "input_scaling_method": (None if input_affine is None else input_affine.get("method")),
         "metrics_all": metrics_all,
         "metrics_train": metrics_train,
         "metrics_val": metrics_val,
@@ -170,4 +219,3 @@ def evaluate_pinn_run(
         "metrics_train": metrics_train,
         "metrics_val": metrics_val,
     }
-

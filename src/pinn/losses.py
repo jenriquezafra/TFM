@@ -18,6 +18,30 @@ class PINNLossTerms:
         return self.pde + self.term + self.low + self.no_arbitrage
 
 
+def _apply_input_affine(
+    *,
+    x: torch.Tensor,
+    input_affine: dict[str, torch.Tensor] | None,
+) -> torch.Tensor:
+    if input_affine is None:
+        return x
+
+    a_raw = input_affine.get("a")
+    b_raw = input_affine.get("b")
+    if a_raw is None or b_raw is None:
+        raise KeyError("input_affine must include keys 'a' and 'b'.")
+
+    a = torch.as_tensor(a_raw, dtype=x.dtype, device=x.device).reshape(-1)
+    b = torch.as_tensor(b_raw, dtype=x.dtype, device=x.device).reshape(-1)
+    if a.numel() != x.shape[1] or b.numel() != x.shape[1]:
+        raise ValueError(
+            "input_affine shape mismatch: "
+            f"x has {x.shape[1]} features, "
+            f"a has {a.numel()}, b has {b.numel()}."
+        )
+    return x * b.view(1, -1) + a.view(1, -1)
+
+
 def _get_weight(loss_config: dict, key: str, default: float) -> float:
     weights = loss_config.get("weights", {})
     return float(weights.get(key, default))
@@ -38,6 +62,7 @@ def compute_heston_pde_residual(
     *,
     model: nn.Module,
     x_interior: torch.Tensor,
+    input_affine: dict[str, torch.Tensor] | None = None,
 ) -> torch.Tensor:
     if x_interior.ndim != 2:
         raise ValueError(f"x_interior must be 2D [batch, features], got {tuple(x_interior.shape)}")
@@ -45,7 +70,8 @@ def compute_heston_pde_residual(
         raise ValueError("Expected at least 8 input features: [tau,m,v,rho,kappa,gamma,bar_v,r].")
 
     x_interior = x_interior.requires_grad_(True)
-    u_interior = model(x_interior)
+    x_net = _apply_input_affine(x=x_interior, input_affine=input_affine)
+    u_interior = model(x_net)
     if u_interior.ndim != 2 or u_interior.shape[1] != 1:
         raise ValueError(f"Expected model output shape [N,1], got {tuple(u_interior.shape)}.")
 
@@ -85,6 +111,7 @@ def compute_weighted_pinn_loss(
     model: nn.Module,
     loss_config: dict,
     batch_payload: dict,
+    input_affine: dict[str, torch.Tensor] | None = None,
 ) -> tuple[torch.Tensor, PINNLossTerms]:
     """
     Compute weighted PINN objective:
@@ -100,15 +127,19 @@ def compute_weighted_pinn_loss(
     if x_interior.shape[1] < 8 or x_terminal.shape[1] < 8 or x_lower.shape[1] < 8:
         raise ValueError("Expected at least 8 input features: [tau,m,v,rho,kappa,gamma,bar_v,r].")
 
-    residual = compute_heston_pde_residual(model=model, x_interior=x_interior)
+    residual = compute_heston_pde_residual(
+        model=model,
+        x_interior=x_interior,
+        input_affine=input_affine,
+    )
     l_pde = torch.mean(residual**2)
 
-    u_terminal = model(x_terminal)
+    u_terminal = model(_apply_input_affine(x=x_terminal, input_affine=input_affine))
     m_terminal = x_terminal[:, 1:2]
     payoff = torch.clamp(1.0 - m_terminal, min=0.0)
     l_term = torch.mean((u_terminal - payoff) ** 2)
 
-    u_lower = model(x_lower)
+    u_lower = model(_apply_input_affine(x=x_lower, input_affine=input_affine))
     tau_lower = x_lower[:, 0:1]
     r_lower = x_lower[:, 7:8]
     lower_target = torch.exp(-r_lower * tau_lower)

@@ -187,6 +187,76 @@ def _split_array(
     return x[train_idx], x[val_idx]
 
 
+def _build_input_affine_from_train(
+    *,
+    x_train: dict[str, np.ndarray],
+    feature_order: list[str],
+    scaling_cfg: dict,
+) -> dict | None:
+    enabled = bool(scaling_cfg.get("enabled", False))
+    if not enabled:
+        return None
+
+    method = str(scaling_cfg.get("method", "standardize_train")).strip().lower()
+    if method not in {"standardize_train"}:
+        raise ValueError(
+            f"Unsupported data.input_scaling.method='{method}'. "
+            "Use 'standardize_train'."
+        )
+
+    eps = float(scaling_cfg.get("eps", 1.0e-8))
+    if eps <= 0.0:
+        raise ValueError(f"data.input_scaling.eps must be > 0. Got {eps}.")
+
+    blocks = [x_train["interior"], x_train["terminal"], x_train["lower"]]
+    x_cat = np.concatenate(blocks, axis=0).astype(np.float64, copy=False)
+    if x_cat.ndim != 2:
+        raise ValueError(f"Expected 2D collocation matrix, got shape {x_cat.shape}.")
+    if x_cat.shape[1] != len(feature_order):
+        raise ValueError(
+            f"Feature count mismatch: matrix has {x_cat.shape[1]}, "
+            f"feature_order has {len(feature_order)}."
+        )
+
+    mean = x_cat.mean(axis=0)
+    std = x_cat.std(axis=0)
+    safe = std > eps
+
+    # Affine transform used by the paper family: x_scaled = a + b * x.
+    # For stable columns with non-negligible std: a = -mean/std, b = 1/std.
+    # For nearly constant columns: keep identity (a=0, b=1).
+    a = np.zeros_like(mean, dtype=np.float64)
+    b = np.ones_like(std, dtype=np.float64)
+    a[safe] = -mean[safe] / std[safe]
+    b[safe] = 1.0 / std[safe]
+
+    frozen_names = [name for name, is_safe in zip(feature_order, safe) if not bool(is_safe)]
+    return {
+        "enabled": True,
+        "method": method,
+        "eps": eps,
+        "feature_order": list(feature_order),
+        "a": a.astype(np.float32).tolist(),
+        "b": b.astype(np.float32).tolist(),
+        "mean_train": mean.astype(np.float32).tolist(),
+        "std_train": std.astype(np.float32).tolist(),
+        "frozen_features": frozen_names,
+    }
+
+
+def _to_torch_input_affine(
+    *,
+    input_affine: dict | None,
+    device: torch.device,
+) -> dict[str, torch.Tensor] | None:
+    if input_affine is None:
+        return None
+    return {
+        "a": torch.tensor(input_affine["a"], dtype=torch.float32, device=device),
+        "b": torch.tensor(input_affine["b"], dtype=torch.float32, device=device),
+    }
+
+
 def _build_loader(x: np.ndarray, *, batch_size: int, shuffle: bool) -> DataLoader:
     if batch_size <= 0:
         raise ValueError(f"batch_size must be > 0. Got {batch_size}.")
@@ -208,12 +278,18 @@ def _format_seconds(sec: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def _safe_torch_save(*, obj: object, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(obj, path)
+
+
 def _evaluate_epoch_loss(
     *,
     model: nn.Module,
     loss_config: dict,
     device: torch.device,
     x_val: dict[str, np.ndarray],
+    input_affine: dict[str, torch.Tensor] | None,
 ) -> tuple[float, PINNLossTerms]:
     model.eval()
     with torch.enable_grad():
@@ -226,6 +302,7 @@ def _evaluate_epoch_loss(
             model=model,
             loss_config=loss_config,
             batch_payload=batch_payload,
+            input_affine=input_affine,
         )
     return float(total.detach().item()), terms
 
@@ -293,6 +370,7 @@ def _save_pde_residual_zone_map(
     device: torch.device,
     x_val_interior: np.ndarray,
     figures_dir: Path,
+    input_affine: dict[str, torch.Tensor] | None,
     n_bins_m: int = 24,
     n_bins_tau: int = 24,
 ) -> dict[str, str]:
@@ -302,7 +380,11 @@ def _save_pde_residual_zone_map(
     model.eval()
     with torch.enable_grad():
         x_t = torch.from_numpy(x_val_interior).to(device)
-        residual = compute_heston_pde_residual(model=model, x_interior=x_t)
+        residual = compute_heston_pde_residual(
+            model=model,
+            x_interior=x_t,
+            input_affine=input_affine,
+        )
         abs_residual = residual.detach().abs().cpu().numpy().reshape(-1)
 
     tau = x_val_interior[:, 0]
@@ -392,6 +474,7 @@ class PINNTrainer:
         self.training_config = dict(training_config)
 
     def train(self, *, model_config: dict, dataset_manifest: dict) -> Path:
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         collocation_manifest_file = dataset_manifest.get("collocation_manifest_file")
         if collocation_manifest_file is None:
             raise KeyError("dataset_manifest must include key 'collocation_manifest_file'")
@@ -446,6 +529,9 @@ class PINNTrainer:
         batch_size_collocation = int(loop_cfg.get("batch_size_collocation", 2048))
         batch_size_boundary = int(loop_cfg.get("batch_size_boundary", 512))
         val_fraction = float(data_cfg.get("val_fraction", 0.2))
+        input_scaling_cfg = data_cfg.get("input_scaling", {})
+        if not isinstance(input_scaling_cfg, dict):
+            raise ValueError("data.input_scaling must be a dictionary when provided.")
         log_every = int(loop_cfg.get("log_every", 50))
         if log_every <= 0:
             log_every = 1
@@ -478,8 +564,17 @@ class PINNTrainer:
             "terminal": x_terminal_val,
             "lower": x_lower_val,
         }
+        input_affine_np = _build_input_affine_from_train(
+            x_train=x_train,
+            feature_order=feature_order,
+            scaling_cfg=input_scaling_cfg,
+        )
 
         model = build_pinn_model(model_config).to(device)
+        input_affine = _to_torch_input_affine(
+            input_affine=input_affine_np,
+            device=device,
+        )
 
         optimizers_by_name: dict[str, torch.optim.Optimizer] = {}
         schedulers_by_name: dict[str, torch.optim.lr_scheduler.LRScheduler | None] = {}
@@ -651,6 +746,7 @@ class PINNTrainer:
                                 "terminal": xb_terminal,
                                 "lower": xb_lower,
                             },
+                            input_affine=input_affine,
                         )
                         total_local.backward()
                         terms_holder["value"] = terms_local
@@ -669,6 +765,7 @@ class PINNTrainer:
                             "terminal": xb_terminal,
                             "lower": xb_lower,
                         },
+                        input_affine=input_affine,
                     )
                     loss_tensor.backward()
                     optimizer.step()
@@ -693,6 +790,7 @@ class PINNTrainer:
                 loss_config=loss_cfg,
                 device=device,
                 x_val=x_val,
+                input_affine=input_affine,
             )
 
             if lr_scheduler is not None:
@@ -719,7 +817,7 @@ class PINNTrainer:
 
             if val_total < best_val_loss:
                 best_val_loss = val_total
-                torch.save(model.state_dict(), best_ckpt)
+                _safe_torch_save(obj=model.state_dict(), path=best_ckpt)
 
             elapsed_total = time.perf_counter() - t0
             epoch_elapsed = time.perf_counter() - epoch_t0
@@ -741,7 +839,7 @@ class PINNTrainer:
                     f"eta={_format_seconds(eta)}"
                 )
 
-        torch.save(model.state_dict(), last_ckpt)
+        _safe_torch_save(obj=model.state_dict(), path=last_ckpt)
 
         history_df = pd.DataFrame(history_rows)
         history_path = metrics_dir / "train_history.csv"
@@ -759,6 +857,7 @@ class PINNTrainer:
             device=device,
             x_val_interior=x_val["interior"],
             figures_dir=figures_dir,
+            input_affine=input_affine,
             n_bins_m=24,
             n_bins_tau=24,
         )
@@ -779,6 +878,12 @@ class PINNTrainer:
             "n_val_interior": int(len(x_val["interior"])),
             "n_val_terminal": int(len(x_val["terminal"])),
             "n_val_lower": int(len(x_val["lower"])),
+            "input_scaling": input_affine_np
+            if input_affine_np is not None
+            else {
+                "enabled": False,
+                "method": "none",
+            },
             "best_val_total": float(best_val_loss),
             "best_checkpoint": str(best_ckpt),
             "last_checkpoint": str(last_ckpt),
