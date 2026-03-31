@@ -207,7 +207,9 @@ The optimization follows a two-stage strategy that is common in PINN practice: a
 
 Since the three loss terms are evaluated on different sample sets, each epoch uses three mini-batches: one from $\mathcal{S}_D$ (interior), one from $\mathcal{S}_T$ (terminal), and one from $\mathcal{S}_{\mathrm{low}}$ (lower boundary). This allows different batch sizes for interior and boundary constraints and keeps the training loop aligned with the composite objective.
 
-The reference hyperparameter block for the first implementation includes: learning rates and optimizer-specific settings, the Adam-to-L-BFGS switching epoch in mixed mode, batch sizes for interior and boundary sets, and the triplet of loss weights $(\lambda_{\mathrm{PDE}},\lambda_{\mathrm{term}},\lambda_{\mathrm{low}})$. 
+The reference hyperparameter block for the first implementation includes: learning rates and optimizer-specific settings, the Adam-to-L-BFGS switching epoch in mixed mode, batch sizes for interior and boundary sets, and the triplet of loss weights $(\lambda_{\mathrm{PDE}},\lambda_{\mathrm{term}},\lambda_{\mathrm{low}})$.
+
+For diagnostics, the training run stores epoch-wise train/validation curves for the total weighted loss and for each component separately. In addition, a two-dimensional error map over $(m,\tau)$ is produced from validation interior points by averaging $|\mathcal{R}_\phi|$ in bins. This map helps identify whether specific regions of the contract domain remain systematically underfitted even when the global loss decreases.
 
 \subsection{Sampling strategy}
 
