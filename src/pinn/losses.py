@@ -34,6 +34,52 @@ def _gradient(*, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     )[0]
 
 
+def compute_heston_pde_residual(
+    *,
+    model: nn.Module,
+    x_interior: torch.Tensor,
+) -> torch.Tensor:
+    if x_interior.ndim != 2:
+        raise ValueError(f"x_interior must be 2D [batch, features], got {tuple(x_interior.shape)}")
+    if x_interior.shape[1] < 8:
+        raise ValueError("Expected at least 8 input features: [tau,m,v,rho,kappa,gamma,bar_v,r].")
+
+    x_interior = x_interior.requires_grad_(True)
+    u_interior = model(x_interior)
+    if u_interior.ndim != 2 or u_interior.shape[1] != 1:
+        raise ValueError(f"Expected model output shape [N,1], got {tuple(u_interior.shape)}.")
+
+    grads = _gradient(y=u_interior, x=x_interior)
+    u_tau = grads[:, 0:1]
+    u_m = grads[:, 1:2]
+    u_v = grads[:, 2:3]
+
+    grad_u_m = _gradient(y=u_m, x=x_interior)
+    grad_u_v = _gradient(y=u_v, x=x_interior)
+    u_mm = grad_u_m[:, 1:2]
+    u_mv = grad_u_m[:, 2:3]
+    u_vv = grad_u_v[:, 2:3]
+
+    m = x_interior[:, 1:2]
+    v = x_interior[:, 2:3]
+    rho = x_interior[:, 3:4]
+    kappa = x_interior[:, 4:5]
+    gamma = x_interior[:, 5:6]
+    bar_v = x_interior[:, 6:7]
+    r = x_interior[:, 7:8]
+
+    residual = (
+        u_tau
+        - 0.5 * v * (m**2) * u_mm
+        - rho * gamma * v * m * u_mv
+        - 0.5 * (gamma**2) * v * u_vv
+        - r * m * u_m
+        - kappa * (bar_v - v) * u_v
+        + r * u_interior
+    )
+    return residual
+
+
 def compute_weighted_pinn_loss(
     *,
     model: nn.Module,
@@ -54,41 +100,7 @@ def compute_weighted_pinn_loss(
     if x_interior.shape[1] < 8 or x_terminal.shape[1] < 8 or x_lower.shape[1] < 8:
         raise ValueError("Expected at least 8 input features: [tau,m,v,rho,kappa,gamma,bar_v,r].")
 
-    x_interior = x_interior.requires_grad_(True)
-    u_interior = model(x_interior)
-    if u_interior.ndim != 2 or u_interior.shape[1] != 1:
-        raise ValueError(f"Expected model output shape [N,1], got {tuple(u_interior.shape)}.")
-
-    grads = _gradient(y=u_interior, x=x_interior)
-    u_tau = grads[:, 0:1]
-    u_m = grads[:, 1:2]
-    u_v = grads[:, 2:3]
-
-    grad_u_m = _gradient(y=u_m, x=x_interior)
-    grad_u_v = _gradient(y=u_v, x=x_interior)
-    u_mm = grad_u_m[:, 1:2]
-    u_mv = grad_u_m[:, 2:3]
-    u_vv = grad_u_v[:, 2:3]
-
-    tau = x_interior[:, 0:1]
-    m = x_interior[:, 1:2]
-    v = x_interior[:, 2:3]
-    rho = x_interior[:, 3:4]
-    kappa = x_interior[:, 4:5]
-    gamma = x_interior[:, 5:6]
-    bar_v = x_interior[:, 6:7]
-    r = x_interior[:, 7:8]
-    del tau  # kept in layout for consistency; PDE here is tau-forward.
-
-    residual = (
-        u_tau
-        - 0.5 * v * (m**2) * u_mm
-        - rho * gamma * v * m * u_mv
-        - 0.5 * (gamma**2) * v * u_vv
-        - r * m * u_m
-        - kappa * (bar_v - v) * u_v
-        + r * u_interior
-    )
+    residual = compute_heston_pde_residual(model=model, x_interior=x_interior)
     l_pde = torch.mean(residual**2)
 
     u_terminal = model(x_terminal)

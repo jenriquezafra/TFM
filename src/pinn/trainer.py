@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import torch
@@ -9,7 +10,14 @@ import torch.nn as nn
 import yaml
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.pinn.losses import PINNLossTerms, compute_weighted_pinn_loss
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from src.pinn.losses import (
+    PINNLossTerms,
+    compute_heston_pde_residual,
+    compute_weighted_pinn_loss,
+)
 from src.pinn.model import build_pinn_model
 from src.utils.callbacks import build_step_lr
 
@@ -210,6 +218,121 @@ def _evaluate_epoch_loss(
             batch_payload=batch_payload,
         )
     return float(total.detach().item()), terms
+
+
+def _save_loss_curves(*, history_df: pd.DataFrame, figures_dir: Path) -> dict[str, str]:
+    outputs: dict[str, str] = {}
+    if history_df.empty:
+        return outputs
+
+    epochs = history_df["epoch"].to_numpy()
+
+    fig_total = figures_dir / "loss_curve.png"
+    plt.figure(figsize=(7.2, 4.6))
+    plt.plot(epochs, history_df["train_total"].to_numpy(), label="train_total")
+    plt.plot(epochs, history_df["val_total"].to_numpy(), label="val_total")
+    plt.yscale("log")
+    plt.xlabel("epoch")
+    plt.ylabel("weighted loss (log)")
+    plt.grid(True, which="major")
+    plt.grid(True, which="minor", alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(fig_total, dpi=300)
+    plt.close()
+    outputs["loss_curve"] = str(fig_total)
+
+    fig_components = figures_dir / "loss_components_curve.png"
+    _, axes = plt.subplots(1, 3, figsize=(14.5, 4.3), sharex=True)
+    for ax, key, label in zip(
+        axes,
+        ("pde", "term", "low"),
+        ("PDE", "Terminal", "Lower boundary"),
+    ):
+        ax.plot(epochs, history_df[f"train_{key}"].to_numpy(), label=f"train_{key}")
+        ax.plot(epochs, history_df[f"val_{key}"].to_numpy(), label=f"val_{key}")
+        ax.set_yscale("log")
+        ax.set_xlabel("epoch")
+        ax.set_ylabel(f"{label} loss (log)")
+        ax.grid(True, which="major")
+        ax.grid(True, which="minor", alpha=0.3)
+        ax.legend()
+    plt.tight_layout()
+    plt.savefig(fig_components, dpi=300)
+    plt.close()
+    outputs["loss_components_curve"] = str(fig_components)
+
+    fig_lr = figures_dir / "learning_rate_curve.png"
+    plt.figure(figsize=(7.2, 4.2))
+    plt.plot(epochs, history_df["lr"].to_numpy())
+    plt.xlabel("epoch")
+    plt.ylabel("learning rate")
+    plt.grid(True, which="major")
+    plt.grid(True, which="minor", alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(fig_lr, dpi=300)
+    plt.close()
+    outputs["learning_rate_curve"] = str(fig_lr)
+
+    return outputs
+
+
+def _save_pde_residual_zone_map(
+    *,
+    model: nn.Module,
+    device: torch.device,
+    x_val_interior: np.ndarray,
+    figures_dir: Path,
+    n_bins_m: int = 24,
+    n_bins_tau: int = 24,
+) -> str:
+    if x_val_interior.shape[0] == 0:
+        raise ValueError("Cannot build PDE residual map with empty validation interior set.")
+
+    model.eval()
+    with torch.enable_grad():
+        x_t = torch.from_numpy(x_val_interior).to(device)
+        residual = compute_heston_pde_residual(model=model, x_interior=x_t)
+        abs_residual = residual.detach().abs().cpu().numpy().reshape(-1)
+
+    tau = x_val_interior[:, 0]
+    moneyness = x_val_interior[:, 1]
+    tau_edges = np.linspace(float(tau.min()), float(tau.max()), int(n_bins_tau) + 1)
+    m_edges = np.linspace(float(moneyness.min()), float(moneyness.max()), int(n_bins_m) + 1)
+
+    tau_idx = np.clip(np.digitize(tau, bins=tau_edges, right=False) - 1, 0, n_bins_tau - 1)
+    m_idx = np.clip(np.digitize(moneyness, bins=m_edges, right=False) - 1, 0, n_bins_m - 1)
+
+    sums = np.zeros((n_bins_tau, n_bins_m), dtype=np.float64)
+    counts = np.zeros((n_bins_tau, n_bins_m), dtype=np.int64)
+    np.add.at(sums, (tau_idx, m_idx), abs_residual)
+    np.add.at(counts, (tau_idx, m_idx), 1)
+
+    heat = np.divide(
+        sums,
+        np.maximum(counts, 1),
+        out=np.full_like(sums, np.nan),
+        where=counts > 0,
+    )
+
+    fig_path = figures_dir / "pde_residual_map_m_tau.png"
+    fig, ax = plt.subplots(figsize=(8.4, 5.2))
+    im = ax.imshow(
+        heat,
+        origin="lower",
+        aspect="auto",
+        extent=[m_edges[0], m_edges[-1], tau_edges[0], tau_edges[-1]],
+        cmap="magma",
+    )
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label("mean |PDE residual|")
+    ax.set_xlabel("moneyness")
+    ax.set_ylabel("tau")
+    ax.set_title("Validation PDE Residual Map by Zone")
+    plt.tight_layout()
+    plt.savefig(fig_path, dpi=300)
+    plt.close(fig)
+    return str(fig_path)
 
 
 class PINNTrainer:
@@ -555,6 +678,23 @@ class PINNTrainer:
         history_path = metrics_dir / "train_history.csv"
         history_df.to_csv(history_path, index=False)
 
+        figures_dir = self.output_dir / "figures"
+        figures_dir.mkdir(parents=True, exist_ok=True)
+        figure_paths = _save_loss_curves(history_df=history_df, figures_dir=figures_dir)
+
+        best_state = torch.load(best_ckpt, map_location=device)
+        model.load_state_dict(best_state)
+        model.to(device)
+        pde_map_path = _save_pde_residual_zone_map(
+            model=model,
+            device=device,
+            x_val_interior=x_val["interior"],
+            figures_dir=figures_dir,
+            n_bins_m=24,
+            n_bins_tau=24,
+        )
+        figure_paths["pde_residual_map_m_tau"] = pde_map_path
+
         summary = {
             "collocation_manifest_file": str(collocation_manifest_path),
             "device": str(device),
@@ -574,6 +714,7 @@ class PINNTrainer:
             "best_checkpoint": str(best_ckpt),
             "last_checkpoint": str(last_ckpt),
             "history_file": str(history_path),
+            "figures": figure_paths,
         }
         summary_path = metrics_dir / "train_summary.yaml"
         with open(summary_path, "w", encoding="utf-8") as f:
