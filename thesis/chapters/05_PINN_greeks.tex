@@ -249,18 +249,30 @@ From an implementation viewpoint, the three sets can be regenerated dynamically 
 This sampling strategy preserves the fully unsupervised nature of the method. No prices from COS, FFT, or Monte Carlo are required to build the training objective. Numerical pricing methods remain useful for ex-post validation and benchmarking, but not as a source of labels for fitting the PINN itself.
 
 \subsection{Input scaling}
-\todos{Probablemente cambie !!}
 
+Although the pricing problem is formulated in physical variables, the optimization is performed with an affine rescaling of the network inputs. The motivation is numerical: $(\tau,m,v)$ and the Heston-related coordinates do not share comparable magnitudes, which can deteriorate conditioning and gradient balance. Following the practical guidance in \cite{hainaut2024pinn}, centering and scaling are used as a stabilization device.
 
-Although the pricing problem is formulated in physical variables, the actual optimization of the PINN benefits from an affine rescaling of its inputs. The motivation is purely numerical: the state variables $(\tau,m,v)$ and the Heston parameters do not share comparable magnitudes, and this imbalance may lead to poorly conditioned gradients and unstable convergence. As emphasized in \cite{hainaut2024pinn}, centering and scaling the inputs helps mitigate optimization issues such as vanishing or highly unbalanced gradients.
-
-In the present work, the first implementation will use a simple affine transformation of each input variable,
+In the implemented pipeline, the transformation is applied componentwise to the full PINN input vector
 \[
-\tilde x = a_x + b_x x,
+x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r),
 \]
-applied componentwise. At minimum, this transformation will be used for the PDE state variables $(\tau,m,v)$. If the network is later extended to a fully parametric PINN over $(\rho,\kappa,\gamma,\bar v,r)$, the same rescaling principle can be applied to those parameters as well. The exact coefficients $(a_x,b_x)$ may be defined either from prescribed domain bounds or from summary statistics of the sampled training points.
+through
+\[
+\tilde x_d = a_d + b_d x_d,\qquad d=1,\dots,8.
+\]
+The coefficients are estimated from the collocation points of the training split:
+\[
+\mu_d=\frac{1}{N_{\text{train}}}\sum_{i=1}^{N_{\text{train}}}x_{i,d},
+\qquad
+\sigma_d=\sqrt{\frac{1}{N_{\text{train}}}\sum_{i=1}^{N_{\text{train}}}(x_{i,d}-\mu_d)^2},
+\]
+and then
+\[
+a_d=-\frac{\mu_d}{\sigma_d},\qquad b_d=\frac{1}{\sigma_d}.
+\]
+To avoid numerical issues on nearly constant coordinates, the implementation uses a small threshold $\varepsilon=10^{-8}$: if $\sigma_d\le\varepsilon$, that coordinate is left unscaled ($a_d=0,\ b_d=1$). This is relevant, for example, in configurations where some parameters are fixed by calibration.
 
-Once the network is expressed in scaled coordinates, all derivatives entering the PDE residual must be interpreted with respect to the transformed variables. In practice, this does not alter the mathematical structure of the approach: the residual is still computed by automatic differentiation, and the change of variables is handled through the computational graph and the chain rule. Therefore, scaling is introduced as a numerical stabilization device rather than as a modification of the underlying financial model.
+The PDE residual is still defined in physical variables and differentiated by automatic differentiation. In code, the network is evaluated at $\tilde x$, while derivatives are taken with respect to the original coordinates $x$; the chain rule is therefore handled by the computational graph. Consequently, input scaling changes the numerical conditioning of training, but not the financial meaning of the PDE constraint.
 
 
 
