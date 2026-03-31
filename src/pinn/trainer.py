@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 
 from src.pinn.losses import (
     PINNLossTerms,
@@ -294,7 +295,7 @@ def _save_pde_residual_zone_map(
     figures_dir: Path,
     n_bins_m: int = 24,
     n_bins_tau: int = 24,
-) -> str:
+) -> dict[str, str]:
     if x_val_interior.shape[0] == 0:
         raise ValueError("Cannot build PDE residual map with empty validation interior set.")
 
@@ -324,6 +325,8 @@ def _save_pde_residual_zone_map(
         where=counts > 0,
     )
 
+    outputs: dict[str, str] = {}
+
     fig_path = figures_dir / "pde_residual_map_m_tau.png"
     fig, ax = plt.subplots(figsize=(8.4, 5.2))
     im = ax.imshow(
@@ -341,7 +344,39 @@ def _save_pde_residual_zone_map(
     plt.tight_layout()
     plt.savefig(fig_path, dpi=300)
     plt.close(fig)
-    return str(fig_path)
+    outputs["pde_residual_map_m_tau"] = str(fig_path)
+
+    valid = np.isfinite(heat) & (heat > 0.0)
+    if np.any(valid):
+        flat = heat[valid]
+        vmin = float(np.nanpercentile(flat, 5.0))
+        vmax = float(np.nanpercentile(flat, 95.0))
+        vmin = max(vmin, float(np.finfo(np.float64).tiny))
+        if vmax <= vmin:
+            vmax = vmin * 10.0
+        heat_log = np.where(np.isfinite(heat), np.maximum(heat, vmin), np.nan)
+
+        fig_log_path = figures_dir / "pde_residual_map_m_tau_log.png"
+        fig, ax = plt.subplots(figsize=(8.4, 5.2))
+        im = ax.imshow(
+            heat_log,
+            origin="lower",
+            aspect="auto",
+            extent=[m_edges[0], m_edges[-1], tau_edges[0], tau_edges[-1]],
+            cmap="magma",
+            norm=LogNorm(vmin=vmin, vmax=vmax),
+        )
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label("mean |PDE residual| (log scale)")
+        ax.set_xlabel("moneyness")
+        ax.set_ylabel("tau")
+        ax.set_title("Validation PDE Residual Map by Zone (Log Scale)")
+        plt.tight_layout()
+        plt.savefig(fig_log_path, dpi=300)
+        plt.close(fig)
+        outputs["pde_residual_map_m_tau_log"] = str(fig_log_path)
+
+    return outputs
 
 
 class PINNTrainer:
@@ -719,7 +754,7 @@ class PINNTrainer:
         best_state = torch.load(best_ckpt, map_location=device)
         model.load_state_dict(best_state)
         model.to(device)
-        pde_map_path = _save_pde_residual_zone_map(
+        pde_map_paths = _save_pde_residual_zone_map(
             model=model,
             device=device,
             x_val_interior=x_val["interior"],
@@ -727,7 +762,7 @@ class PINNTrainer:
             n_bins_m=24,
             n_bins_tau=24,
         )
-        figure_paths["pde_residual_map_m_tau"] = pde_map_path
+        figure_paths.update(pde_map_paths)
 
         summary = {
             "collocation_manifest_file": str(collocation_manifest_path),
