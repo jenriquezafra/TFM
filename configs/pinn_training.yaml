@@ -1,7 +1,7 @@
 meta:
   seed: 42
   device: "auto" # auto | cpu | mps | cuda
-  optimizer: "adam" # adam | sgd | L-BFGS | mix_half
+  optimizer: "mix_half" # adam | sgd | L-BFGS | mix_half
 
 data:
   supervised_source: "cann_quotes_comparison"
@@ -53,7 +53,7 @@ loss:
 
 loop:
   epochs: 4000
-  mix_half_switch_epoch: null
+  mix_half_switch_epoch: 2001
   batch_size_collocation: 2048
   batch_size_boundary: 512
   log_every: 50
