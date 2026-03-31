@@ -45,11 +45,11 @@ loss:
     pde: 1.0
     term: 1.0
     low: 1.0
-    no_arbitrage: 0.0
+    no_arbitrage: 1.0
 
 loop:
-  epochs: 5000
-  mix_half_switch_epoch: null # null -> middle of training
+  epochs: 4000
+  mix_half_switch_epoch: 2001
   batch_size_collocation: 2048
   batch_size_boundary: 512
   log_every: 50
