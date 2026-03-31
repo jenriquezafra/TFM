@@ -52,7 +52,7 @@ Comportamiento actual:
 - `--dry-run`: valida rutas y genera plan YAML.
 - Ejecucion real:
   - `prepare_dataset`: implementada (LHS interior/terminal/lower)
-  - `train`: implementada (PINN no supervisada: residual PDE + terminal + lower)
+  - `train`: implementada (PINN no supervisada: residual PDE + terminal + lower + plots)
   - `evaluate`: pendiente de migracion a metrica PINN (el evaluator actual es supervisado)
 
 ## 5) Configs
@@ -91,4 +91,7 @@ Salida adicional esperada:
 - `data/synth/PINN_v01/lower.parquet`
 - `data/synth/PINN_v01/collocation_sets_manifest.yaml`
 - `outputs/pinn/PINN_v01/train/checkpoints/model_best.pt`
+- `outputs/pinn/PINN_v01/train/figures/loss_curve.png`
+- `outputs/pinn/PINN_v01/train/figures/loss_components_curve.png`
+- `outputs/pinn/PINN_v01/train/figures/pde_residual_map_m_tau.png`
 - `outputs/pinn/PINN_v01/eval/eval_metrics.yaml`
