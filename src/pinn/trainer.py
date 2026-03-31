@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import matplotlib
 import numpy as np
@@ -196,6 +197,14 @@ def _cycle_loader(loader: DataLoader):
     while True:
         for (xb,) in loader:
             yield xb
+
+
+def _format_seconds(sec: float) -> str:
+    sec_i = int(max(0.0, sec))
+    h = sec_i // 3600
+    m = (sec_i % 3600) // 60
+    s = sec_i % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
 
 
 def _evaluate_epoch_loss(
@@ -402,6 +411,9 @@ class PINNTrainer:
         batch_size_collocation = int(loop_cfg.get("batch_size_collocation", 2048))
         batch_size_boundary = int(loop_cfg.get("batch_size_boundary", 512))
         val_fraction = float(data_cfg.get("val_fraction", 0.2))
+        log_every = int(loop_cfg.get("log_every", 50))
+        if log_every <= 0:
+            log_every = 1
 
         mode = _normalize_training_mode(meta_cfg.get("optimizer", "adam"))
         supported_modes = {"adam", "sgd", "lbfgs", "mix_half"}
@@ -562,8 +574,10 @@ class PINNTrainer:
 
         history_rows: list[dict] = []
         best_val_loss = float("inf")
+        t0 = time.perf_counter()
 
         for epoch in range(1, epochs + 1):
+            epoch_t0 = time.perf_counter()
             if mode == "mix_half":
                 desired = "adam" if epoch < mix_half_switch_epoch else "lbfgs"
                 if desired != active_optimizer_name:
@@ -672,6 +686,26 @@ class PINNTrainer:
                 best_val_loss = val_total
                 torch.save(model.state_dict(), best_ckpt)
 
+            elapsed_total = time.perf_counter() - t0
+            epoch_elapsed = time.perf_counter() - epoch_t0
+            mean_epoch = elapsed_total / max(epoch, 1)
+            eta = (epochs - epoch) * mean_epoch
+            if epoch == 1 or (epoch % log_every == 0) or (epoch == epochs):
+                print(
+                    "[PINN] "
+                    f"epoch {epoch:4d}/{epochs} | "
+                    f"opt={active_optimizer_name:<6} | "
+                    f"lr={current_lr:.3e} | "
+                    f"train={train_total:.3e} | "
+                    f"val={val_total:.3e} | "
+                    f"train(pde/term/low)=({train_terms.pde:.3e}, {train_terms.term:.3e}, {train_terms.low:.3e}) | "
+                    f"val(pde/term/low)=({val_terms.pde:.3e}, {val_terms.term:.3e}, {val_terms.low:.3e}) | "
+                    f"best_val={best_val_loss:.3e} | "
+                    f"epoch_t={_format_seconds(epoch_elapsed)} | "
+                    f"elapsed={_format_seconds(elapsed_total)} | "
+                    f"eta={_format_seconds(eta)}"
+                )
+
         torch.save(model.state_dict(), last_ckpt)
 
         history_df = pd.DataFrame(history_rows)
@@ -715,6 +749,7 @@ class PINNTrainer:
             "last_checkpoint": str(last_ckpt),
             "history_file": str(history_path),
             "figures": figure_paths,
+            "total_training_seconds": float(time.perf_counter() - t0),
         }
         summary_path = metrics_dir / "train_summary.yaml"
         with open(summary_path, "w", encoding="utf-8") as f:
