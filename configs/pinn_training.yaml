@@ -42,15 +42,13 @@ optimizers:
 loss:
   reduction: "mean"
   weights:
-    data: 1.0
     pde: 1.0
-    boundary: 0.25
+    term: 1.0
+    low: 1.0
     no_arbitrage: 0.0
 
 loop:
   epochs: 5000
-  batch_size_supervised: 512
-  batch_size_val: 8192
   mix_half_switch_epoch: null # null -> middle of training
   batch_size_collocation: 2048
   batch_size_boundary: 512
