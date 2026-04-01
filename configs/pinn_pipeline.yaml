@@ -1,5 +1,5 @@
 meta:
-  experiment_name: "PINN_adam_scaled_2x_v01"
+  experiment_name: "PINN_mix_scaled"
   seed: 42
   description: "PINN scaffold: learn option price from calibrated CaNN parameters."
 
@@ -36,5 +36,5 @@ pipeline:
 
 outputs:
   root_dir: "outputs/pinn"
-  run_name: "PINN_adam_scaled_2x_v01"
+  run_name: "PINN_mix_scaled"
   dump_plan_filename: "pipeline_plan.yaml"
