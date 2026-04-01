@@ -20,6 +20,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.pinn.model import build_pinn_model
+from src.pinn.trainer import (
+    _build_input_affine_from_train,
+    _load_parquet_matrix,
+    _split_array,
+)
 from src.solvers.heston_cos import COS_solver_scalar
 
 
@@ -29,6 +34,215 @@ def _load_yaml(path: Path) -> dict:
     if not isinstance(payload, dict):
         raise ValueError(f"Expected YAML dict in {path}, got {type(payload)!r}")
     return payload
+
+
+def _resolve_path(path_like: str | Path, *, base: Path) -> Path:
+    path = Path(path_like)
+    if not path.is_absolute():
+        path = (base / path).resolve()
+    return path
+
+
+def _load_optional_yaml(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return _load_yaml(path)
+
+
+def _resolve_training_config_path(*, run_dir: Path, explicit_path: Path | None) -> Path:
+    if explicit_path is not None:
+        path = _resolve_path(explicit_path, base=PROJECT_ROOT)
+        if not path.exists():
+            raise FileNotFoundError(f"training config not found: {path}")
+        return path
+
+    plan_path = run_dir / "pipeline_plan.yaml"
+    if plan_path.exists():
+        plan = _load_yaml(plan_path)
+        train_cfg_raw = plan.get("training_config")
+        if train_cfg_raw:
+            path = _resolve_path(train_cfg_raw, base=PROJECT_ROOT)
+            if path.exists():
+                return path
+
+    execution_path = run_dir / "pipeline_execution.yaml"
+    if execution_path.exists():
+        execution = _load_yaml(execution_path)
+        cfg_raw = execution.get("config_path")
+        if cfg_raw:
+            pipeline_cfg_path = _resolve_path(cfg_raw, base=PROJECT_ROOT)
+            if pipeline_cfg_path.exists():
+                pipeline_cfg = _load_yaml(pipeline_cfg_path)
+                train_cfg_rel = (
+                    pipeline_cfg.get("training", {}).get("training_config")
+                    if isinstance(pipeline_cfg.get("training"), dict)
+                    else None
+                )
+                if train_cfg_rel:
+                    path = _resolve_path(train_cfg_rel, base=PROJECT_ROOT)
+                    if path.exists():
+                        return path
+
+    default_path = (PROJECT_ROOT / "configs/pinn_training.yaml").resolve()
+    if not default_path.exists():
+        raise FileNotFoundError(f"default training config not found: {default_path}")
+    return default_path
+
+
+def _resolve_architecture_config_path(*, run_dir: Path, explicit_path: Path | None) -> Path:
+    if explicit_path is not None:
+        path = _resolve_path(explicit_path, base=PROJECT_ROOT)
+        if not path.exists():
+            raise FileNotFoundError(f"architecture config not found: {path}")
+        return path
+
+    plan_path = run_dir / "pipeline_plan.yaml"
+    if plan_path.exists():
+        plan = _load_yaml(plan_path)
+        arch_cfg_raw = plan.get("architecture_config")
+        if arch_cfg_raw:
+            path = _resolve_path(arch_cfg_raw, base=PROJECT_ROOT)
+            if path.exists():
+                return path
+
+    execution_path = run_dir / "pipeline_execution.yaml"
+    if execution_path.exists():
+        execution = _load_yaml(execution_path)
+        cfg_raw = execution.get("config_path")
+        if cfg_raw:
+            pipeline_cfg_path = _resolve_path(cfg_raw, base=PROJECT_ROOT)
+            if pipeline_cfg_path.exists():
+                pipeline_cfg = _load_yaml(pipeline_cfg_path)
+                model_cfg_rel = (
+                    pipeline_cfg.get("model", {}).get("architecture_config")
+                    if isinstance(pipeline_cfg.get("model"), dict)
+                    else None
+                )
+                if model_cfg_rel:
+                    path = _resolve_path(model_cfg_rel, base=PROJECT_ROOT)
+                    if path.exists():
+                        return path
+
+    default_path = (PROJECT_ROOT / "configs/pinn_model_architecture.yaml").resolve()
+    if not default_path.exists():
+        raise FileNotFoundError(f"default architecture config not found: {default_path}")
+    return default_path
+
+
+def _resolve_collocation_manifest_path(
+    *,
+    run_dir: Path,
+    summary: dict,
+    explicit_path: Path | None,
+    training_config_path: Path,
+) -> Path:
+    if explicit_path is not None:
+        path = _resolve_path(explicit_path, base=PROJECT_ROOT)
+        if not path.exists():
+            raise FileNotFoundError(f"collocation manifest not found: {path}")
+        return path
+
+    summary_manifest = summary.get("collocation_manifest_file")
+    if summary_manifest:
+        path = _resolve_path(summary_manifest, base=PROJECT_ROOT)
+        if path.exists():
+            return path
+
+    execution_path = run_dir / "pipeline_execution.yaml"
+    if execution_path.exists():
+        execution = _load_yaml(execution_path)
+        stages = execution.get("stages", {})
+        if isinstance(stages, dict):
+            train_stage = stages.get("train", {})
+            if isinstance(train_stage, dict):
+                collocation_raw = train_stage.get("collocation_manifest_file")
+                if collocation_raw:
+                    path = _resolve_path(collocation_raw, base=PROJECT_ROOT)
+                    if path.exists():
+                        return path
+
+    training_cfg = _load_yaml(training_config_path)
+    sampling_cfg = training_cfg.get("sampling", {})
+    if isinstance(sampling_cfg, dict):
+        output_dir = sampling_cfg.get("output_dir")
+        if output_dir:
+            candidate = _resolve_path(
+                Path(output_dir) / "collocation_sets_manifest.yaml",
+                base=PROJECT_ROOT,
+            )
+            if candidate.exists():
+                return candidate
+
+    synth_root = PROJECT_ROOT / "data" / "synth"
+    candidates = sorted(synth_root.glob("*/collocation_sets_manifest.yaml"))
+    if len(candidates) == 1:
+        return candidates[0].resolve()
+    if len(candidates) > 1:
+        run_name = run_dir.name.lower()
+        tagged = [p for p in candidates if "2x" in p.parent.name.lower()]
+        if ("2x" in run_name) and len(tagged) == 1:
+            return tagged[0].resolve()
+
+    raise FileNotFoundError(
+        "Unable to resolve collocation manifest. Pass --collocation-manifest "
+        "with a valid collocation_sets_manifest.yaml path."
+    )
+
+
+def _build_input_scaling_from_training(
+    *,
+    training_config_path: Path,
+    collocation_manifest: dict,
+    feature_order: list[str],
+) -> dict:
+    training_cfg = _load_yaml(training_config_path)
+    data_cfg = training_cfg.get("data", {})
+    if not isinstance(data_cfg, dict):
+        return {"enabled": False, "method": "none"}
+
+    scaling_cfg = data_cfg.get("input_scaling", {})
+    if not isinstance(scaling_cfg, dict) or not bool(scaling_cfg.get("enabled", False)):
+        return {"enabled": False, "method": "none"}
+
+    datasets_cfg = collocation_manifest.get("datasets", {})
+    required = ("interior", "terminal", "lower")
+    missing = [key for key in required if key not in datasets_cfg]
+    if missing:
+        raise KeyError(f"Collocation manifest missing datasets {missing}.")
+
+    x_interior = _load_parquet_matrix(
+        path=_resolve_path(datasets_cfg["interior"], base=PROJECT_ROOT),
+        feature_order=feature_order,
+    )
+    x_terminal = _load_parquet_matrix(
+        path=_resolve_path(datasets_cfg["terminal"], base=PROJECT_ROOT),
+        feature_order=feature_order,
+    )
+    x_lower = _load_parquet_matrix(
+        path=_resolve_path(datasets_cfg["lower"], base=PROJECT_ROOT),
+        feature_order=feature_order,
+    )
+
+    meta_cfg = training_cfg.get("meta", {})
+    seed = int(meta_cfg.get("seed", 42)) if isinstance(meta_cfg, dict) else 42
+    val_fraction = float(data_cfg.get("val_fraction", 0.2))
+
+    x_interior_train, _ = _split_array(x_interior, val_fraction=val_fraction, seed=seed)
+    x_terminal_train, _ = _split_array(x_terminal, val_fraction=val_fraction, seed=seed + 1)
+    x_lower_train, _ = _split_array(x_lower, val_fraction=val_fraction, seed=seed + 2)
+
+    input_affine = _build_input_affine_from_train(
+        x_train={
+            "interior": x_interior_train,
+            "terminal": x_terminal_train,
+            "lower": x_lower_train,
+        },
+        feature_order=feature_order,
+        scaling_cfg=scaling_cfg,
+    )
+    if input_affine is None:
+        return {"enabled": False, "method": "none"}
+    return input_affine
 
 
 def _resolve_device(pref: str) -> torch.device:
@@ -354,6 +568,43 @@ def _save_heatmap_plot(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark PINN prices vs COS prices.")
     parser.add_argument("--run-dir", type=Path, required=True, help="PINN run dir under outputs/pinn/<run_name>.")
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        default=None,
+        help="Optional checkpoint override. Useful when train_summary.yaml is missing.",
+    )
+    parser.add_argument(
+        "--collocation-manifest",
+        type=Path,
+        default=None,
+        help="Optional collocation_sets_manifest.yaml override.",
+    )
+    parser.add_argument(
+        "--training-config",
+        type=Path,
+        default=None,
+        help="Optional training config override (used to rebuild input scaling when needed).",
+    )
+    parser.add_argument(
+        "--architecture-config",
+        type=Path,
+        default=None,
+        help="Optional PINN architecture config override.",
+    )
+    parser.set_defaults(rebuild_input_scaling=True)
+    parser.add_argument(
+        "--rebuild-input-scaling",
+        dest="rebuild_input_scaling",
+        action="store_true",
+        help="Rebuild affine input scaling from collocation train split if summary is missing.",
+    )
+    parser.add_argument(
+        "--no-rebuild-input-scaling",
+        dest="rebuild_input_scaling",
+        action="store_false",
+        help="Disable input scaling rebuild when summary is missing.",
+    )
     parser.add_argument("--n-points", type=int, default=4000, help="Number of interior points to benchmark.")
     parser.add_argument("--seed", type=int, default=42, help="Sampling seed.")
     parser.add_argument("--batch-size", type=int, default=4096, help="PINN inference batch size.")
@@ -415,13 +666,19 @@ def main() -> None:
         raise FileNotFoundError(f"Run dir not found: {run_dir}")
 
     summary_path = run_dir / "train" / "metrics" / "train_summary.yaml"
-    if not summary_path.exists():
-        raise FileNotFoundError(f"train_summary.yaml not found: {summary_path}")
-    summary = _load_yaml(summary_path)
+    summary = _load_optional_yaml(summary_path)
+    has_summary = bool(summary)
 
-    collocation_manifest_path = Path(summary["collocation_manifest_file"])
-    if not collocation_manifest_path.is_absolute():
-        collocation_manifest_path = (PROJECT_ROOT / collocation_manifest_path).resolve()
+    training_cfg_path = _resolve_training_config_path(
+        run_dir=run_dir,
+        explicit_path=args.training_config,
+    )
+    collocation_manifest_path = _resolve_collocation_manifest_path(
+        run_dir=run_dir,
+        summary=summary,
+        explicit_path=args.collocation_manifest,
+        training_config_path=training_cfg_path,
+    )
     collocation_manifest = _load_yaml(collocation_manifest_path)
     feature_order = list(collocation_manifest.get("feature_order", []))
     if not feature_order:
@@ -434,20 +691,20 @@ def main() -> None:
     x_all = interior_df.loc[:, feature_order].to_numpy(dtype=np.float32)
     x_eval = _sample_rows(x_all, n_points=int(args.n_points), seed=int(args.seed))
 
-    checkpoint_path = Path(summary.get("best_checkpoint", ""))
-    if not checkpoint_path.exists():
+    checkpoint_path: Path | None = None
+    if args.checkpoint is not None:
+        checkpoint_path = _resolve_path(args.checkpoint, base=PROJECT_ROOT)
+    elif has_summary and summary.get("best_checkpoint"):
+        checkpoint_path = _resolve_path(summary.get("best_checkpoint"), base=PROJECT_ROOT)
+    else:
         checkpoint_path = run_dir / "train" / "checkpoints" / "model_best.pt"
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Best checkpoint not found for run: {checkpoint_path}")
 
-    pipeline_plan_path = run_dir / "pipeline_plan.yaml"
-    if pipeline_plan_path.exists():
-        plan = _load_yaml(pipeline_plan_path)
-        arch_cfg_path = Path(plan.get("architecture_config", "configs/pinn_model_architecture.yaml"))
-    else:
-        arch_cfg_path = Path("configs/pinn_model_architecture.yaml")
-    if not arch_cfg_path.is_absolute():
-        arch_cfg_path = (PROJECT_ROOT / arch_cfg_path).resolve()
+    arch_cfg_path = _resolve_architecture_config_path(
+        run_dir=run_dir,
+        explicit_path=args.architecture_config,
+    )
     model_cfg = _load_yaml(arch_cfg_path)
 
     device = _resolve_device(args.device)
@@ -456,9 +713,22 @@ def main() -> None:
     model.load_state_dict(state)
     model.to(device)
 
-    input_scaling = summary.get("input_scaling", {})
-    if not isinstance(input_scaling, dict):
-        input_scaling = {}
+    input_scaling = summary.get("input_scaling", {}) if has_summary else {}
+    scaling_from_summary = has_summary and (
+        isinstance(input_scaling, dict)
+        and (
+            (not bool(input_scaling.get("enabled", False)))
+            or ("a" in input_scaling and "b" in input_scaling)
+        )
+    )
+    if not scaling_from_summary:
+        input_scaling = {"enabled": False, "method": "none"}
+        if bool(args.rebuild_input_scaling):
+            input_scaling = _build_input_scaling_from_training(
+                training_config_path=training_cfg_path,
+                collocation_manifest=collocation_manifest,
+                feature_order=feature_order,
+            )
 
     out_dir = run_dir / "cos_benchmark"
     fig_dir = out_dir / "figures"
@@ -509,6 +779,10 @@ def main() -> None:
             "run_dir": str(run_dir),
             "checkpoint": str(checkpoint_path),
             "collocation_interior": str(interior_path),
+            "collocation_manifest_file": str(collocation_manifest_path),
+            "training_config": str(training_cfg_path),
+            "architecture_config": str(arch_cfg_path),
+            "train_summary_found": bool(has_summary),
             "n_input_points": int(x_eval.shape[0]),
             "n_valid_points": int(x_valid.shape[0]),
             "n_failed_cos": int(cos_stats.get("failed", 0)),
