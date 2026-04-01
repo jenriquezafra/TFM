@@ -13,6 +13,7 @@ import yaml
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -90,7 +91,12 @@ def _predict_cos(
     cos_interval_rule: str,
     option_type: str,
     strike: float,
-) -> tuple[np.ndarray, int]:
+    cos_fallback_enabled: bool,
+    cos_fallback_interval_rule: str,
+    cos_fallback_N: int,
+    cos_fallback_L: float,
+    no_arb_tol: float,
+) -> tuple[np.ndarray, dict[str, int]]:
     idx = {name: i for i, name in enumerate(feature_order)}
     required = ["tau", "moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
     missing = [k for k in required if k not in idx]
@@ -98,8 +104,45 @@ def _predict_cos(
         raise KeyError(f"Missing required feature(s) for COS benchmark: {missing}")
 
     out = np.full(shape=x.shape[0], fill_value=np.nan, dtype=np.float64)
-    failed = 0
+    stats = {
+        "failed": 0,
+        "fallback_used": 0,
+        "fallback_emergency_used": 0,
+        "invalid_primary": 0,
+        "invalid_after_fallback": 0,
+    }
     cos_params = np.array([int(cos_N), float(cos_L)], dtype=np.float64)
+    cos_fallback_params = np.array([int(cos_fallback_N), float(cos_fallback_L)], dtype=np.float64)
+    opt_key = str(option_type).strip().lower()
+
+    def _price_once(*, interval_rule: str, params: np.ndarray) -> float:
+        return float(
+            COS_solver_scalar(
+                params_Heston=params_heston,
+                S0=S0,
+                K=float(strike),
+                tau=tau,
+                r=r,
+                COS_params=params,
+                opt_type=opt_key,
+                interval_rule=interval_rule,
+            )
+        )
+
+    def _is_no_arb_valid(price: float) -> bool:
+        if not np.isfinite(price):
+            return False
+        disc_k = float(strike) * float(np.exp(-r * tau))
+        if opt_key == "put":
+            lb = max(disc_k - S0, 0.0)
+            ub = disc_k
+        elif opt_key == "call":
+            lb = max(S0 - disc_k, 0.0)
+            ub = S0
+        else:
+            raise ValueError(f"Unsupported option_type '{option_type}'. Use put/call.")
+        tol = float(max(no_arb_tol, 0.0))
+        return (price >= (lb - tol)) and (price <= (ub + tol))
 
     for i in range(x.shape[0]):
         tau = float(x[i, idx["tau"]])
@@ -114,24 +157,57 @@ def _predict_cos(
         # In normalized coordinates K=1 by construction, so S0 = moneyness.
         S0 = m * float(strike)
         params_heston = np.array([rho, kappa, gamma, bar_v, v], dtype=np.float64)
+        price = np.nan
+        primary_ok = False
         try:
-            out[i] = float(
-                COS_solver_scalar(
-                    params_Heston=params_heston,
-                    S0=S0,
-                    K=float(strike),
-                    tau=tau,
-                    r=r,
-                    COS_params=cos_params,
-                    opt_type=option_type,
-                    interval_rule=cos_interval_rule,
-                )
-            )
+            price = _price_once(interval_rule=cos_interval_rule, params=cos_params)
+            primary_ok = _is_no_arb_valid(price)
+            if not primary_ok:
+                stats["invalid_primary"] += 1
         except Exception:
-            failed += 1
-            out[i] = np.nan
+            primary_ok = False
 
-    return out, failed
+        if (not primary_ok) and bool(cos_fallback_enabled):
+            try:
+                fallback_price = _price_once(
+                    interval_rule=cos_fallback_interval_rule,
+                    params=cos_fallback_params,
+                )
+                if _is_no_arb_valid(fallback_price):
+                    price = fallback_price
+                    primary_ok = True
+                    stats["fallback_used"] += 1
+            except Exception:
+                pass
+
+        if (not primary_ok) and bool(cos_fallback_enabled):
+            emergency_params = np.array(
+                [
+                    int(max(cos_N, cos_fallback_N)),
+                    float(max(cos_L, cos_fallback_L, 120.0)),
+                ],
+                dtype=np.float64,
+            )
+            try:
+                emergency_price = _price_once(
+                    interval_rule="sqrt_t",
+                    params=emergency_params,
+                )
+                if _is_no_arb_valid(emergency_price):
+                    price = emergency_price
+                    primary_ok = True
+                    stats["fallback_emergency_used"] += 1
+            except Exception:
+                pass
+
+        if not primary_ok:
+            stats["failed"] += 1
+            stats["invalid_after_fallback"] += 1
+            out[i] = np.nan
+        else:
+            out[i] = price
+
+    return out, stats
 
 
 def _compute_metrics(
@@ -239,16 +315,31 @@ def _save_heatmap_plot(
     title: str,
     cbar_label: str,
     cmap: str,
+    log_scale: bool = False,
 ) -> None:
     fig, ax = plt.subplots(figsize=(8.4, 5.2))
     cmap_obj = plt.get_cmap(cmap).copy()
     cmap_obj.set_bad(color="#f2f2f2")
+    norm = None
+    matrix_plot = matrix
+    if log_scale:
+        valid = np.isfinite(matrix) & (matrix > 0.0)
+        if np.any(valid):
+            data = matrix[valid]
+            vmin = float(np.nanpercentile(data, 5.0))
+            vmax = float(np.nanpercentile(data, 95.0))
+            vmin = max(vmin, float(np.finfo(np.float64).tiny))
+            if vmax <= vmin:
+                vmax = vmin * 10.0
+            norm = LogNorm(vmin=vmin, vmax=vmax)
+            matrix_plot = np.where(np.isfinite(matrix), np.maximum(matrix, vmin), np.nan)
     im = ax.imshow(
-        matrix,
+        matrix_plot,
         origin="lower",
         aspect="auto",
         extent=[m_edges[0], m_edges[-1], tau_edges[0], tau_edges[-1]],
         cmap=cmap_obj,
+        norm=norm,
     )
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label(cbar_label)
@@ -275,8 +366,45 @@ def main() -> None:
         default="cumulant_autodiff",
         help="COS interval rule: sqrt_t | cumulant_autodiff",
     )
+    parser.set_defaults(cos_fallback_enabled=True)
+    parser.add_argument(
+        "--cos-fallback-enabled",
+        dest="cos_fallback_enabled",
+        action="store_true",
+        help="Enable COS fallback pass when primary result violates no-arbitrage bounds.",
+    )
+    parser.add_argument(
+        "--no-cos-fallback",
+        dest="cos_fallback_enabled",
+        action="store_false",
+        help="Disable COS fallback pass and keep only the primary COS configuration.",
+    )
+    parser.add_argument(
+        "--cos-fallback-interval-rule",
+        type=str,
+        default="sqrt_t",
+        help="Fallback COS interval rule: sqrt_t | cumulant_autodiff",
+    )
+    parser.add_argument(
+        "--cos-fallback-N",
+        type=int,
+        default=1500,
+        help="Fallback COS truncation terms N.",
+    )
+    parser.add_argument(
+        "--cos-fallback-L",
+        type=float,
+        default=80.0,
+        help="Fallback COS truncation width L.",
+    )
     parser.add_argument("--option-type", type=str, default="put", help="put|call")
     parser.add_argument("--strike", type=float, default=1.0, help="Strike used by COS benchmark.")
+    parser.add_argument(
+        "--no-arb-tol",
+        type=float,
+        default=1.0e-8,
+        help="Tolerance used in no-arbitrage validity checks for COS outputs.",
+    )
     parser.add_argument("--mape-floor", type=float, default=1.0e-4, help="Denominator floor for MAPE.")
     parser.add_argument("--n-bins", type=int, default=24, help="Bins per axis for heatmaps.")
     args = parser.parse_args()
@@ -348,7 +476,7 @@ def main() -> None:
     pinn_seconds = float(time.perf_counter() - t0)
 
     t1 = time.perf_counter()
-    y_cos, n_failed = _predict_cos(
+    y_cos, cos_stats = _predict_cos(
         x=x_eval,
         feature_order=feature_order,
         cos_N=int(args.cos_N),
@@ -356,6 +484,11 @@ def main() -> None:
         cos_interval_rule=str(args.cos_interval_rule),
         option_type=str(args.option_type),
         strike=float(args.strike),
+        cos_fallback_enabled=bool(args.cos_fallback_enabled),
+        cos_fallback_interval_rule=str(args.cos_fallback_interval_rule),
+        cos_fallback_N=int(args.cos_fallback_N),
+        cos_fallback_L=float(args.cos_fallback_L),
+        no_arb_tol=float(args.no_arb_tol),
     )
     cos_seconds = float(time.perf_counter() - t1)
 
@@ -378,7 +511,11 @@ def main() -> None:
             "collocation_interior": str(interior_path),
             "n_input_points": int(x_eval.shape[0]),
             "n_valid_points": int(x_valid.shape[0]),
-            "n_failed_cos": int(n_failed),
+            "n_failed_cos": int(cos_stats.get("failed", 0)),
+            "cos_fallback_used": int(cos_stats.get("fallback_used", 0)),
+            "cos_fallback_emergency_used": int(cos_stats.get("fallback_emergency_used", 0)),
+            "cos_invalid_primary": int(cos_stats.get("invalid_primary", 0)),
+            "cos_invalid_after_fallback": int(cos_stats.get("invalid_after_fallback", 0)),
             "feature_order": feature_order,
             "input_scaling_enabled": bool(input_scaling.get("enabled", False)),
             "input_scaling_method": input_scaling.get("method"),
@@ -387,12 +524,17 @@ def main() -> None:
             "pinn_points_per_second": float(x_eval.shape[0] / max(pinn_seconds, 1.0e-12)),
             "cos_points_per_second": float(x_eval.shape[0] / max(cos_seconds, 1.0e-12)),
             "cos_params": {
-                "N": int(args.cos_N),
-                "L": float(args.cos_L),
-                "interval_rule": str(args.cos_interval_rule),
-                "option_type": str(args.option_type),
-                "strike": float(args.strike),
-            },
+                    "N": int(args.cos_N),
+                    "L": float(args.cos_L),
+                    "interval_rule": str(args.cos_interval_rule),
+                    "fallback_enabled": bool(args.cos_fallback_enabled),
+                    "fallback_N": int(args.cos_fallback_N),
+                    "fallback_L": float(args.cos_fallback_L),
+                    "fallback_interval_rule": str(args.cos_fallback_interval_rule),
+                    "no_arb_tol": float(args.no_arb_tol),
+                    "option_type": str(args.option_type),
+                    "strike": float(args.strike),
+                },
         }
     )
 
@@ -438,8 +580,26 @@ def main() -> None:
         m_edges=m_edges,
         out_path=fig_dir / "abs_error_map_m_tau.png",
         title="PINN vs COS | Mean Absolute Error by Zone",
-        cbar_label="mean |PINN - COS|",
+        cbar_label="mean |PINN - COS| (log scale)",
         cmap="magma",
+        log_scale=True,
+    )
+    rel_abs = out_df["rel_abs_error"].to_numpy(dtype=np.float64)
+    mean_rel_abs, _, _, _ = _build_error_heatmaps(
+        x=x_valid,
+        abs_err=rel_abs,
+        feature_order=feature_order,
+        n_bins=int(args.n_bins),
+    )
+    _save_heatmap_plot(
+        matrix=mean_rel_abs,
+        tau_edges=tau_edges,
+        m_edges=m_edges,
+        out_path=fig_dir / "rel_abs_error_map_m_tau.png",
+        title="PINN vs COS | Mean Relative Absolute Error by Zone",
+        cbar_label="mean |PINN - COS| / max(|COS|, floor) (log scale)",
+        cmap="magma",
+        log_scale=True,
     )
     _save_heatmap_plot(
         matrix=counts.astype(np.float64),
@@ -455,6 +615,11 @@ def main() -> None:
     print(f"Run dir: {run_dir}")
     print(f"Output dir: {out_dir}")
     print(f"Valid points: {x_valid.shape[0]} / {x_eval.shape[0]}")
+    print(
+        f"COS fallback used: {int(cos_stats.get('fallback_used', 0))} | "
+        f"COS emergency fallback used: {int(cos_stats.get('fallback_emergency_used', 0))} | "
+        f"COS failed: {int(cos_stats.get('failed', 0))}"
+    )
     print(
         f"MAE={metrics['mae']:.3e} | RMSE={metrics['rmse']:.3e} | "
         f"MAPE={metrics['mape_pct']:.3f}% | MaxAE={metrics['max_abs_error']:.3e}"

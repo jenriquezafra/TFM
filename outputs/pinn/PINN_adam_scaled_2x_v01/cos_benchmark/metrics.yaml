@@ -1,22 +1,26 @@
 n_points: 4000
-mse: 0.0007758886342885671
-rmse: 0.02785477758461853
-mae: 0.0012848495574010353
-max_abs_error: 1.0000258684157635
-median_abs_error: 0.000269751359226543
-p90_abs_error: 0.0008628541835366627
-p95_abs_error: 0.0012418512482487729
-p99_abs_error: 0.002028555534444238
-mean_error_bias: 0.0007416391578720938
-mape_pct: 546.9390807151459
-smape_pct: 4.403787913040571
-r2: 0.9893612625518662
+mse: 3.138892723527628e-07
+rmse: 0.0005602582193531504
+mae: 0.0003905054879963248
+max_abs_error: 0.00346717124018538
+median_abs_error: 0.0002696622246556382
+p90_abs_error: 0.0008578611568211907
+p95_abs_error: 0.001226556132708029
+p99_abs_error: 0.0019546336059589786
+mean_error_bias: -0.00015270491153261684
+mape_pct: 6.271486984962056
+smape_pct: 4.233026132111415
+r2: 0.9999957205482571
 run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_adam_scaled_2x_v01
 checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_adam_scaled_2x_v01/train/checkpoints/model_best.pt
 collocation_interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_v02_2x/interior.parquet
 n_input_points: 4000
 n_valid_points: 4000
 n_failed_cos: 0
+cos_fallback_used: 4
+cos_fallback_emergency_used: 1
+cos_invalid_primary: 5
+cos_invalid_after_fallback: 0
 feature_order:
 - tau
 - moneyness
@@ -28,13 +32,18 @@ feature_order:
 - r
 input_scaling_enabled: true
 input_scaling_method: standardize_train
-pinn_inference_seconds: 0.042015875020297244
-cos_inference_seconds: 47.46011549999821
-pinn_points_per_second: 95202.11106082307
-cos_points_per_second: 84.28129510136044
+pinn_inference_seconds: 0.014643917005741969
+cos_inference_seconds: 47.51516108302167
+pinn_points_per_second: 273150.96080041805
+cos_points_per_second: 84.18365651777825
 cos_params:
   N: 1500
   L: 50.0
   interval_rule: cumulant_autodiff
+  fallback_enabled: true
+  fallback_N: 1500
+  fallback_L: 80.0
+  fallback_interval_rule: sqrt_t
+  no_arb_tol: 1.0e-08
   option_type: put
   strike: 1.0
