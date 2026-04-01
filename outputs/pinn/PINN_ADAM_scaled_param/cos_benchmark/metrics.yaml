@@ -1,0 +1,53 @@
+n_points: 9996
+mse: 5.819672257114528e-05
+rmse: 0.007628677642366682
+mae: 0.004040637935559549
+max_abs_error: 0.1435384074440344
+median_abs_error: 0.001536584338938142
+p90_abs_error: 0.011036399983640255
+p95_abs_error: 0.016912504514221563
+p99_abs_error: 0.03043358532350088
+mean_error_bias: -0.003480790615621481
+mape_pct: 18.995661040743787
+smape_pct: 9.598882575514494
+r2: 0.9992168272159775
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_ADAM_scaled_param
+checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_ADAM_scaled_param/train/checkpoints/model_best.pt
+collocation_interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01/interior.parquet
+collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01/collocation_sets_manifest.yaml
+training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_training.yaml
+architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture.yaml
+train_summary_found: true
+n_input_points: 10000
+n_valid_points: 9996
+n_failed_cos: 4
+cos_fallback_used: 7
+cos_fallback_emergency_used: 3
+cos_invalid_primary: 14
+cos_invalid_after_fallback: 4
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+input_scaling_enabled: true
+input_scaling_method: standardize_train
+pinn_inference_seconds: 0.02160295899375342
+cos_inference_seconds: 119.46346070899745
+pinn_points_per_second: 462899.5501445677
+cos_points_per_second: 83.70760348521232
+cos_params:
+  N: 1500
+  L: 50.0
+  interval_rule: cumulant_autodiff
+  fallback_enabled: true
+  fallback_N: 1500
+  fallback_L: 80.0
+  fallback_interval_rule: sqrt_t
+  no_arb_tol: 1.0e-08
+  option_type: put
+  strike: 1.0

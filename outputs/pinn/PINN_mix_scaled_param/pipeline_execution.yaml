@@ -1,0 +1,12 @@
+timestamp: 2026-04-01_14-04-23
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_pipeline.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param
+stages:
+  prepare_dataset:
+    status: skipped
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped
