@@ -1,7 +1,7 @@
 meta:
   seed: 42
   device: "auto" # auto | cpu | mps | cuda
-  optimizer: "mix_half" # adam | sgd | L-BFGS | mix_half
+  optimizer: "adam" # adam | sgd | L-BFGS | mix_half
 
 data:
   supervised_source: "cann_quotes_comparison"
@@ -16,11 +16,11 @@ sampling:
   strategy: "lhs_static" # lhs_static | lhs
   mode: "fixed_theta" # fixed_theta | parametric_theta
   seed: 42
-  output_dir: "data/synth/PINN_v01"
+  output_dir: "data/synth/PINN_v02_2x"
   sizes:
-    n_interior: 20000
-    n_terminal: 5000
-    n_lower: 5000
+    n_interior: 40000
+    n_terminal: 10000
+    n_lower: 10000
   domain:
     tau: [0.0, 3.0]
     moneyness: [0.0, 2.0]
@@ -53,7 +53,7 @@ loss:
 
 loop:
   epochs: 4000
-  mix_half_switch_epoch: 2001
+  mix_half_switch_epoch: null
   batch_size_collocation: 2048
   batch_size_boundary: 512
   log_every: 50
