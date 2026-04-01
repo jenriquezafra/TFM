@@ -124,14 +124,107 @@ The far-field behavior as $m\to\infty$ for a put, namely $u(\tau,m,v)\to 0$, can
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Neural Network Architecture}
-\todos{en general parecido a chapter 3}
 
 \subsection{Model Class}
 
+The pricing PINN is implemented as a fully connected feed-forward neural network (MLP) that approximates the mapping
+\[
+u_\phi:\mathbb{R}^8\to\mathbb{R},
+\qquad
+x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\mapsto u_\phi(x),
+\]
+where the scalar output is the option price. This architecture is appropriate for the present setting because all inputs are continuous tabular variables and no spatial or sequential inductive bias is required.
+\todos{citar referencia general sobre MLPs para PINNs}
+
+Compared with Chapter 3, where the ANN surrogate learned implied volatility from supervised labels, the role of the network here is to represent a differentiable pricing function that is constrained by the Heston PDE and boundary conditions. The model class is therefore selected not only for approximation capacity, but also for stable first- and second-order automatic differentiation.
+\todos{citar referencia sobre el papel de la diferenciabilidad en PINNs}
+
 \subsection{Architecture Details}
+
+The reference architecture used in the implementation is
+\[
+8 \rightarrow 256 \rightarrow 256 \rightarrow 256 \rightarrow 256 \rightarrow 1,
+\]
+with \texttt{tanh} activation in hidden layers and linear activation in the output layer. In compact notation,
+\[
+h^{(1)}=\varphi(W^{(1)}x+b^{(1)}),\ \dots,\
+h^{(4)}=\varphi(W^{(4)}h^{(3)}+b^{(4)}),\quad
+u_\phi=W^{(5)}h^{(4)}+b^{(5)},
+\]
+with $\varphi=\tanh$.
+
+Weights are initialized with Xavier uniform initialization and biases are initialized to zero. In the baseline setup, dropout is disabled and no batch-normalization layers are included.
+\todos{FIGURE: diagrama de arquitectura PINN (8-256-256-256-256-1, activaciones \texttt{tanh}, salida lineal)}
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{PINN architecture used in this chapter}}
+    {\begin{tabular}{|P{5.0cm}|P{6.8cm}|}
+        \hline
+        \textbf{Hyperparameter} & \textbf{Value} \\
+        \hline
+        Input dimension & 8 \\
+        \hline
+        Hidden layers & 4 \\
+        \hline
+        Hidden width & 256 neurons per layer \\
+        \hline
+        Hidden activation & \texttt{tanh} \\
+        \hline
+        Output dimension & 1 \\
+        \hline
+        Output activation & Linear \\
+        \hline
+        Weight initialization & Xavier uniform \\
+        \hline
+        Bias initialization & Zeros \\
+        \hline
+        Dropout & $p=0.0$ \\
+        \hline
+        Batch normalization & Disabled \\
+        \hline
+        \multicolumn{2}{l}{Source: Own implementation (\texttt{configs/pinn\_model\_architecture.yaml})}
+    \end{tabular}}
+\end{table}
 
 \subsection{Model Inputs and Outputs}
 
+The model receives the following ordered input vector:
+\[
+x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r),
+\]
+where \((\tau,m,v)\) are state variables, \(r\) is the risk-free rate, and \((\rho,\kappa,\gamma,\bar v)\) are the structural Heston parameters that define the PDE operator.
+\todos{TABLE: resumen de inputs del PINN (variable, significado financiero, rol en PDE, rango de entrenamiento)}
+
+The network output is a scalar price \(u_\phi(x)\), corresponding to the normalized-strike vanilla contract considered in this chapter (\(K=1\)). This output choice is consistent with the PDE-constrained formulation: the PINN directly approximates the pricing function rather than an implied-volatility transformation.
+\todos{FIGURE: esquema de entradas/salida y conexión CaNN $\rightarrow$ PINN en inferencia}
+
+In the current experimental setup, collocation generation is run in a fixed-parameter regime for \((\rho,\kappa,\gamma,\bar v)\), while \((\tau,m,v,r)\) vary across points. This means the model remains formally 8-dimensional, but some coordinates may be constant in a given run due to calibration-conditioned sampling.
+\todos{aclarar si este apartado se mantiene como baseline fixed-theta o si se añade variante fully parametric}
+
+\subsubsection*{Input Scaling}
+
+Although the pricing problem is formulated in physical variables, the optimization is performed with an affine rescaling of the network inputs. The motivation is numerical: \((\tau,m,v)\) and the Heston-related coordinates do not share comparable magnitudes, which can deteriorate conditioning and gradient balance. Following practical PINN recommendations, centering and scaling are used as a stabilization device.
+\todos{citar referencia sobre scaling en PINNs}
+
+In the implemented pipeline, the transformation is applied componentwise to the full PINN input vector through
+\[
+\tilde x_d = a_d + b_d x_d,\qquad d=1,\dots,8.
+\]
+The coefficients are estimated from the collocation points of the training split:
+\[
+\mu_d=\frac{1}{N_{\text{train}}}\sum_{i=1}^{N_{\text{train}}}x_{i,d},
+\qquad
+\sigma_d=\sqrt{\frac{1}{N_{\text{train}}}\sum_{i=1}^{N_{\text{train}}}(x_{i,d}-\mu_d)^2},
+\]
+and then
+\[
+a_d=-\frac{\mu_d}{\sigma_d},\qquad b_d=\frac{1}{\sigma_d}.
+\]
+To avoid numerical issues on nearly constant coordinates, the implementation uses a small threshold $\varepsilon=10^{-8}$: if $\sigma_d\le\varepsilon$, that coordinate is left unscaled ($a_d=0,\ b_d=1$).
+
+The PDE residual is still defined in physical variables and differentiated by automatic differentiation. In code, the network is evaluated at \(\tilde x\), while derivatives are taken with respect to the original coordinates \(x\); the chain rule is therefore handled by the computational graph. Consequently, input scaling changes the numerical conditioning of training, but not the financial meaning of the PDE constraint.
+\todos{FIGURE: comparación visual antes/después del escalado en los inputs principales}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -247,34 +340,6 @@ with the same parameter ranges, and are used to enforce the discounted-strike bo
 From an implementation viewpoint, the three sets can be regenerated dynamically during training or precomputed once and reused across epochs. A dynamic resampling strategy may improve coverage of the domain and reduce overfitting to a fixed cloud of collocation points, whereas a static design simplifies reproducibility and debugging. The initial implementation will prioritize simplicity and reproducibility; therefore, the first reference version will rely on fixed sample sets generated before the training loop. Dynamic resampling can later be evaluated as an extension if it leads to more stable convergence.
 
 This sampling strategy preserves the fully unsupervised nature of the method. No prices from COS, FFT, or Monte Carlo are required to build the training objective. Numerical pricing methods remain useful for ex-post validation and benchmarking, but not as a source of labels for fitting the PINN itself.
-
-\subsection{Input scaling}
-
-Although the pricing problem is formulated in physical variables, the optimization is performed with an affine rescaling of the network inputs. The motivation is numerical: $(\tau,m,v)$ and the Heston-related coordinates do not share comparable magnitudes, which can deteriorate conditioning and gradient balance. Following the practical guidance in \cite{hainaut2024pinn}, centering and scaling are used as a stabilization device.
-
-In the implemented pipeline, the transformation is applied componentwise to the full PINN input vector
-\[
-x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r),
-\]
-through
-\[
-\tilde x_d = a_d + b_d x_d,\qquad d=1,\dots,8.
-\]
-The coefficients are estimated from the collocation points of the training split:
-\[
-\mu_d=\frac{1}{N_{\text{train}}}\sum_{i=1}^{N_{\text{train}}}x_{i,d},
-\qquad
-\sigma_d=\sqrt{\frac{1}{N_{\text{train}}}\sum_{i=1}^{N_{\text{train}}}(x_{i,d}-\mu_d)^2},
-\]
-and then
-\[
-a_d=-\frac{\mu_d}{\sigma_d},\qquad b_d=\frac{1}{\sigma_d}.
-\]
-To avoid numerical issues on nearly constant coordinates, the implementation uses a small threshold $\varepsilon=10^{-8}$: if $\sigma_d\le\varepsilon$, that coordinate is left unscaled ($a_d=0,\ b_d=1$). This is relevant, for example, in configurations where some parameters are fixed by calibration.
-
-The PDE residual is still defined in physical variables and differentiated by automatic differentiation. In code, the network is evaluated at $\tilde x$, while derivatives are taken with respect to the original coordinates $x$; the chain rule is therefore handled by the computational graph. Consequently, input scaling changes the numerical conditioning of training, but not the financial meaning of the PDE constraint.
-
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Greeks Computation}
