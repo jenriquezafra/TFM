@@ -1,4 +1,4 @@
-timestamp: 2026-03-31_22-02-40
+timestamp: 2026-04-01_11-56-41
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_pipeline.yaml
 run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_adam_scaled_2x_v01
 stages:

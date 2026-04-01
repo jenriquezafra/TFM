@@ -76,4 +76,4 @@ figures:
   learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_adam_scaled_2x_v01/train/figures/learning_rate_curve.png
   pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_adam_scaled_2x_v01/train/figures/pde_residual_map_m_tau.png
   pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_adam_scaled_2x_v01/train/figures/pde_residual_map_m_tau_log.png
-total_training_seconds: 892.3554399170098
+total_training_seconds: 1220.384544749977
