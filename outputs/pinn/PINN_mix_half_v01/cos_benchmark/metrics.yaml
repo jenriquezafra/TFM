@@ -1,0 +1,40 @@
+n_points: 4000
+mse: 0.0004323475809448703
+rmse: 0.02079296950762133
+mae: 0.002305511552493665
+max_abs_error: 0.9644924402236938
+median_abs_error: 0.0007216884150845759
+p90_abs_error: 0.005251660451884816
+p95_abs_error: 0.006821646738627767
+p99_abs_error: 0.009175031954086019
+mean_error_bias: 0.0020136310618812337
+mape_pct: 429.0052805743765
+smape_pct: 7.471690881424414
+r2: 0.9942757504096805
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_half_v01
+checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_half_v01/train/checkpoints/model_best.pt
+collocation_interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_v01/interior.parquet
+n_input_points: 4000
+n_valid_points: 4000
+n_failed_cos: 0
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+input_scaling_enabled: false
+input_scaling_method: null
+pinn_inference_seconds: 0.018099125009030104
+cos_inference_seconds: 49.63454458300839
+pinn_points_per_second: 221005.15897891752
+cos_points_per_second: 80.5890339803649
+cos_params:
+  N: 1500
+  L: 50.0
+  interval_rule: cumulant_autodiff
+  option_type: put
+  strike: 1.0
