@@ -12,6 +12,22 @@ build/
 !thesis/build/
 thesis/build/*
 !thesis/build/main.pdf
+# LaTeX artifacts generated in thesis root when outdir is not respected
+thesis/*.aux
+thesis/*.bbl
+thesis/*.bcf
+thesis/*.blg
+thesis/*.fdb_latexmk
+thesis/*.fls
+thesis/*.lof
+thesis/*.log
+thesis/*.lot
+thesis/*.out
+thesis/*.run.xml
+thesis/*.synctex.gz
+thesis/*.toc
+thesis/main.pdf
+thesis/pdfa.xmpi
 develop-eggs/
 dist/
 downloads/
