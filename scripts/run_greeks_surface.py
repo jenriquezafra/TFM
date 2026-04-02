@@ -157,6 +157,12 @@ def _plot_surface(
     plt.close(fig)
 
 
+def _greek_column_name(out_df: pd.DataFrame, greek_name: str) -> str:
+    if greek_name in out_df.columns:
+        return f"greek_{greek_name}"
+    return greek_name
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build 2D surface of value/greeks from trained ANN.")
     parser.add_argument("--model-dir", default="latest")
@@ -301,7 +307,8 @@ def main() -> None:
     )
 
     for greek_name, greek_tensor in greek_map.items():
-        out_df[greek_name] = greek_tensor.detach().cpu().numpy().reshape(-1)
+        out_col = _greek_column_name(out_df, greek_name)
+        out_df[out_col] = greek_tensor.detach().cpu().numpy().reshape(-1)
 
     if args.strike is not None and args.spot_feature == "moneyness":
         out_df["spot_from_moneyness_strike"] = float(args.strike)

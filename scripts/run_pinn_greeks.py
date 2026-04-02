@@ -16,8 +16,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.greeks.chain_rule import apply_moneyness_to_spot_chain_rule
 from src.greeks.core import derivatives_batch, greeks_from_jacobian_hessian
-from src.greeks.names import DEFAULT_FEATURE_ORDER, build_greek_index_spec, parse_feature_order
-from src.greeks.nn_adapter import load_nn_price_adapter
+from src.greeks.names import build_greek_index_spec, parse_feature_order
+from src.greeks.pinn_adapter import DEFAULT_PINN_FEATURE_ORDER, load_pinn_price_adapter
 
 
 def _none_if_empty(raw: str | None) -> str | None:
@@ -38,11 +38,11 @@ def _parse_dtype(raw: str) -> torch.dtype:
     raise ValueError("dtype must be one of {float64, float32}")
 
 
-def _parse_feature_order(raw: str | None) -> list[str]:
+def _parse_feature_order(raw: str | None) -> list[str] | None:
     if raw is None:
-        return list(DEFAULT_FEATURE_ORDER)
+        return None
     parts = [x.strip() for x in raw.split(",") if x.strip()]
-    return parse_feature_order(parts)
+    return parse_feature_order(parts, fallback=DEFAULT_PINN_FEATURE_ORDER)
 
 
 def _parse_feature_vector(raw: str, n_features: int) -> list[float]:
@@ -87,7 +87,7 @@ def _default_output_path(*, run_name: str, user_output: str | None) -> Path:
 
     out_dir = PROJECT_ROOT / "outputs" / "greeks"
     out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir / f"greeks_{_safe_name(run_name)}.csv"
+    return out_dir / f"greeks_pinn_{_safe_name(run_name)}.csv"
 
 
 def _add_jacobian_columns(
@@ -120,17 +120,29 @@ def _greek_column_name(out_df: pd.DataFrame, greek_name: str) -> str:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Compute value/jacobian/hessian/greeks on a trained ANN model."
+        description="Compute value/jacobian/hessian/greeks from a trained PINN model."
     )
-    parser.add_argument("--model-dir", default="latest", help="Run directory name under outputs/runs")
+    parser.add_argument(
+        "--run-dir",
+        default="latest",
+        help="PINN run directory name under outputs/pinn, absolute path, or 'latest'.",
+    )
     parser.add_argument("--checkpoint-name", default="model_best.pt")
+    parser.add_argument(
+        "--architecture-config",
+        default=None,
+        help="Optional architecture config override (path).",
+    )
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda"])
     parser.add_argument("--dtype", default="float64", choices=["float64", "float32"])
 
     parser.add_argument(
         "--feature-order",
         default=None,
-        help="Comma-separated feature names. Default is training order.",
+        help=(
+            "Comma-separated feature names override. "
+            "Default: infer from train_summary/collocation manifest."
+        ),
     )
 
     source = parser.add_mutually_exclusive_group(required=True)
@@ -142,7 +154,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--spot-feature", default="moneyness")
-    parser.add_argument("--vol-feature", default=None)
+    parser.add_argument("--vol-feature", default="v")
     parser.add_argument("--tau-feature", default="tau")
     parser.add_argument("--rate-feature", default="r")
     parser.add_argument(
@@ -179,16 +191,18 @@ def main() -> None:
     dtype = _parse_dtype(args.dtype)
     feature_order = _parse_feature_order(args.feature_order)
 
-    loaded = load_nn_price_adapter(
+    loaded = load_pinn_price_adapter(
         project_root=PROJECT_ROOT,
-        model_dir=args.model_dir,
+        run_dir=args.run_dir,
         checkpoint_name=args.checkpoint_name,
+        architecture_config_path=args.architecture_config,
         device=args.device,
         dtype=dtype,
         feature_order=feature_order,
     )
 
-    df_in = _load_input_dataframe(args, feature_order=feature_order)
+    resolved_feature_order = loaded.feature_order
+    df_in = _load_input_dataframe(args, feature_order=resolved_feature_order)
     x_np = df_in.to_numpy(dtype=np.float64)
     x_t = torch.from_numpy(x_np).to(device=loaded.device, dtype=dtype)
 
@@ -207,7 +221,7 @@ def main() -> None:
     hessian = diff.hessian.detach().cpu()
 
     spec = build_greek_index_spec(
-        feature_order,
+        resolved_feature_order,
         spot_feature=args.spot_feature,
         vol_feature=_none_if_empty(args.vol_feature),
         tau_feature=_none_if_empty(args.tau_feature),
@@ -239,10 +253,10 @@ def main() -> None:
 
     jac_np = jacobian.numpy()
     hess_np = hessian.numpy()
-    _add_jacobian_columns(out_df, jacobian=jac_np, feature_order=feature_order)
+    _add_jacobian_columns(out_df, jacobian=jac_np, feature_order=resolved_feature_order)
 
     if not args.no_hessian_columns:
-        _add_hessian_columns(out_df, hessian=hess_np, feature_order=feature_order)
+        _add_hessian_columns(out_df, hessian=hess_np, feature_order=resolved_feature_order)
 
     for greek_name, greek_tensor in greek_map.items():
         out_col = _greek_column_name(out_df, greek_name)
@@ -256,6 +270,9 @@ def main() -> None:
     out_df.to_csv(out_path, index=False)
 
     print(f"Run dir: {loaded.run_dir}")
+    print(f"Checkpoint: {loaded.checkpoint_path}")
+    print(f"Architecture config: {loaded.architecture_config_path}")
+    print(f"Feature order: {resolved_feature_order}")
     print(f"Device: {loaded.device}")
     print(f"Rows: {len(out_df)}")
     print(f"Saved: {out_path}")
