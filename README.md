@@ -121,14 +121,48 @@ Compute value + Jacobian/Hessian Greeks directly from a trained PINN checkpoint:
 ```bash
 .venv/bin/python scripts/run_pinn_greeks.py \
   --run-dir PINN_mix_scaled_param \
-  --features "0.5,1.0,0.04,-0.45,1.5,0.4,0.25,0.02" \
-  --output-csv outputs/greeks/greeks_pinn_smoke.csv
+  --features "0.5,1.0,0.04,-0.45,1.5,0.4,0.25,0.02"
 ```
 
 Notes:
+- By default outputs are stored inside the model run under `outputs/pinn/<RUN>/greeks/`.
 - Default feature order is inferred from PINN artifacts (`train_summary` / collocation manifest).
 - If `spot_feature=moneyness`, use `--strike K` to convert \(\Delta,\Gamma\) from moneyness-space to spot-space.
 - When a Greek name collides with an input column name (e.g., `gamma`, `rho`), output columns are prefixed as `greek_gamma`, `greek_rho`.
+
+Generate full 2D surfaces (CSV + one PNG per Greek):
+
+```bash
+.venv/bin/python scripts/run_pinn_greeks_surface.py \
+  --run-dir PINN_mix_scaled_param \
+  --x-feature moneyness --x-min 0.8 --x-max 1.2 --x-points 81 \
+  --y-feature tau --y-min 0.05 --y-max 2.0 --y-points 81 \
+  --all-greeks
+```
+
+Config-driven execution (no CLI flags):
+
+```bash
+.venv/bin/python scripts/run_pinn_greeks_plots.py
+```
+
+The script reads:
+- `configs/pinn_greeks_plots.yaml`
+
+Benchmark PINN Greeks vs semi-analytical Heston characteristic-function Greeks
+(metrics per Greek + error plots per Greek):
+
+```bash
+.venv/bin/python scripts/run_pinn_greeks_benchmark.py
+```
+
+The benchmark script reads:
+- `configs/pinn_greeks_benchmark.yaml`
+
+Outputs are saved inside the run folder:
+- `outputs/pinn/<RUN>/greeks/benchmark_cf/points_pinn_vs_heston_cf_greeks.csv`
+- `outputs/pinn/<RUN>/greeks/benchmark_cf/metrics_by_greek.csv`
+- `outputs/pinn/<RUN>/greeks/benchmark_cf/figures/*`
 
 ## Optimizer experiment logs (MIX / ADAM)
 
