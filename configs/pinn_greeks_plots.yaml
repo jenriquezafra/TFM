@@ -1,0 +1,37 @@
+global:
+  run_dir: "PINN_mix_scaled_param"
+  checkpoint_name: "model_best.pt"
+  architecture_config: null
+  device: "auto"
+  dtype: "float64"
+  feature_order: null
+  x_points: 161
+  y_points: 161
+  fixed_values:
+    v: 0.04
+    rho: -0.7
+    kappa: 2.0
+    gamma: 0.3
+    bar_v: 0.04
+    r: 0.01
+  spot_feature: "moneyness"
+  vol_feature: "v"
+  tau_feature: "tau"
+  rate_feature: "r"
+  theta_sign: "minus_dv_dtau"
+  strike: null
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+  metric: "value"
+  all_greeks: true
+  no_plot: false
+
+plots:
+  - name: "moneyness_tau_base"
+    x_feature: "moneyness"
+    x_min: 0.8
+    x_max: 1.2
+    y_feature: "tau"
+    y_min: 0.05
+    y_max: 2.0
