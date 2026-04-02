@@ -210,3 +210,5 @@ marimo/_lsp/
 __marimo__/
 data/synth/**/*.parquet
 data/**/*.parquet
+
+.DS_Store
