@@ -11,6 +11,11 @@ from .core import (
     value_point,
     values_batch,
 )
+from .heston_cf_greeks import (
+    HestonCFGreeksSettings,
+    heston_cf_call_greeks_scalar,
+    heston_cf_greeks_scalar,
+)
 from .names import (
     DEFAULT_FEATURE_ORDER,
     GreekIndexSpec,
@@ -39,6 +44,9 @@ __all__ = [
     "hessian_batch",
     "derivatives_batch",
     "greeks_from_jacobian_hessian",
+    "HestonCFGreeksSettings",
+    "heston_cf_call_greeks_scalar",
+    "heston_cf_greeks_scalar",
     "DEFAULT_FEATURE_ORDER",
     "GreekIndexSpec",
     "parse_feature_order",

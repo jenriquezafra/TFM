@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -74,20 +73,16 @@ def _load_input_dataframe(args: argparse.Namespace, feature_order: list[str]) ->
     raise ValueError("Provide either --input-csv or --features")
 
 
-def _safe_name(value: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_.-]+", "_", value)
-
-
-def _default_output_path(*, run_name: str, user_output: str | None) -> Path:
+def _default_output_path(*, run_dir: Path, user_output: str | None) -> Path:
     if user_output:
         out = Path(user_output)
         if not out.is_absolute():
             out = PROJECT_ROOT / out
         return out
 
-    out_dir = PROJECT_ROOT / "outputs" / "greeks"
+    out_dir = run_dir / "greeks"
     out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir / f"greeks_pinn_{_safe_name(run_name)}.csv"
+    return out_dir / "greeks_points.csv"
 
 
 def _add_jacobian_columns(
@@ -265,7 +260,7 @@ def main() -> None:
     if args.strike is not None and args.spot_feature == "moneyness":
         out_df["spot_from_moneyness_strike"] = float(args.strike)
 
-    out_path = _default_output_path(run_name=loaded.run_dir.name, user_output=args.output_csv)
+    out_path = _default_output_path(run_dir=loaded.run_dir, user_output=args.output_csv)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_df.to_csv(out_path, index=False)
 
