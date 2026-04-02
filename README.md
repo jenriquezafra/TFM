@@ -164,6 +164,30 @@ Outputs are saved inside the run folder:
 - `outputs/pinn/<RUN>/greeks/benchmark_cf/metrics_by_greek.csv`
 - `outputs/pinn/<RUN>/greeks/benchmark_cf/figures/*`
 
+### Sobolev Mix Fine-Tuning (prototype runner + config runner)
+
+Prototype runner (full CLI, kept for experimentation):
+
+```bash
+.venv/bin/python scripts/run_sobolev_prototype.py --run-dir PINN_mix_scaled_param
+```
+
+Config-driven runner (recommended for reproducible runs):
+
+```bash
+.venv/bin/python scripts/run_pinn_sobolev_mix.py
+```
+
+The config-driven script reads:
+- `configs/pinn_sobolev_mix.yaml`
+
+Default outputs:
+- `outputs/runs/sobolev/<RUN_TIMESTAMP>/checkpoints/*`
+- `outputs/runs/sobolev/<RUN_TIMESTAMP>/training/history.csv`
+- `outputs/runs/sobolev/<RUN_TIMESTAMP>/training/loss_curve.png`
+- `outputs/runs/sobolev/<RUN_TIMESTAMP>/benchmark/metrics_by_greek.csv`
+- `outputs/runs/sobolev/<RUN_TIMESTAMP>/benchmark/figures/*`
+
 ## Optimizer experiment logs (MIX / ADAM)
 
 To build optimizer-specific experiment logs from `outputs/runs/*`:
