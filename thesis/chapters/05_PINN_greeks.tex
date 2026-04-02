@@ -344,17 +344,120 @@ This sampling strategy preserves the fully unsupervised nature of the method. No
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Greeks Computation}
 
-\subsection{Defition of Greeks}
+\subsection{Definition of Greeks from the PINN Output}
 
-\begin{itemize}
-    \item definir greeks
-    \item como obtenerlas derivando la red
-\end{itemize}
+Once the PINN has been trained, the network output is a differentiable approximation of the vanilla option price:
+\[
+u_\phi(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
+\]
+Therefore, sensitivities can be obtained directly as partial derivatives of this function, evaluated at a chosen market point. Let
+\[
+x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
+\]
+The first-order and second-order derivatives with respect to the input coordinates are denoted by
+\[
+\nabla_x u_\phi(x),\qquad \nabla_x^2 u_\phi(x).
+\]
+From these objects, standard trading Greeks are extracted as follows:
+\begin{align}
+\Delta &= \frac{\partial u_\phi}{\partial S},\\
+\Gamma &= \frac{\partial^2 u_\phi}{\partial S^2},\\
+\Theta &= \frac{\partial u_\phi}{\partial t}=-\frac{\partial u_\phi}{\partial \tau},\\
+\text{Rho} &= \frac{\partial u_\phi}{\partial r}.
+\end{align}
+
+In this work, the spatial coordinate is moneyness \(m=S/K\), not spot directly. Hence a chain-rule conversion is required:
+\begin{align}
+\frac{\partial u_\phi}{\partial S} &= \frac{\partial u_\phi}{\partial m}\frac{\partial m}{\partial S}
+=\frac{1}{K}\frac{\partial u_\phi}{\partial m},\\
+\frac{\partial^2 u_\phi}{\partial S^2} &= \frac{1}{K^2}\frac{\partial^2 u_\phi}{\partial m^2}.
+\end{align}
+For the normalized-strike setup used in the thesis (\(K=1\)), both coordinate systems coincide numerically.
+
+Since the PINN state includes instantaneous variance \(v\), a natural model-consistent volatility sensitivity is
+\[
+\text{Vega}_{v}:=\frac{\partial u_\phi}{\partial v}.
+\]
+If needed, this can be transformed to a sensitivity with respect to volatility level \(\sigma_v=\sqrt{v}\):
+\[
+\frac{\partial u_\phi}{\partial \sigma_v}=2\sqrt{v}\,\frac{\partial u_\phi}{\partial v}.
+\]
+In addition, the parametric PINN provides direct structural sensitivities
+\[
+\frac{\partial u_\phi}{\partial \rho},\quad
+\frac{\partial u_\phi}{\partial \kappa},\quad
+\frac{\partial u_\phi}{\partial \gamma},\quad
+\frac{\partial u_\phi}{\partial \bar v},
+\]
+which are useful for risk decomposition and calibration diagnostics beyond classical desk Greeks.
 
 \subsection{Automatic Differentiation of the PINN}
 
+The derivative computation is based on automatic differentiation over the computational graph of the trained network. For a single input point \(x\), we compute:
+\[
+u_\phi(x),\qquad J(x)=\nabla_x u_\phi(x),\qquad H(x)=\nabla_x^2 u_\phi(x).
+\]
+Because the model is differentiable end-to-end, these quantities are exact derivatives of the neural surrogate (up to floating-point precision), not finite-difference approximations.
+
+Compared with bump-and-reprice finite differences, this approach has three practical advantages in the PINN context:
 \begin{itemize}
-    \item definir autodiff
-    \item comparar con otros metodos como finite difs 
-    \item interpretación
+    \item it avoids step-size tuning and the associated truncation/cancellation trade-off;
+    \item it provides first- and second-order sensitivities in a single coherent graph;
+    \item it scales efficiently to batched inputs through vectorized Jacobian/Hessian evaluation.
 \end{itemize}
+
+From a financial perspective, the interpretation remains standard: each Greek is the local slope or curvature of the price surface produced by the PINN around the evaluation point. The quality of those sensitivities therefore depends on both the local smoothness of the trained network and the fidelity of the learned price function in that region.
+
+\subsection{Semi-Analytical Greeks from the Heston Characteristic Function}
+
+For validation purposes, Greeks can also be defined in the semi-analytical Heston framework, i.e., directly from the characteristic-function pricing representation. For a European call, a standard form is \cite{heston} and is developed in \cite[Chapter~1]{rouah_heston_book}
+\begin{equation}
+C(S_0,K,\tau)=S_0\,\Pi_1-Ke^{-r\tau}\,\Pi_2,
+\end{equation}
+where
+\begin{equation}
+\Pi_j=\frac{1}{2}+\frac{1}{\pi}\int_0^\infty
+\Re\!\left(
+\frac{e^{-iu\log K}\,\Psi_j(u)}{iu}
+\right)\,du,\qquad j\in\{1,2\},
+\end{equation}
+with
+\begin{equation}
+\Psi_2(u)=\phi_X(u),\qquad
+\Psi_1(u)=\frac{\phi_X(u-i)}{\phi_X(-i)},
+\end{equation}
+and \(\phi_X\) the characteristic function of \(X_T=\log S_T\) under Heston \cite{heston}; see also \cite[Chapter~1]{rouah_heston_book}.
+
+Let \(p\) denote a generic model/input variable (\(r,\tau,v_0,\rho,\kappa,\gamma,\bar v\), etc.). Under standard regularity and integrability conditions for affine models, differentiation under the integral sign yields \cite[Chapter~11]{rouah_heston_book}
+\begin{equation}
+\partial_p\Pi_j=
+\frac{1}{\pi}\int_0^\infty
+\Re\!\left(
+\frac{e^{-iu\log K}}{iu}\,\partial_p\Psi_j(u)
+\right)\,du.
+\end{equation}
+Therefore, Greeks are obtained by combining the derivatives of \(\Pi_1,\Pi_2\) through the pricing identity \cite[Chapter~11]{rouah_heston_book}. For example:
+\begin{align}
+\Delta_{\text{call}} &=
+\partial_{S_0}C
+=\Pi_1+S_0\,\partial_{S_0}\Pi_1-Ke^{-r\tau}\partial_{S_0}\Pi_2,\\
+\Gamma_{\text{call}} &=
+\partial^2_{S_0}C
+=2\partial_{S_0}\Pi_1+S_0\partial^2_{S_0}\Pi_1
+-Ke^{-r\tau}\partial^2_{S_0}\Pi_2,\\
+\text{Vega}_{v_0} &=
+\partial_{v_0}C
+=S_0\partial_{v_0}\Pi_1-Ke^{-r\tau}\partial_{v_0}\Pi_2,\\
+\text{Rho} &=
+\partial_r C
+=S_0\partial_r\Pi_1
++K\tau e^{-r\tau}\Pi_2
+-Ke^{-r\tau}\partial_r\Pi_2,\\
+\Theta &=
+\partial_t C
+=-\partial_\tau C.
+\end{align}
+
+The practical advantage is that all sensitivities are expressed in terms of derivatives of the same characteristic-function integrands. In affine form, \(\phi_X(u)=\exp\!\big(C(u,\tau)+D(u,\tau)v_0+iu\log S_0\big)\), so parameter derivatives follow analytically from derivatives of \(C\) and \(D\), and can be inserted directly into the integrals above.
+
+This section fixes the theoretical benchmark reference used to interpret PINN Greeks: the PINN sensitivities are compared against sensitivities implied by the Heston characteristic-function pricing map, not against ad-hoc perturbation heuristics.
