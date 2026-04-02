@@ -342,6 +342,67 @@ From an implementation viewpoint, the three sets can be regenerated dynamically 
 This sampling strategy preserves the fully unsupervised nature of the method. No prices from COS, FFT, or Monte Carlo are required to build the training objective. Numerical pricing methods remain useful for ex-post validation and benchmarking, but not as a source of labels for fitting the PINN itself.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Prototype Extension: Sobolev-Enhanced Training for Greek Accuracy}
+
+The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\Gamma\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}.
+
+The idea is to preserve the original physics loss and add a controlled supervision signal on selected Greeks at anchor points. Let
+\[
+\mathcal{L}_{\mathrm{base}}
+=
+\lambda_{\mathrm{pde}}\mathcal{L}_{\mathrm{pde}}
++\lambda_{\mathrm{term}}\mathcal{L}_{\mathrm{term}}
++\lambda_{\mathrm{low}}\mathcal{L}_{\mathrm{low}},
+\]
+and let \(\mathcal{S}_{\mathrm{g}}\) be a set of Greek-anchor points in the same input space
+\[
+x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
+\]
+For each \(x\in\mathcal{S}_{\mathrm{g}}\), reference sensitivities
+\(\mathcal{G}^{\star}(x)\) are obtained from the semi-analytical Heston characteristic-function map (Section~\ref{sec:heston_cf_greeks}), while \(\mathcal{G}_{\phi}(x)\) are computed from autodiff on the PINN output.
+
+Using normalized residuals to avoid scale dominance across Greeks, we define
+\begin{align}
+\mathcal{L}_{\mathrm{g},1}
+&=
+\frac{1}{|\mathcal{S}_{\mathrm{g}}|}
+\sum_{x\in\mathcal{S}_{\mathrm{g}}}
+\sum_{q\in\{\Delta,\text{Vega}_{v},\Theta,\text{Rho}\}}
+\left(
+\frac{q_{\phi}(x)-q^{\star}(x)}{s_q+\varepsilon}
+\right)^2,\\
+\mathcal{L}_{\mathrm{g},2}
+&=
+\frac{1}{|\mathcal{S}_{\mathrm{g}}|}
+\sum_{x\in\mathcal{S}_{\mathrm{g}}}
+\left(
+\frac{\Gamma_{\phi}(x)-\Gamma^{\star}(x)}{s_{\Gamma}+\varepsilon}
+\right)^2,
+\end{align}
+where \(s_q\) are fixed scale factors (e.g., robust quantiles from the reference sensitivities) and \(\varepsilon>0\) avoids numerical singularities near zero.
+
+The prototype objective is then
+\begin{equation}
+\mathcal{L}_{\mathrm{proto}}
+=
+\mathcal{L}_{\mathrm{base}}
++\lambda_{\mathrm{g},1}\mathcal{L}_{\mathrm{g},1}
++\lambda_{\mathrm{g},2}\mathcal{L}_{\mathrm{g},2}.
+\end{equation}
+Optionally, one can include a residual-gradient penalty in the spirit of gPINNs \cite{yu2022gpinn},
+\[
+\mathcal{L}_{\nabla \mathrm{pde}}
+=
+\frac{1}{|\mathcal{S}_{\mathrm{r}}|}
+\sum_{x\in\mathcal{S}_{\mathrm{r}}}
+\|\nabla_x \mathcal{R}_{\phi}(x)\|_2^2,
+\]
+with small weight \(\lambda_{\nabla \mathrm{pde}}\), to further regularize local stiffness.
+
+From an optimization viewpoint, this extension introduces additional multi-term imbalance risks, already documented in the PINN literature \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}. Therefore, the intended training strategy is two-stage: first, train the baseline PINN to a stable price solution; second, apply a short fine-tuning phase with gradually increased \((\lambda_{\mathrm{g},1},\lambda_{\mathrm{g},2})\), while monitoring possible regressions in price/PDE metrics.
+
+This section defines a methodological prototype for subsequent work. It is included to fix the exact formulation to be tested, but it is not yet part of the benchmarked implementation reported in this thesis.
+
 \section{Greeks Computation}
 
 \subsection{Definition of Greeks from the PINN Output}
@@ -409,6 +470,7 @@ Compared with bump-and-reprice finite differences, this approach has three pract
 From a financial perspective, the interpretation remains standard: each Greek is the local slope or curvature of the price surface produced by the PINN around the evaluation point. The quality of those sensitivities therefore depends on both the local smoothness of the trained network and the fidelity of the learned price function in that region.
 
 \subsection{Semi-Analytical Greeks from the Heston Characteristic Function}
+\label{sec:heston_cf_greeks}
 
 For validation purposes, Greeks can also be defined in the semi-analytical Heston framework, i.e., directly from the characteristic-function pricing representation. For a European call, a standard form is \cite{heston} and is developed in \cite[Chapter~1]{rouah_heston_book}
 \begin{equation}

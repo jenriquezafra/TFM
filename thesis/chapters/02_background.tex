@@ -2,81 +2,138 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Mathematical Framework For Option Pricing}
-\begin{itemize}
-    \item hablar del marco matematico general de valoracion de opciones para que el resto del capitulo tenga una base comun.
-    \item comentar de forma explicita la notacion de tiempos, activos, variables de estado y parametros para evitar ambiguedades en capitulos posteriores.
-    \item dejar claro, breve, la idea de medida neutral al riesgo y por que el precio se expresa como esperanza descontada del payoff (Feynman-Kac)
-    \item cerrar la seccion conectando este marco general con los modelos concretos que uso despues (heston y formulacion con ChF)
-\end{itemize}
-\todos{decidir sobre si incluir aqui una derivacion formal completa o dejar detalles tecnicos para un apendice}\\
-\todos{ver si me conviene incluir una tabla corta de simbolos para facilitar la lectura.}
+This section defines the common mathematical setup used in the rest of the thesis for pricing European-style derivatives.
+
+Time is continuous on $[0,T]$, with current time $t$ and maturity $T$. Rather than introducing the full probabilistic machinery, we keep a pricing-focused notation that is sufficient for the methods used later in the thesis.
+
+A global notation glossary is provided in Appendix C and will be extended as new symbols are introduced.
+
+As a practical starting point for this thesis, we use the standard risk-neutral valuation formula for European claims with constant rate $r$ \cite[Ch.~8]{oksendal2003}:
+\begin{equation}
+    V_t=e^{-r\tau}\,\mathbb E_t^{\mathbb Q}[\Psi].
+\end{equation}
+
+In the following sections, this framework is connected to three ingredients used throughout the thesis: the stochastic-calculus tools needed for the model equations, the Heston stochastic-volatility dynamics, and the characteristic-function/Fourier-COS pricing route.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Stochastic Calculus Background}
-\begin{itemize}
-    \item recordar solo el calculo estocastico minimo necesario para entender las ecuaciones del modelo y no convertir esta parte en un curso completo.
-    \item introducir primero objetos basicos (movimiento browniano, procesos ito, esperanza condicional) y luego pasar a funciones caracteristicas y cumulantes.
-    \item mantener foco en la intuicion financiera de cada definicion para que no quede como una lista aislada de formulas.
-    \item cerrar enlazando estos conceptos con el metodo cos que aparece mas adelante.
-\end{itemize}
-\todos{revisar consistencia de notacion entre esta seccion y la seccion de heston }
+This section introduces only the stochastic-calculus notions needed by the pricing methods used later. The presentation follows standard probability definitions and the transform-pricing notation adopted in \cite[Ch.~1]{oksendal2003} and \cite[Sec.~2]{fang_oosterlee_2009}.
 
-\todos{TODO: add Cumulative Distribution Function definition}\\
-\todos{TODO: add Probability Density Function definition (and delete from below)}\\
+For a real random variable $X$, the cumulative distribution function is
+\begin{equation}
+    F_X(x)=\mathbb P(X\le x).
+\end{equation}
+If $F_X$ is differentiable, the associated probability density function is
+\begin{equation}
+    f_X(x)=\frac{\partial F_X(x)}{\partial x}.
+\end{equation}
 
-[Oorsterlee book] The \textit{Characteristic Function} (ChF) for $u\in \mathbb R$ of the random variable $X$ is the Fourier-Stieltjes transform of the cumulative distribution function $F_X(x)$.
+Following this notation, the characteristic function of $X$ is
 \begin{equation}
     \phi_X(u) :=\mathbb E\left[ e^{iuX} \right] = \int_{-\infty}^\infty e^{iux}dF_X(x) = \int_{-\infty}^\infty e^{iux}f_X(x)dx,
 \end{equation}
-where $f_X(u)$ is the \textit{Probability Density Function}, given by 
-\begin{equation}
-    f_X(u)=\frac{\partial F_X(u)}{\partial u}.
-\end{equation}
+\noindent for $u\in\mathbb R$.
 
-
-Applying the logarithm to the ChF, we define the \textit{Cumulant Characteristic Function} by 
+Applying the logarithm to $\phi_X$, we obtain the cumulant characteristic function
 \begin{equation}
     \zeta_X(u) = \log \mathbb E\left[e^{iux}\right] = \log \phi_X(u).
 \end{equation}
-If we compute the MacLaurin expansion to $\zeta_X$, we arrive to 
+Its Maclaurin expansion is
 \begin{equation}
-    \zeta_X(u) = \sum_{k=0}^\infty \frac{\partial^k \zeta_k (u)}{\partial u^k}\bigg| _{u=0}\frac{u^k}{k!}=\sum_{k=0}^{\infty}\zeta_k \frac{u^k}{k!},
+    \zeta_X(u) = \sum_{k=0}^\infty \frac{\partial^k \zeta_X (u)}{\partial u^k}\bigg| _{u=0}\frac{u^k}{k!}=\sum_{k=0}^{\infty}\zeta_k \frac{u^k}{k!},
 \end{equation}
-where $\zeta_k \equiv\frac{\partial^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}$ is the $k$-th \textit{cumulant}.
+where $\zeta_k \equiv\frac{\partial^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}$ is the $k$-th cumulant.
 
 
-Furthermore, we can define the \textit{Moment Generating Function}, $\mathcal M_X(u)$, by 
+The moment generating function is
 \begin{equation}
     \mathcal M_X(u):= \phi_X(-iu) = \mathbb E\left[ e^{ux} \right]. 
 \end{equation}
 
 
-Since the MGF is $\mathcal M_X(u)=\phi_X(-iu)$ and $\zeta_X(u)=\log \mathcal M_X(u)$, we can compute the cumulants, using the ChF, as
+Using $\mathcal M_X(u)=\phi_X(-iu)$ and $\zeta_X(u)=\log \mathcal M_X(u)$, cumulants can be computed from the characteristic function as
 \begin{equation}
     \label{eq:cumulants}
     \zeta_k =\frac{\partial ^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}=\frac{\partial ^k}{\partial u^k}\log \phi_X(-iu)\bigg|_{u=0}.
 \end{equation}
+These objects are central in the rest of this chapter: the characteristic function provides direct access to Fourier-domain pricing formulas, and low-order cumulants are later used to construct truncation intervals for the COS method.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The Heston Stochastic Volatility Model}
-\begin{itemize}
-    \item presentar la dinamica del modelo de heston, indicando que la volatilidad sigue proceso CIR (mean regresion y tal)
-    \item explicar el papel de cada parametro ($\kappa$, $\bar\nu$, $\gamma$, $\rho$) y como afecta a la forma de la sonrisa de IV
-    \item anotar la condicion de feller y comentar cuando se cumple o no en calibraciones 
-    \item cerrar conectando el modelo con la ChFque necesito para aplicar la valoracion por fourier
-\end{itemize}
-\todos{anadir referencia bibliografica de heston (1993) y una referencia de implementacion numerica estable.}
+In a general diffusion form, the Heston dynamics can be written as
+\begin{align}
+    dS_t &= \mu S_t\,dt+\sqrt{\nu_t}\,S_t\,dW_t^{(S)},\\
+    d\nu_t &= \kappa(\bar\nu-\nu_t)\,dt+\gamma\sqrt{\nu_t}\,dW_t^{(\nu)},\\
+    d\langle W^{(S)},W^{(\nu)}\rangle_t &= \rho\,dt.
+\end{align}
+The parameter $\mu$ denotes a generic drift under the original measure. For pricing, we move to the risk-neutral measure $\mathbb Q$, under which the discounted asset price is a martingale and, in the no-dividend case considered in this thesis, the drift becomes $r$:
+\begin{equation}
+    dS_t = rS_t\,dt+\sqrt{\nu_t}\,S_t\,dW_t^{(S,\mathbb Q)}.
+\end{equation}
+This is the form used in the pricing formulas of the following sections \cite{heston,oksendal2003}.
+
+Here, $\nu_t$ is the instantaneous variance (equivalent to the $v_t$ notation used in later data-driven chapters). The variance process is of CIR type, so it is mean-reverting toward $\bar\nu$ at speed $\kappa$, with volatility of variance controlled by $\gamma$.
+
+In this thesis, implied volatility is defined as the value $\sigma_{imp}$ that reproduces a given option price when inserted into the Black--Scholes formula with the same contract and market inputs \cite{black_scholes_1973}:
+\begin{equation}
+    V_{BS}(S_0,K,r,\tau,\sigma_{imp})=V_{\text{target}}.
+\end{equation}
+Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
+
+Parameter interpretation is directly linked to the implied-volatility (IV) surface:
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Interpretation of Heston parameters}}
+    {\begin{tabular}{|P{2.2cm}|P{4.3cm}|P{5.3cm}|}
+        \hline
+        \textbf{Parameter} & \textbf{Interpretation} & \textbf{Main effect on IV surface} \\
+        \hline
+        $\rho$ & Instantaneous correlation between spot and variance shocks. & Controls skew: more negative $\rho$ typically implies stronger left skew. \\
+        \hline
+        $\gamma$ & Volatility of variance (\textit{vol-of-vol}). & Controls curvature and short-maturity smile amplitude; larger $\gamma$ usually increases convexity. \\
+        \hline
+        $\bar\nu$ & Long-run mean level of the variance process. & Sets the global IV level around which the surface oscillates across maturities. \\
+        \hline
+        $\kappa$ & Speed of mean reversion of $\nu_t$ toward $\bar\nu$. & Controls how fast maturities converge to long-run variance, affecting term-structure smoothing. \\
+        \hline
+        \multicolumn{3}{l}{Source: Based on \cite{heston} and \cite[Chs.~2--3]{rouah_heston_book}}
+    \end{tabular}}
+\end{table}
+
+A common positivity condition for the CIR variance process is the Feller condition
+\begin{equation}
+    2\kappa\bar\nu \ge \gamma^2.
+\end{equation}
+In practice, calibrated parameter sets may violate this inequality while still producing usable market fits; therefore, it is treated as a diagnostic and stability indicator rather than as a hard calibration constraint in many numerical workflows \cite[Chs.~2--3]{rouah_heston_book}.
+
+For pricing, the key advantage of Heston is that the log-price characteristic function is available in closed (semi-analytical) form \cite{heston}. This makes the model especially suitable for Fourier-domain valuation, which is the computational route adopted in the next sections.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Pricing Via Characteristic Functions}
-\begin{itemize}
-    \item explicar por que pasar al dominio de fourier simplifica la valoracion cuando dispongo de ChF cerrada
-    \item derivar el esquema general de precio usando transformadas y dejar claro la hipotesis de integrabilidad 
-    \item justificar la eleccion de esta via frente a alternativas como pde o monte carlo 
-    \item cerrar dejando preparada la transicion natural al metodo fourier-cos
-\end{itemize}
-\todos{comprobar si incluyo una comparativa breve de coste computacional teorico frente a metodos alternativos.}
+When the characteristic function is available in closed or semi-closed form, pricing in the Fourier domain becomes a natural alternative to direct density integration. Following \cite[Sec.~2]{fang_oosterlee_2009}, we write the option value in terms of the conditional transition density of the terminal state variable.
+
+Using the notation adopted in the next section, with $x=X(t_0)$ and $y=X(T)$, the discounted valuation formula is
+\begin{equation}
+    V(t_0,x)=e^{-r\tau}\int_{\mathbb R}V(T,y)\,f_X(T,y;t_0,x)\,dy.
+\end{equation}
+The corresponding conditional characteristic function is
+\begin{equation}
+    \phi_X(u;t_0,x):=\mathbb E_{t_0}^{\mathbb Q}\!\left[e^{iuX(T)}\mid X(t_0)=x\right]
+    =\int_{\mathbb R}e^{iuy}f_X(T,y;t_0,x)\,dy.
+\end{equation}
+Under standard integrability conditions, the density can be recovered by Fourier inversion:
+\begin{equation}
+    f_X(T,y;t_0,x)=\frac{1}{2\pi}\int_{\mathbb R}e^{-iuy}\phi_X(u;t_0,x)\,du.
+\end{equation}
+Let $\hat V_T(u):=\int_{\mathbb R}e^{-iuy}V(T,y)\,dy$ denote the Fourier transform of the payoff at maturity. Substituting the inverse representation of $f_X$ into the pricing integral and exchanging the order of integration gives
+\begin{equation}
+    V(t_0,x)=e^{-r\tau}\frac{1}{2\pi}\int_{\mathbb R}\phi_X(u;t_0,x)\,\hat V_T(u)\,du.
+\end{equation}
+
+Compared with PDE solvers, this approach avoids full space-time gridding. Compared with Monte Carlo, it is deterministic and does not introduce sampling noise. In repeated-pricing tasks (surface generation, calibration loops, and large synthetic datasets), this is a major practical advantage.
+
+The Fourier-COS method used in the next section is a specific spectral discretization of this transform-based pricing framework: it replaces the continuous integral by a finite cosine expansion over a truncated interval, preserving high accuracy with efficient vectorized evaluation.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The Fourier-COS method}
