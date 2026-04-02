@@ -114,6 +114,22 @@ Execution writes:
 - `outputs/pinn/PINN_v01/data/supervised_dataset.npz`
 - `outputs/pinn/PINN_v01/train/checkpoints/model_best.pt`
 
+### PINN Greeks (autodiff)
+
+Compute value + Jacobian/Hessian Greeks directly from a trained PINN checkpoint:
+
+```bash
+.venv/bin/python scripts/run_pinn_greeks.py \
+  --run-dir PINN_mix_scaled_param \
+  --features "0.5,1.0,0.04,-0.45,1.5,0.4,0.25,0.02" \
+  --output-csv outputs/greeks/greeks_pinn_smoke.csv
+```
+
+Notes:
+- Default feature order is inferred from PINN artifacts (`train_summary` / collocation manifest).
+- If `spot_feature=moneyness`, use `--strike K` to convert \(\Delta,\Gamma\) from moneyness-space to spot-space.
+- When a Greek name collides with an input column name (e.g., `gamma`, `rho`), output columns are prefixed as `greek_gamma`, `greek_rho`.
+
 ## Optimizer experiment logs (MIX / ADAM)
 
 To build optimizer-specific experiment logs from `outputs/runs/*`:
