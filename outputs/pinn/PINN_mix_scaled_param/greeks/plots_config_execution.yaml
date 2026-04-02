@@ -1,0 +1,104 @@
+timestamp: 2026-04-02_20-02-03
+config_source: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_greeks_plots.yaml
+global_config:
+  run_dir: PINN_mix_scaled_param
+  checkpoint_name: model_best.pt
+  architecture_config: null
+  device: auto
+  dtype: float64
+  feature_order: null
+  x_points: 161
+  y_points: 161
+  fixed_values:
+    v: 0.04
+    rho: -0.7
+    kappa: 2.0
+    gamma: 0.3
+    bar_v: 0.04
+    r: 0.01
+  spot_feature: moneyness
+  vol_feature: v
+  tau_feature: tau
+  rate_feature: r
+  theta_sign: minus_dv_dtau
+  strike: null
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+  metric: value
+  all_greeks: true
+  no_plot: false
+executions:
+- job_index: 1
+  job_name: moneyness_tau_base
+  job_config:
+    name: moneyness_tau_base
+    x_feature: moneyness
+    x_min: 0.8
+    x_max: 1.2
+    y_feature: tau
+    y_min: 0.05
+    y_max: 2.0
+  resolved_args:
+    run_dir: PINN_mix_scaled_param
+    checkpoint_name: model_best.pt
+    architecture_config: null
+    device: auto
+    dtype: float64
+    feature_order: null
+    x_feature: moneyness
+    x_min: 0.8
+    x_max: 1.2
+    x_points: 161
+    y_feature: tau
+    y_min: 0.05
+    y_max: 2.0
+    y_points: 161
+    fixed_values: v=0.04,rho=-0.7,kappa=2.0,gamma=0.3,bar_v=0.04,r=0.01
+    spot_feature: moneyness
+    vol_feature: v
+    tau_feature: tau
+    rate_feature: r
+    theta_sign: minus_dv_dtau
+    strike: null
+    chunk_size_values: 4096
+    chunk_size_jac: 512
+    chunk_size_hess: 64
+    metric: value
+    all_greeks: true
+    no_plot: false
+    output_csv: null
+    plot_path: null
+    plots_dir: null
+  result:
+    run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param
+    checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt
+    architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture.yaml
+    feature_order:
+    - tau
+    - moneyness
+    - v
+    - rho
+    - kappa
+    - gamma
+    - bar_v
+    - r
+    device: cpu
+    rows: 25921
+    metric_requested: value
+    metric_plotted: value
+    all_greeks: true
+    greek_columns_plotted:
+    - delta
+    - gamma
+    - vega
+    - theta
+    - rho
+    plots_generated: 5
+    saved_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/greeks/surface_moneyness_tau.csv
+    saved_plots:
+    - /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/greeks/surface_moneyness_tau/surface_moneyness_tau_delta.png
+    - /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/greeks/surface_moneyness_tau/surface_moneyness_tau_gamma.png
+    - /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/greeks/surface_moneyness_tau/surface_moneyness_tau_vega.png
+    - /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/greeks/surface_moneyness_tau/surface_moneyness_tau_theta.png
+    - /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/greeks/surface_moneyness_tau/surface_moneyness_tau_rho.png
