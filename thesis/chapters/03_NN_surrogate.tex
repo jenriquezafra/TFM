@@ -131,6 +131,8 @@ The pricing surrogate is implemented as a fully connected neural network that ap
 
 From a function-approximation perspective, a feed-forward multilayer perceptron (MLP) provides enough expressive capacity to capture the interactions between Heston parameters, moneyness, maturity, and rates on the selected domain. Compared with architectures designed for images or sequences (e.g., CNNs or transformers), an MLP is more parsimonious and easier to train for this tabular setting.
 
+This choice is also consistent with the classical universal-approximation results: under standard assumptions, feed-forward networks with non-polynomial activations can approximate continuous functions on compact sets to arbitrary accuracy \cite{cybenko1989,hornik1991}. In this thesis, this theorem is used as a representation-capacity motivation, while practical accuracy is established empirically through out-of-sample benchmarks.
+
 \subsection{Model Class}
 Following \cite{liu}, we use a fully connected feed-forward network (FCNN). Let $\mathbf{x}\in\mathbb{R}^8$ be
 \[

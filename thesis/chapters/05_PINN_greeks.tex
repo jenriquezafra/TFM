@@ -342,7 +342,7 @@ From an implementation viewpoint, the three sets can be regenerated dynamically 
 This sampling strategy preserves the fully unsupervised nature of the method. No prices from COS, FFT, or Monte Carlo are required to build the training objective. Numerical pricing methods remain useful for ex-post validation and benchmarking, but not as a source of labels for fitting the PINN itself.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Prototype Extension: Sobolev-Enhanced Training for Greek Accuracy}
+\section{Extension: Sobolev-Enhanced Training for Greek Accuracy}
 
 The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\Gamma\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}.
 
@@ -389,15 +389,6 @@ The prototype objective is then
 +\lambda_{\mathrm{g},1}\mathcal{L}_{\mathrm{g},1}
 +\lambda_{\mathrm{g},2}\mathcal{L}_{\mathrm{g},2}.
 \end{equation}
-Optionally, one can include a residual-gradient penalty in the spirit of gPINNs \cite{yu2022gpinn},
-\[
-\mathcal{L}_{\nabla \mathrm{pde}}
-=
-\frac{1}{|\mathcal{S}_{\mathrm{r}}|}
-\sum_{x\in\mathcal{S}_{\mathrm{r}}}
-\|\nabla_x \mathcal{R}_{\phi}(x)\|_2^2,
-\]
-with small weight \(\lambda_{\nabla \mathrm{pde}}\), to further regularize local stiffness.
 
 From an optimization viewpoint, this extension introduces additional multi-term imbalance risks, already documented in the PINN literature \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}. Therefore, the intended training strategy is two-stage: first, train the baseline PINN to a stable price solution; second, apply a short fine-tuning phase with gradually increased \((\lambda_{\mathrm{g},1},\lambda_{\mathrm{g},2})\), while monitoring possible regressions in price/PDE metrics.
 
@@ -468,58 +459,3 @@ Compared with bump-and-reprice finite differences, this approach has three pract
 \end{itemize}
 
 From a financial perspective, the interpretation remains standard: each Greek is the local slope or curvature of the price surface produced by the PINN around the evaluation point. The quality of those sensitivities therefore depends on both the local smoothness of the trained network and the fidelity of the learned price function in that region.
-
-\subsection{Semi-Analytical Greeks from the Heston Characteristic Function}
-\label{sec:heston_cf_greeks}
-
-For validation purposes, Greeks can also be defined in the semi-analytical Heston framework, i.e., directly from the characteristic-function pricing representation. For a European call, a standard form is \cite{heston} and is developed in \cite[Chapter~1]{rouah_heston_book}
-\begin{equation}
-C(S_0,K,\tau)=S_0\,\Pi_1-Ke^{-r\tau}\,\Pi_2,
-\end{equation}
-where
-\begin{equation}
-\Pi_j=\frac{1}{2}+\frac{1}{\pi}\int_0^\infty
-\Re\!\left(
-\frac{e^{-iu\log K}\,\Psi_j(u)}{iu}
-\right)\,du,\qquad j\in\{1,2\},
-\end{equation}
-with
-\begin{equation}
-\Psi_2(u)=\phi_X(u),\qquad
-\Psi_1(u)=\frac{\phi_X(u-i)}{\phi_X(-i)},
-\end{equation}
-and \(\phi_X\) the characteristic function of \(X_T=\log S_T\) under Heston \cite{heston}; see also \cite[Chapter~1]{rouah_heston_book}.
-
-Let \(p\) denote a generic model/input variable (\(r,\tau,v_0,\rho,\kappa,\gamma,\bar v\), etc.). Under standard regularity and integrability conditions for affine models, differentiation under the integral sign yields \cite[Chapter~11]{rouah_heston_book}
-\begin{equation}
-\partial_p\Pi_j=
-\frac{1}{\pi}\int_0^\infty
-\Re\!\left(
-\frac{e^{-iu\log K}}{iu}\,\partial_p\Psi_j(u)
-\right)\,du.
-\end{equation}
-Therefore, Greeks are obtained by combining the derivatives of \(\Pi_1,\Pi_2\) through the pricing identity \cite[Chapter~11]{rouah_heston_book}. For example:
-\begin{align}
-\Delta_{\text{call}} &=
-\partial_{S_0}C
-=\Pi_1+S_0\,\partial_{S_0}\Pi_1-Ke^{-r\tau}\partial_{S_0}\Pi_2,\\
-\Gamma_{\text{call}} &=
-\partial^2_{S_0}C
-=2\partial_{S_0}\Pi_1+S_0\partial^2_{S_0}\Pi_1
--Ke^{-r\tau}\partial^2_{S_0}\Pi_2,\\
-\text{Vega}_{v_0} &=
-\partial_{v_0}C
-=S_0\partial_{v_0}\Pi_1-Ke^{-r\tau}\partial_{v_0}\Pi_2,\\
-\text{Rho} &=
-\partial_r C
-=S_0\partial_r\Pi_1
-+K\tau e^{-r\tau}\Pi_2
--Ke^{-r\tau}\partial_r\Pi_2,\\
-\Theta &=
-\partial_t C
-=-\partial_\tau C.
-\end{align}
-
-The practical advantage is that all sensitivities are expressed in terms of derivatives of the same characteristic-function integrands. In affine form, \(\phi_X(u)=\exp\!\big(C(u,\tau)+D(u,\tau)v_0+iu\log S_0\big)\), so parameter derivatives follow analytically from derivatives of \(C\) and \(D\), and can be inserted directly into the integrals above.
-
-This section fixes the theoretical benchmark reference used to interpret PINN Greeks: the PINN sensitivities are compared against sensitivities implied by the Heston characteristic-function pricing map, not against ad-hoc perturbation heuristics.
