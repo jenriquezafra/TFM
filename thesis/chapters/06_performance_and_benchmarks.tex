@@ -2,12 +2,24 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Pricing Accuracy}
+This section reports pricing errors against the Heston-COS reference and includes a minimal validation protocol before benchmark runs:
+\begin{itemize}
+    \item convergence checks with respect to $(N,L)$ in the COS expansion,
+    \item put-call parity residual checks across strikes,
+    \item Black--Scholes consistency checks in near-constant-variance regimes.
+\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Implied Volatility Accuracy}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Computational Efficiency}
+Efficiency tests are performed with the production inference path:
+\begin{itemize}
+    \item vectorized evaluation on strike-maturity grids,
+    \item batched pricing throughput and latency metrics,
+    \item cost comparison against the scalar reference pipeline.
+\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Generalization And Robustness}
