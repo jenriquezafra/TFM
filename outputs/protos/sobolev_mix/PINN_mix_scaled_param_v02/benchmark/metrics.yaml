@@ -1,0 +1,95 @@
+timestamp: 2026-04-03_15-13-07
+source_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param
+source_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt
+prototype_output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054
+epochs_requested: 8000
+epochs_completed: 8000
+stopped_early: false
+stop_reason: ''
+optimizer:
+  schedule: adam_then_lbfgs
+  switch_epoch: 4000
+  adam:
+    epochs: 4000
+    lr: 0.0001
+    weight_decay: 0.0
+    step_size: 1000
+    gamma_lr: 0.5
+  lbfgs:
+    epochs: 4000
+    lr: 0.2
+    max_iter: 20
+    history_size: 100
+    tolerance_grad: 1.0e-07
+    tolerance_change: 1.0e-09
+    line_search_fn: strong_wolfe
+sobolev:
+  anchor_points: 4096
+  anchor_batch_size: 256
+  lambda_g1_final: 0.25
+  lambda_g2_final: 0.25
+  warmup_epochs: 800
+  scales:
+    delta: 0.8083070061660405
+    vega: 0.40991987266302365
+    theta: 0.04740918337695453
+    rho: 0.9993176170352436
+    gamma: 3.102806110693278
+benchmark:
+  model_source_for_eval: model_last
+  points_evaluated: 25921
+  valid_points: 25921
+  metrics:
+  - greek: delta
+    n_points: 25921
+    mse: 2.442748105672589e-07
+    rmse: 0.0004942416519955182
+    r2: 0.9999962790823368
+    mape_pct: 0.34294991162989524
+    mae: 0.00034748221585941826
+    max_abs_error: 0.005171529501764027
+  - greek: gamma
+    n_points: 25921
+    mse: 0.00012651682125631647
+    rmse: 0.011247969650399866
+    r2: 0.9998798292145357
+    mape_pct: 79.66612931313725
+    mae: 0.005436314105664664
+    max_abs_error: 0.19081766308821102
+  - greek: vega
+    n_points: 25921
+    mse: 1.4030104129052753e-05
+    rmse: 0.003745678059984968
+    r2: 0.9985413253086127
+    mape_pct: 56.617885764346575
+    mae: 0.002040336652658695
+    max_abs_error: 0.026336686497878237
+  - greek: theta
+    n_points: 25921
+    mse: 2.77315012698693e-07
+    rmse: 0.0005266070761950441
+    r2: 0.9991293563712313
+    mape_pct: 2.0353869227753854
+    mae: 0.0001550918948344194
+    max_abs_error: 0.012845775683408278
+  - greek: rho
+    n_points: 25921
+    mse: 3.065012275248115e-06
+    rmse: 0.0017507176457807567
+    r2: 0.9999751366210855
+    mape_pct: 5.818468873529911
+    mae: 0.0012565196773224752
+    max_abs_error: 0.014372958531440924
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054/benchmark/points_pinn_vs_heston_cf_greeks.csv
+  metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054/benchmark/metrics_by_greek.csv
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054/benchmark/figures
+training_artifacts:
+  history_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054/training/history.csv
+  loss_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054/training/loss_curve.png
+  checkpoint_best: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054/checkpoints/model_best.pt
+  checkpoint_last: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_20260403_141054/checkpoints/model_last.pt
+configs:
+  sobolev_runner_config_path: ''
+  training_config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_training.yaml
+  collocation_manifest_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01/collocation_sets_manifest.yaml
+  benchmark_config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_greeks_benchmark.yaml
