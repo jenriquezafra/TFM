@@ -2,53 +2,52 @@
 \label{ch:introduction}
 
 \section{Motivation}
-\begin{itemize}
-\item  emepezar el capítulo explicando el contexto práctico de valoración de derivados bajo volatilidad local y por qué importa que los métodos sean eficientes y numéricamente estables
+Although the thesis title emphasizes derivative pricing, the practical objective of this work is broader: to build a fast and coherent workflow for market calibration, valuation, and Greek computation under stochastic volatility. In the Heston setting, each of these tasks is numerically demanding on its own, and in practice they must be executed jointly and repeatedly.
 
-\item  dejar claro el problema principal: los métodos muy precisos suelen ser caros en calibración o en lotes grandes de precios, y eso limita su uso 
+This creates a central practical tension: high-fidelity numerical references are reliable, yet expensive when used at scale. The cost becomes especially visible in repetitive workloads such as calibration iterations across market surfaces, scenario analysis, and dense batches of sensitivities. As a result, computational latency can become a bottleneck even before model quality is exhausted.
 
-\item  justificar por qué compensa explorar modelos sustitutos y aproximaciones neuronales para reducir coste computacional sin perder control del error
+For this reason, surrogate approaches are explored as acceleration layers on top of trusted numerical benchmarks. The goal is not to replace model-consistent finance with a black-box shortcut, but to preserve reference behavior within controlled error levels while reducing runtime enough for practical use.
 
-\item  aclarar desde el principio el caso de uso que tengo en mente (prototipo de investigación frente a sistema listo para producción) para no prometer más de lo que realmente cubre el trabajo
-\todos{ver si la narrativa final se centra solo en opciones vanilla}
-\end{itemize}
+Within this strategy, two priorities are central. First, robust market calibration, since all downstream valuation depends on the quality and stability of fitted parameters. Second, fast Greek estimation through PINN-based differentiable surrogates, so that sensitivities can be obtained efficiently without relying on repeated finite-difference repricing.
+
+This thesis is developed as a research-oriented prototype rather than as a production deployment. The methodological pipeline (data generation, reference solvers, surrogate training, calibration, and benchmarking logic) is designed to be reusable beyond a single contract class. However, some components are intentionally case-specific: in particular, the Greeks block based on the PINN formulation is developed for European vanilla contracts under the Heston PDE constraints used in this work. This distinction clarifies from the start what is expected to generalize and what remains tied to the chosen pricing setting.
 
 \section{Main Objectives}
-\begin{itemize}
-\item el objetivo es diseñar y evaluar algoritmos computacionales para valorar derivados bajo modelos de volatilidad local, teniendo en cuenta el equilibrio entre velocidad y precision
+This thesis focuses on the Heston stochastic-volatility framework and aims to evaluate computational methods under a consistent speed-accuracy trade-off perspective. The first objective is to build a reproducible end-to-end pipeline covering data preparation, reference numerical pricing, calibration, surrogate/PINN training, and benchmark execution. This objective is methodological: the full workflow must be easy to rerun and auditable at each stage.
+\todos{add final references to scripts and modules once the pipeline layout is done. if needed, consolidate these references in an appendix table}
 
-\item objetivo 1: montar un pipeline reproducible de datos, configuración de modelos y ejecución de experimentos para poder repetir benchmarks de forma consistente.
-\todos{actualizar con referencias exactas a scripts y módulos cuando cierre definitivamente el pipeline}
+The second objective is comparative. The thesis develops and evaluates surrogate approaches, including supervised neural surrogates and PINN-based formulations, against numerical references under common experimental conditions. The purpose is to determine where learned approximators provide practical acceleration without losing control of model-consistent behavior.
 
-\item objetivo 2: desarrollar y comparar enfoques sustitutos (modelos neuronales, LTSM, etc) frente a referencias numéricas bajo condiciones de evaluación comunes
+The third objective is empirical evaluation through quantitative metrics. Performance is assessed using pricing error, Greek error, computational cost, and numerical stability across the parameter regions and contract settings covered by the experiments. The goal is to characterize not only average accuracy, but also robustness and failure modes.
 
-\item objetivo 3: medir el rendimiento con métricas de error de precio, coste computacional y estabilidad en distintos regímenes de mercado y regiones de parámetros
+The fourth objective is to establish realistic operational boundaries. The thesis explicitly separates components that are sufficiently mature for applied use from those that remain exploratory, especially in relation to portability, maintenance cost, and reliability under distribution shifts.
 
-\item objetivo 4: evaluar limitaciones prácticas y fijar fronteras claras sobre qué parte está preparada para uso aplicado y qué parte sigue siendo exploratoria
-\todos{decidir si incluyo objetivos explícitos de latencia para inferencia y calibración en la versión final}
-\end{itemize}
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.92\textwidth}{
+        \centering
+        \textbf{Placeholder: High-level pipeline diagram}\\
+        Market data and synthetic data preparation $\rightarrow$ Heston reference solvers (COS/PDE + IV inversion) $\rightarrow$ calibration and learned surrogates (ANN/PINN) $\rightarrow$ pricing and Greeks benchmarks.
+    }}
+    \caption{High-level pipeline of the thesis (placeholder).}
+    \label{fig:intro_pipeline}
+\end{figure}
+
+Latency is treated as an informative benchmark dimension rather than as a production service-level target. Reported timings are interpreted in the context of the current research implementation, without hardware-specific optimization as a primary objective.
 
 \section{Key Contributions}
-\begin{itemize}
-\item 1-> presentar un marco experimental para comparar métodos numéricos clásicos y sustitutos neuronales en tareas de volatilidad local
+This thesis makes four main contributions. First, it delivers a reproducible computational framework for Heston-based market calibration, reference pricing, surrogate training, and benchmarking under a unified experimental protocol. This framework is designed to make method comparisons auditable and repeatable.
 
-\item 2-> aportar evidencia de dónde los modelos sustitutos aceleran y dónde fallan al generalizar, incluyendo escenarios de estres
-\todos{añadir el conjunto final de escenarios de estrés cuando termine los experimentos pendientes de robustez}
+Second, it provides an empirical comparison between numerical references and neural surrogates, including supervised ANN models and PINN-based formulations, under shared evaluation conditions. The comparison is used to characterize practical speed-accuracy trade-offs and to identify parameter regions where each approach remains reliable.
 
-\item 3-> recoger aprendizajes de implementación sobre estrategia de entrenamiento, control de error y criterios de selección de modelos que puedan reutilizarse en problemas parecidos
+Third, it develops a PINN-based workflow for fast Greek computation in the vanilla European Heston setting, using automatic differentiation on a differentiable pricing surrogate and validating the resulting sensitivities against reference numerical estimates.
 
-\item 4-> discutir amenazas a la validez, como calidad de datos, sesgo de discretización, riesgo de extrapolación y dependencia del benchmark elegido
-\todos{incluir sensibilidad a costes de transacción y slippage solo si termino a tiempo la integración con el flujo de cartera}
-
-\item 5-> cerrar con un roadmap futuro priorizado por impacto esperado y complejidad de implementación
-\end{itemize}
+Fourth, it documents the operational limits of the proposed methodology through an explicit robustness and validity analysis, including data-domain coverage, discretization effects, extrapolation risk, and dependence on benchmark design. This yields a clear boundary between components that are mature enough for applied use and components that remain exploratory.
 
 \section{Scope and Structure}
-\begin{itemize}
-\item delimitar explícitamente el alcance, indicando qué cubro y qué dejo fuera, sobre todo en universo de activos, rango de vencimientos y supuestos de microestructura
+The scope of this thesis is explicitly bounded to Heston-based pricing, calibration, and Greek estimation workflows under the data and contract settings defined in the experimental design. The focus is on methodological evaluation and reproducible benchmarking, not on full production deployment or broad asset-class coverage beyond the tested domain.
 
-\item resumir la validación a alto nivel: datos usados, lógica de partición entre entrenamiento, validación y test, y criterios para seleccionar benchmarks
-\todos{cerrar la lista de benchmarks y el periodo de datos después de la última revisión de calidad}
+Validation is presented at a high level through the datasets used, the train/validation/test logic adopted in each learning stage, and the benchmark criteria applied to numerical and neural methods. The goal is to keep the comparison protocol transparent and consistent across chapters.
+\todos{finalize the benchmark list and the exact data period after the last data-quality review}
 
-\item cerrar la introducción con una guía breve capítulo a capítulo para que se entienda rápido el recorrido desde fundamentos teóricos hasta métodos, resultados y conclusiones
-\end{itemize}
+The remainder of the thesis is organized as follows. Chapter 2 introduces the mathematical and financial background. Chapter 3 presents the supervised neural surrogate pricer under Heston. Chapter 4 covers the calibration architecture and workflow. Chapter 5 develops the PINN formulation for pricing and Greeks. Chapter 6 reports performance and benchmark results. Finally, Chapter 7 summarizes conclusions and future work.
