@@ -1,25 +1,169 @@
 \chapter{Neural Network Performance And Benchmarking}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Pricing Accuracy}
-This section reports pricing errors against the Heston-COS reference and includes a minimal validation protocol before benchmark runs:
+\section{Experimental Setup And Evaluation Protocol}
+This chapter compares the three model blocks developed in the thesis under a common evaluation protocol: ANN pricing surrogate, calibration network workflow, and PINN-based pricing/Greeks.
+
+Unless explicitly stated, all reported metrics are computed on fixed evaluation sets with identical feature conventions, consistent preprocessing, and the same numerical references used in previous chapters.
+
+The minimal pre-benchmark validation protocol includes:
 \begin{itemize}
     \item convergence checks with respect to $(N,L)$ in the COS expansion,
     \item put-call parity residual checks across strikes,
     \item Black--Scholes consistency checks in near-constant-variance regimes.
 \end{itemize}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Implied Volatility Accuracy}
+\todos{Add final table with dataset/split definitions, run identifiers, and hardware context used for all benchmarks in this chapter.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Computational Efficiency}
-Efficiency tests are performed with the production inference path:
+\section{ANN Pricer Performance}
+This section reports the performance of the supervised ANN pricer introduced in Chapter~3. The analysis is organized around implied-volatility error, regional error behavior over \((m,\tau)\), and inference cost under batched evaluation.
+
+\todos{Insert ANN global metrics table (MAE/RMSE/quantiles) from the final selected run.}
+\todos{Insert ANN regional error table by moneyness-maturity buckets.}
+\todos{Insert ANN runtime summary (throughput/latency) using the final benchmark configuration.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Calibration Network Performance}
+This section summarizes the calibration workflow results from Chapter~4, focusing on fit quality and operational stability.
+
+The main reported dimensions are:
 \begin{itemize}
-    \item vectorized evaluation on strike-maturity grids,
-    \item batched pricing throughput and latency metrics,
-    \item cost comparison against the scalar reference pipeline.
+    \item objective-function quality at convergence,
+    \item residual statistics versus market quotes,
+    \item robustness diagnostics around the calibrated optimum.
 \end{itemize}
+
+\todos{Insert calibration metrics table (objective, weighted MSE, residual RMSE, convergence diagnostics).}
+\todos{Insert calibration robustness figure placeholders (e.g., curvature/Jacobian-based diagnostics at \(\theta^\star\)).}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{PINN Pricing Performance}
+This section reports baseline PINN pricing quality before entering Greek-specific analysis. The goal is to assess whether PDE-constrained training reaches competitive price accuracy and stable residual behavior over the evaluation domain.
+
+\todos{Insert PINN pricing metrics table versus COS reference (price MAE/RMSE and residual diagnostics).}
+\todos{Insert PINN pricing error-map figure over \((m,\tau)\).}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{PINN Greeks Performance}
+This section focuses on sensitivity estimation quality for the baseline PINN and then analyzes the Sobolev extension through a dedicated ablation.
+
+\subsection{Baseline PINN Greek Accuracy}
+Baseline Greek quality is evaluated against semi-analytical Heston characteristic-function Greeks, using per-Greek metrics and spatial diagnostics over the benchmark grid.
+
+\todos{Insert baseline PINN Greek metrics table (Delta/Gamma/Vega/Theta/Rho).}
+\todos{Insert baseline Greek error maps and histograms.}
+
+\subsection{Ablation: Baseline PINN vs Sobolev-Augmented PINN}
+\label{sec:ablation_pinn_sobolev}
+This subsection reports a controlled ablation focused on Greek accuracy. The objective is to isolate the impact of Jacobian-informed Sobolev terms on top of the baseline PINN loss, comparing:
+\begin{itemize}
+    \item \textbf{Baseline PINN}: PDE + terminal + lower-boundary losses only.
+    \item \textbf{Sobolev-augmented PINN}: baseline loss plus derivative supervision terms \(\mathcal{L}_{g,1}\) and \(\mathcal{L}_{g,2}\) as defined in Chapter 5.
+\end{itemize}
+
+\subsection{Experimental Protocol}
+
+To make the comparison interpretable, both variants are evaluated under the same benchmark grid and the same reference Greek engine (Heston characteristic-function Greeks). The ablation is designed so that only the training objective changes, while architecture and evaluation protocol remain fixed.
+
+\todos{Confirm and report the exact run identifiers used in this ablation (baseline run dir/checkpoint and Sobolev run dir/checkpoint).}
+\todos{Confirm whether both variants use identical sampling seeds and identical collocation subsets. If not, report the exact differences.}
+
+\subsection{Metrics}
+
+Greek quality is reported with the same metrics exported by the benchmark pipeline:
+\[
+\text{MSE},\ \text{RMSE},\ R^2,\ \text{MAPE}(\%),\ \text{MAE},\ \max|e|.
+\]
+These metrics are computed per Greek (\(\Delta,\Gamma,\text{Vega},\Theta,\text{Rho}\)). In addition, runtime indicators are reported for training and for batched Greek inference.
+
+\begin{table}[H]
+    \centering
+    \caption{Ablation metrics by Greek: baseline PINN vs Sobolev-augmented PINN (placeholder).}
+    \label{tab:ablation_metrics_by_greek}
+    \begin{tabular}{|l|l|r|r|r|r|r|r|r|}
+        \hline
+        Variant & Greek & \(n\) & MSE & RMSE & \(R^2\) & MAPE (\%) & MAE & Max Abs. Err. \\
+        \hline
+        Baseline PINN & Delta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Baseline PINN & Gamma & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Baseline PINN & Vega & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Baseline PINN & Theta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Baseline PINN & Rho & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        \hline
+        Sobolev PINN & Delta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Sobolev PINN & Gamma & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Sobolev PINN & Vega & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Sobolev PINN & Theta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Sobolev PINN & Rho & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Computational cost summary for the ablation (placeholder).}
+    \label{tab:ablation_cost_summary}
+    \begin{tabular}{|l|r|r|r|r|}
+        \hline
+        Variant & Train epochs completed & Total train time (s) & Greek benchmark time (s) & Speedup vs CF reference \\
+        \hline
+        Baseline PINN & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Sobolev PINN & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Visual Diagnostics}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.92\textwidth}{
+        \centering
+        \textbf{Placeholder: Training-loss comparison}\\
+        Overlay of baseline and Sobolev training curves (total loss and, for Sobolev, \(L_{\text{base}},L_{g,1},L_{g,2}\)).
+    }}
+    \caption{Training dynamics in the ablation study (placeholder).}
+    \label{fig:ablation_training_dynamics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.92\textwidth}{
+        \centering
+        \textbf{Placeholder: Error maps by Greek}\\
+        Mean absolute error maps over \((m,\tau)\) for baseline vs Sobolev (one panel per Greek).
+    }}
+    \caption{Spatial error diagnostics for Greek estimation (placeholder).}
+    \label{fig:ablation_error_maps}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.92\textwidth}{
+        \centering
+        \textbf{Placeholder: Error histograms by Greek}\\
+        Distribution of \((\text{PINN} - \text{CF reference})\) errors for each Greek and each variant.
+    }}
+    \caption{Error-distribution comparison between baseline and Sobolev variants (placeholder).}
+    \label{fig:ablation_error_histograms}
+\end{figure}
+
+\subsection{Interpretation Template}
+
+The expected interpretation of this ablation is two-dimensional. First, evaluate whether Sobolev terms provide a consistent reduction in Greek errors, with particular attention to \(\Gamma\). Second, quantify the operational trade-off in terms of additional training complexity, tuning burden, and runtime overhead. This interpretation is aligned with the scope of this thesis: improving practical Greek quality while preserving transparent limits on applicability.
+
+\todos{Fill this subsection with final quantitative findings once metrics are frozen. Include explicit percentage deltas baseline vs Sobolev for MAE/RMSE per Greek.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Cross-Model Computational Comparison}
+This section provides a horizontal computational comparison across ANN pricing, calibration workflow, and PINN-based pricing/Greeks. The purpose is not to force a single winner, but to clarify where each component is computationally advantageous within the end-to-end research pipeline.
+
+\todos{Insert comparison table with representative latency/throughput/cost indicators for ANN, calibration workflow, baseline PINN, and Sobolev PINN.}
+\todos{Add one short paragraph on comparability limits (different objectives, output spaces, and optimization stages).}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Generalization And Robustness}
+This section consolidates robustness evidence across all model blocks, including sensitivity to domain boundaries, extrapolation behavior, and dependence on benchmark design choices.
+
+\todos{Insert final robustness summary table across ANN, calibration workflow, and PINN variants.}
