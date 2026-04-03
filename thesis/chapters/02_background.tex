@@ -95,6 +95,8 @@ Parameter interpretation is directly linked to the implied-volatility (IV) surfa
         \hline
         $\bar\nu$ & Long-run mean level of the variance process. & Sets the global IV level around which the surface oscillates across maturities. \\
         \hline
+        $\nu_0$ & Initial variance level at valuation time ($\nu_{t_0}$). & Anchors short-maturity ATM IV and strongly affects the front end of the term structure. \\
+        \hline
         $\kappa$ & Speed of mean reversion of $\nu_t$ toward $\bar\nu$. & Controls how fast maturities converge to long-run variance, affecting term-structure smoothing. \\
         \hline
         \multicolumn{3}{l}{Source: Based on \cite{heston} and \cite[Chs.~2--3]{rouah_heston_book}}
@@ -137,103 +139,145 @@ The Fourier-COS method used in the next section is a specific spectral discretiz
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The Fourier-COS method}
+The Fourier-COS method approximates transition densities and option values by a cosine series on a finite interval \cite[Secs.~3--4]{fang_oosterlee_2009}. Its practical appeal in this thesis is that it combines spectral convergence with efficient vectorized evaluation once the model characteristic function is available.
 
-\begin{itemize}
-    \item presentar el metodo cos como aproximacion espectral de densidades y precios en un intervalo truncado
-    \item comentar con cuidado como elegir el intervalo $[a,b]$ a partir de cumulantes y que impacto tiene esa eleccion en el error (un poco en apendice ya)
-    \item separar claramente error de truncacion y error por numero finito de terminos para luego interpretar mejor los resultados numericos (tambien en apendice ahora)
-    \item ir diciendo formula, significado de cada termino y como se implementa (vectorizado)
-\end{itemize}
-\todos{anadir como una guia practica para elegir $N$ y evitar artefactos numericos en extremos de K y vencimiento}
-
-The COS method is the …\\
-The main reasons we want to use a cosine expansion are:
-\begin{itemize}
-    \item In a cosine Fourier expansion we can represent even functions around 0 exactly.
-    \item We can extend any function $g:[0,\pi]\to \mathbb R$ to become an even function on $[-\pi, \pi]$ as follows: 
-    \begin{equation}
-        \bar g(\theta)=\begin{cases}g(\theta), \quad &\theta \geq 0,\\ g(-\theta), \quad &\theta < 0. \end{cases}
-    \end{equation}
-    \item For functions supported on any other finite interval, say $[a,b]\in\mathbb R$, the Fourier $\cos$ series expansion can be obtained via a change of variables: 
-    $$\theta:= \frac{y-a}{b-a}\pi, \quad y:=\frac{b-a}{\pi}\theta+a.$$
-\end{itemize}
-
-\todos{TODO: falta más teoría para enlazar}\\
-
-We finally arrive to the approximation of the PDF 
+Let $x=X(t_0)$ and $y=X(T)$, and consider a truncation interval $[a,b]$ that concentrates most of the probability mass of $X(T)\mid X(t_0)=x$. On this interval, the conditional density is approximated by
 \begin{equation}
-    \hat f_X(y) = \sum_{k=0}^{N-1}\!'\  \bar F_k\cos\left(\pi k\frac{y-a}{b-a}\right),
+    \hat f_X(y)=\sum_{k=0}^{N-1}\!'\ \bar F_k\cos\left(\pi k\frac{y-a}{b-a}\right),
 \end{equation}
-where $\sum '$ indicates that the first term should be multiplied by $1/2$, and the coefficients depend on the ChF: 
+where $\sum'$ indicates that the $k=0$ term is weighted by $1/2$, and the cosine coefficients are obtained from the characteristic function:
 \begin{equation}
-    \bar F_k:= \frac{2}{b-a}\operatorname{Re} \left[ \phi_X\left( \frac{\pi k}{b-a} \right) \cdot \exp\left( -\frac{ i\pi ak}{b-a} \right)\right].
+    \bar F_k:=\frac{2}{b-a}\Re\!\left[\phi_X\!\left(\frac{\pi k}{b-a}\right)\exp\!\left(-\frac{i\pi ak}{b-a}\right)\right].
 \end{equation}
 
-\todos{TODO: no se si poner algo aquí o nueva subsection}\\
+Starting from
+\begin{equation}
+    V(t_0,x)=e^{-r\tau}\int_{\mathbb R}V(T,y)f_X(T,y;t_0,x)\,dy,
+\end{equation}
+the COS discretization yields
+\begin{equation}
+    V(t_0,x)\approx e^{-r\tau}\sum_{k=0}^{N-1}\!'\ \Re\!\left[\phi_X\!\left(\frac{\pi k}{b-a}\right)\exp\!\left(-\frac{i\pi ak}{b-a}\right)\right]H_k,
+\end{equation}
+where the payoff coefficients are
+\begin{equation}
+    H_k:=\frac{2}{b-a}\int_a^b V(T,y)\cos\left(\frac{y-a}{b-a}\pi k\right)\,dy.
+\end{equation}
+For plain-vanilla options, $H_k$ has closed-form expressions, so the numerical effort is concentrated in evaluating the characteristic function on a fixed frequency grid \cite[Sec.~3]{fang_oosterlee_2009}.
 
-The value of a plain vanilla option is given by 
+The choice of $[a,b]$ controls truncation error. Following the cumulant-based rule in \cite[Sec.~5]{fang_oosterlee_2009}, we use
 \begin{equation}
-    V(t_0,x) = e^{-r\tau}\int_\mathbb R V(T,y)f_X(T,y;t_0,x)dy,
+    [a,b]=\left[c_1-L\sqrt{c_2+\sqrt{c_4}},\;c_1+L\sqrt{c_2+\sqrt{c_4}}\right],
 \end{equation}
-where $\tau = T-t_0$, $f_X(T,y;t_0,x)$ is the transition probability density of $X(t)$, and $r$ the interest rate.\\
+with $c_1,c_2,c_4$ the first, second, and fourth cumulants of $X(T)$ and $L>0$ a scaling parameter. This connects directly with the cumulant machinery introduced in Section 2.2.
+In the numerical experiments of this thesis, the integration interval is selected using the refined cumulant-based strategy detailed in Appendix~\ref{app:cos_error}.
 
-Applying the COS method to the last expression, we arrive to
+From a numerical viewpoint, it is useful to separate two error sources:
 \begin{equation}
-    V(t_0,x)\approx e^{-r\tau} \sum_{k=0}^{N-1}\!'\ \operatorname{Re}\left[ \phi_X\left( \frac{\pi k}{b-a} \right)\cdot \exp \left( -\frac{i\pi ak}{b-a} \right) \right] \cdot H_k,
+    \left|V-V_N^{\mathrm{COS}}\right|
+    \le
+    \underbrace{\varepsilon_{\mathrm{trunc}}([a,b])}_{\text{domain truncation}}
+    +
+    \underbrace{\varepsilon_{N}}_{\text{finite cosine series}}.
 \end{equation}
-with $x$ a function of $S(t_0)$, $\phi_X(u)$ the ChF, and $H_K$ the \textit{payoff coefficients}:
-\begin{equation}
-    H_k := \frac{2}{b-a}\int_a^b V(T,y) \cos\left( \frac{y-a}{b-a}\pi k \right)dy.
-\end{equation}
-\todos{TODO: seguir con los payoffs coeffients}
+Increasing $L$ reduces $\varepsilon_{\mathrm{trunc}}$ but may require larger $N$ to keep $\varepsilon_N$ small; reducing $L$ has the opposite effect. In practice, we choose $(L,N)$ jointly and verify stability, especially for extreme strikes and short maturities, where numerical artifacts appear first.
+
+Implementation is fully vectorized: frequencies $u_k=\pi k/(b-a)$, exponential phase factors, and payoff coefficients are precomputed once per maturity, then reused across strike grids. This is one of the reasons COS is well suited for repeated-pricing workflows such as calibration loops and synthetic dataset generation.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{The COS Method Applied To The Heston Model}
-\todos{TODO: rellenar}\\
-\begin{itemize}
-    \item presentr la teoria anterior al caso heston, con definiciones consistentes de variables y convenciones de signos
-    \item verificar que la expresion de $\varphi_H$ que uso coincide con una formulacion estandar y numericamente estable
-    \item dejar claro como paso de la formula escalar a evaluacion vectorizada en mallas de strikes y vencimientos
-    \item cerrar con una lista corta de sanity checks numericas antes de usar esta formula en benchmarks
-\end{itemize}
-\todos{revisar simbolos de entrada/salida en esta subseccion para que coincidan exactamente con la implementacion en codigo.}
+Following the notation of Sections 2.4--2.5 and \cite[Sec.~3]{fang_oosterlee_2009}, define
+\[
+u_k:=\frac{k\pi}{b-a},\qquad x:=\log\!\left(\frac{S_0}{K}\right),\qquad y:=\log\!\left(\frac{S_T}{K}\right).
+\]
+Under Heston dynamics, the conditional characteristic function of $y$ can be written in affine form \cite{heston,rouah_heston_book}
+\begin{equation}
+    \varphi_H(u;\tau,x,\nu_0)=\exp\!\left(C(u,\tau)+D(u,\tau)\nu_0+iux\right),
+\end{equation}
+with
+\begin{align}
+    d(u)&=\sqrt{\left(\kappa-i\rho\gamma u\right)^2+\gamma^2\left(u^2+iu\right)},\\
+    g(u)&=\frac{\kappa-i\rho\gamma u-d(u)}{\kappa-i\rho\gamma u+d(u)},\\
+    C(u,\tau)&=iur\tau+\frac{\kappa\bar\nu}{\gamma^2}\!\left[\left(\kappa-i\rho\gamma u-d(u)\right)\tau-2\log\!\left(\frac{1-g(u)e^{-d(u)\tau}}{1-g(u)}\right)\right],\\
+    D(u,\tau)&=\frac{\kappa-i\rho\gamma u-d(u)}{\gamma^2}\left(\frac{1-e^{-d(u)\tau}}{1-g(u)e^{-d(u)\tau}}\right).
+\end{align}
+This is the standard semi-closed representation used in Fourier pricing; numerically, consistency in branch selection for $d(u)$ and the complex logarithm is required for stability \cite[Chs.~2--3]{rouah_heston_book}.
 
-We need to define the following functions: 
-\begin{align}    
-    D_1(u)&=\sqrt{\left( \kappa-\gamma \rho iu \right)^2 + \left( u^2+iu \right)\gamma^2},\\
-    g(u)&=\frac{\kappa-\gamma \rho iu - D_1}{\kappa - \gamma\rho iu + D_1}.
+The COS price for one strike can then be written as
+\begin{equation}
+    V(t_0,x)\approx Ke^{-r\tau}\sum_{k=0}^{N-1}\!'\ \Re\!\left[\varphi_H(u_k;\tau,x,\nu_0)\,e^{-iu_ka}\right]U_k,
+\end{equation}
+where $U_k$ are payoff-dependent COS coefficients. For plain-vanilla options:
+\begin{equation}
+    U_k^{\mathrm{call}}=\frac{2}{b-a}\left(\chi_k(0,b)-\psi_k(0,b)\right),\qquad
+    U_k^{\mathrm{put}}=\frac{2}{b-a}\left(-\chi_k(a,0)+\psi_k(a,0)\right),
+\end{equation}
+with
+\begin{align}
+    \chi_k(c,d)&=\frac{1}{1+u_k^2}\Big[e^d\!\left(\cos(u_k(d-a))+u_k\sin(u_k(d-a))\right)-e^c\!\left(\cos(u_k(c-a))+u_k\sin(u_k(c-a))\right)\Big],\\
+    \psi_k(c,d)&=
+    \begin{cases}
+        d-c, & k=0,\\[2mm]
+        \dfrac{b-a}{k\pi}\left[\sin(u_k(d-a))-\sin(u_k(c-a))\right], & k\ge 1.
+    \end{cases}
 \end{align}
 
-
-Using a vector of strikes $\mathbf K$, we find the COS formula for the Heston model:
-\begin{equation}
-    V(t_0,\mathbf x)\approx \mathbf K e^{-r\tau}\cdot\operatorname{Re} \left\{ \sum_{k=0}^{N-1}\!'\  \varphi_H\left[ \frac{\pi k}{b-a},T; \nu(t_0) \right]U_k\cdot \exp\left[ i\pi k\frac{\mathbf X(t_0)-a}{b-a}\right] \right\},
-\end{equation}
-where \todos{no se si es la ChF?}
-\begin{equation}
-\begin{aligned}
-    \varphi_H\left(t,T;\nu(t_0)\right) =& \exp\left\{iur\tau + \frac{\nu(t_0)}{\gamma^2}\left(\frac{1-e^{-D_1\tau}}{1-g e^{-D_1\tau}}\right) \left( \kappa-i\rho \gamma u - D_1\right) \right\} \cdot \\
-     &\cdot\exp\left\{ \frac{\kappa \bar\nu}{\gamma^2}\left(\tau \left( \kappa-i\rho \gamma u -D_1 \right) -2\log\left( \frac{1-ge^{-D_1\tau}}{1-g} \right) \right)\right\}.    
-\end{aligned}
-\end{equation}
+This subsection establishes the analytical Heston-COS pricing block used as the reference framework in the following chapters.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Implied Volatility And Numerical Inversion}
-\begin{itemize}
-    \item explicar como paso de precios a volatilidad implicita y por que esta inversion es clave para comparar modelos.
-    \item documentar el metodo numerico de inversion que uso (por ejemplo, newton o brent), incluyendo tolerancias y criterios de parada.
-    \item comentar problemas tipicos de inversion (no convergencia, soluciones no fisicas, sensibilidad a la semilla) y como los trato.
-    \item cerrar definiendo claramente que metricas en volatilidad implicita voy a reportar en resultados.
-\end{itemize}
-\todos{decidir si reporto errores en precio, en iv o ambos segun el objetivo de cada experimento.}
+For each target option value $V_{\text{target}}$ (market quote or model-generated price), implied volatility is obtained by inverting the Black--Scholes map \cite{black_scholes_1973}. This provides a common representation across strikes and maturities, which is the main comparison space used in this thesis.
+
+Numerically, we solve the scalar nonlinear equation
+\begin{equation}
+    F(\sigma):=V_{BS}(S_0,K,r,\tau,\sigma)-V_{\text{target}}=0,\qquad \sigma>0.
+\end{equation}
+For European vanilla options, $V_{BS}$ is strictly increasing in $\sigma$ when $\tau>0$, so the root is unique whenever $V_{\text{target}}$ satisfies static no-arbitrage bounds.
+
+The inversion routine used in this thesis is the bracketed Brent method \cite[Ch.~9]{press2007numerical}. This choice is robust for the one-dimensional IV root and avoids derivative-sensitivity issues in low-vega regions. As an alternative, Levenberg--Marquardt was also tested in preliminary experiments, but it showed lower numerical stability in this workflow; therefore, it is not used in the final pipeline.
+
+Stopping is based on standard price and parameter tolerances:
+\begin{equation}
+    |F(\sigma_n)|\le \varepsilon_{\text{price}}
+    \quad\text{or}\quad
+    |\sigma_{n+1}-\sigma_n|\le \varepsilon_{\sigma},
+    \qquad n\le n_{\max}.
+\end{equation}
+If convergence is not reached, or if the target price violates arbitrage bounds, the point is flagged as invalid for IV reporting. In edge cases near the IV floor, the pricing stage may be recomputed with a wider COS truncation interval before retrying inversion.
+
+In the results chapters, IV errors are the primary evaluation metrics:
+\begin{equation}
+    \mathrm{MAE}_{IV}=\frac{1}{N}\sum_{i=1}^{N}\left|\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right|,
+    \qquad
+    \mathrm{RMSE}_{IV}=\sqrt{\frac{1}{N}\sum_{i=1}^{N}\left(\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right)^2 }.
+\end{equation}
+To capture tail behavior, quantiles of absolute IV error are also reported (e.g., $q_{95}$ and $q_{99}$), together with stratified summaries by moneyness and maturity buckets.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{State Of The Art}
-\begin{itemize}
-    \item resumir el estado del arte en tres bloques: metodos clasicos de valoracion, metodos espectrales y modelos sustitutos basados en redes neuronales.
-    \item destacar no solo resultados positivos sino tambien limites reportados (generalizacion, estabilidad fuera de distribucion y coste de entrenamiento).
-    \item posicionar mi trabajo de forma explicita: que parte reutiliza ideas existentes y que parte aporta una comparacion o implementacion nueva.
-    \item cerrar con una tabla comparativa breve que justifique las decisiones metodologicas de los capitulos siguientes.
-\end{itemize}
-\todos{cerrar el set final de referencias recientes y priorizar articulos con codigo reproducible.}
+The literature relevant to this thesis can be grouped into three blocks. First, classical model-based pricing combines closed or semi-closed formulas (e.g., Black--Scholes and Heston) with deterministic numerical solvers under explicit stochastic assumptions \cite{black_scholes_1973,heston}. These methods are financially interpretable and robust, but repeated calls in calibration or surface-generation loops can be computationally expensive.
+
+Second, spectral/Fourier pricing methods exploit characteristic functions to obtain fast and accurate valuation formulas, with FFT- and COS-based implementations as standard references \cite{carr_madan_1999,fang_oosterlee_2009}. Their main strength is the accuracy-speed tradeoff in repeated pricing, while practical performance still depends on stable parameterization choices (truncation interval, series size, and numerical inversion settings).
+
+Third, neural surrogates learn the pricing map directly from synthetic or market-consistent labels. Feed-forward ANN surrogates have shown substantial acceleration in calibration workflows \cite{liu}. More recently, PINN-type approaches have been proposed to inject structural constraints and improve data efficiency \cite{hainaut2024pinn,yu2022gpinn}. However, the PINN literature also reports optimization pathologies, sensitivity to loss balancing, and robustness issues outside the training distribution \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
+
+Within this landscape, this thesis reuses the Heston-COS framework as high-accuracy numerical reference and contributes an empirical comparison of data-driven alternatives (ANN and PINN-family variants) under a common data-generation, evaluation, and benchmarking protocol.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Methodological blocks and role in this thesis}}
+    {\begin{tabular}{|P{2.9cm}|P{3.7cm}|P{3.3cm}|P{3.2cm}|}
+        \hline
+        \textbf{Block} & \textbf{Representative methods} & \textbf{Main strengths} & \textbf{Main limitations} \\
+        \hline
+        Classical model-based pricing & Black--Scholes, Heston semi-closed pricing \cite{black_scholes_1973,heston} & Financial interpretability; strong theoretical grounding & High computational cost in repeated evaluations \\
+        \hline
+        Spectral pricing & FFT/Carr--Madan, COS/Fang--Oosterlee \cite{carr_madan_1999,fang_oosterlee_2009} & High accuracy with efficient repeated pricing & Requires careful numerical setup ($[a,b]$, $N$, inversion stability) \\
+        \hline
+        Data-driven surrogates & ANN pricers/calibrators \cite{liu} & Very fast inference once trained & Domain-shift and extrapolation risk \\
+        \hline
+        Physics-informed surrogates & PINN/gPINN variants \cite{hainaut2024pinn,yu2022gpinn} & Injects structural constraints into learning & Training instability and sensitive optimization \cite{wang2021gradientpath,wang2022pinnntk,urban_2025} \\
+        \hline
+        \multicolumn{4}{l}{Source: Author's synthesis from the cited literature}
+    \end{tabular}}
+\end{table}
