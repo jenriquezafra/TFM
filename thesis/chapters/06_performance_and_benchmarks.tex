@@ -41,8 +41,54 @@ The main reported dimensions are:
 \section{PINN Pricing Performance}
 This section reports baseline PINN pricing quality before entering Greek-specific analysis. The goal is to assess whether PDE-constrained training reaches competitive price accuracy and stable residual behavior over the evaluation domain.
 
-\todos{Insert PINN pricing metrics table versus COS reference (price MAE/RMSE and residual diagnostics).}
-\todos{Insert PINN pricing error-map figure over \((m,\tau)\).}
+\subsection{Benchmark Setup}
+
+The pricing benchmark compares the baseline PINN run against the COS/Heston reference under the same feature conventions and post-processing.
+
+\begin{table}[H]
+    \centering
+    \caption{PINN pricing benchmark protocol and dataset definition.}
+    \label{tab:pinn_pricing_protocol}
+    \begin{tabular}{|l|l|}
+        \hline
+        Item & Description \\
+        \hline
+        Model run & \texttt{outputs/pinn/PINN\_mix\_scaled\_param} \\
+        Checkpoint & \texttt{train/checkpoints/model\_best.pt} \\
+        Reference engine & COS/Heston (\(N=1500\), \(L=50\), fallback \(L=80\), \texttt{sqrt\_t}) \\
+        Evaluation sample & 10,000 input points, 9,996 valid comparisons \\
+        COS invalid/failed cases & 14 invalid primary, 4 invalid after fallback \\
+        Input scaling & Enabled (\texttt{standardize\_train}) \\
+        Artifacts & \texttt{cos\_benchmark/metrics.yaml}, \texttt{metrics.csv}, \texttt{points\_pinn\_vs\_cos.csv} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Global Pricing Metrics}
+
+Table~\ref{tab:pinn_pricing_global_metrics} reports the compact global summary used in this chapter.
+
+\begin{table}[H]
+    \centering
+    \caption{Global PINN pricing metrics versus COS reference.}
+    \label{tab:pinn_pricing_global_metrics}
+    \begin{tabular}{|l|r|}
+        \hline
+        Metric & Value \\
+        \hline
+        \(n\) evaluated points & 9,996 \\
+        MSE & \(3.1621 \times 10^{-5}\) \\
+        RMSE & \(5.6233 \times 10^{-3}\) \\
+        MAE & \(2.7458 \times 10^{-3}\) \\
+        Median Abs. Err. & \(1.0214 \times 10^{-3}\) \\
+        \(p_{95}\) Abs. Err. & \(1.1840 \times 10^{-2}\) \\
+        MAPE (\%) & 16.0084 \\
+        Max Abs. Err. & 0.1393 \\
+        Mean error bias & -0.001868 \\
+        \(R^2\) & 0.99957 \\
+        \hline
+    \end{tabular}
+\end{table}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{PINN Greeks Performance}
@@ -100,60 +146,48 @@ These metrics are computed per Greek (\(\Delta,\Gamma,\text{Vega},\Theta,\text{R
     \end{tabular}
 \end{table}
 
-\begin{table}[H]
-    \centering
-    \caption{Computational cost summary for the ablation (placeholder).}
-    \label{tab:ablation_cost_summary}
-    \begin{tabular}{|l|r|r|r|r|}
-        \hline
-        Variant & Train epochs completed & Total train time (s) & Greek benchmark time (s) & Speedup vs CF reference \\
-        \hline
-        Baseline PINN & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Sobolev PINN & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        \hline
-    \end{tabular}
-\end{table}
+
 
 \subsection{Visual Diagnostics}
 
+
+
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: Training-loss comparison}\\
-        Overlay of baseline and Sobolev training curves (total loss and, for Sobolev, \(L_{\text{base}},L_{g,1},L_{g,2}\)).
-    }}
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/no_sobolev_rel_abs_error_maps_5greeks.png}
+    \caption{Spatial error for the Greeks computed without the Sobolev method.}
+    \label{fig:no_sobolev_greeks_error_maps}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/no_sobolev_error_hist_5greeks.png}
+    \caption{Error-distribution for the Greeks computed witout the Sobolev method.}
+    \label{fig:no_sobolev_error_histograms}
+\end{figure}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/loss_curve.png}
     \caption{Training dynamics in the ablation study (placeholder).}
-    \label{fig:ablation_training_dynamics}
+    \label{fig:greeks_loss}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: Error maps by Greek}\\
-        Mean absolute error maps over \((m,\tau)\) for baseline vs Sobolev (one panel per Greek).
-    }}
-    \caption{Spatial error diagnostics for Greek estimation (placeholder).}
-    \label{fig:ablation_error_maps}
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_rel_abs_error_maps_5greeks.png}
+    \caption{Spatial error for the Greeks computed with the Sobolev method.}
+    \label{fig:sobolev_greeks_error_maps}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: Error histograms by Greek}\\
-        Distribution of \((\text{PINN} - \text{CF reference})\) errors for each Greek and each variant.
-    }}
-    \caption{Error-distribution comparison between baseline and Sobolev variants (placeholder).}
-    \label{fig:ablation_error_histograms}
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_error_hist_5greeks.png}
+    \caption{Error-distribution for the Greeks computed with the Sobolev method.}
+    \label{fig:sobolev_error_histograms}
 \end{figure}
 
-\subsection{Interpretation Template}
-
-The expected interpretation of this ablation is two-dimensional. First, evaluate whether Sobolev terms provide a consistent reduction in Greek errors, with particular attention to \(\Gamma\). Second, quantify the operational trade-off in terms of additional training complexity, tuning burden, and runtime overhead. This interpretation is aligned with the scope of this thesis: improving practical Greek quality while preserving transparent limits on applicability.
-
-\todos{Fill this subsection with final quantitative findings once metrics are frozen. Include explicit percentage deltas baseline vs Sobolev for MAE/RMSE per Greek.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Cross-Model Computational Comparison}
