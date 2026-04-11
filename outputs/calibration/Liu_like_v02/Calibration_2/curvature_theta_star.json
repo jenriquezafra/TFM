@@ -1,0 +1,112 @@
+{
+  "summary_path": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/summary.json",
+  "calibration_dir": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2",
+  "model_run_dir": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_v02",
+  "quotes_path": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/market_quotes_input.csv",
+  "device": "cpu",
+  "dtype": "float64",
+  "theta_source": "summary:theta_star",
+  "theta_label": "theta_star",
+  "parameter_order": [
+    "rho",
+    "kappa",
+    "gamma",
+    "bar_v",
+    "v0"
+  ],
+  "theta": [
+    -0.5696403975092336,
+    1.5023198411013983,
+    0.32323085348749614,
+    0.19748279895076487,
+    0.22312657224142235
+  ],
+  "objective_value": 7.792090376907327e-06,
+  "jacobian": [
+    1.4885397616411124e-06,
+    -2.241394135648284e-07,
+    3.51992943452649e-06,
+    2.3756733628849162e-05,
+    1.6640486198318e-05
+  ],
+  "hessian": [
+    [
+      0.025494889171644778,
+      0.00030707146618078214,
+      -0.0558360421643783,
+      0.5666587257969038,
+      0.4577874781141772
+    ],
+    [
+      0.0003070714661807825,
+      0.0012346302503558346,
+      -3.136152853796975e-05,
+      -0.017743120657312754,
+      -0.027286002151699705
+    ],
+    [
+      -0.05583604216437831,
+      -3.136152853797279e-05,
+      0.1352759138184605,
+      -1.5697279073281927,
+      -1.3143575915954593
+    ],
+    [
+      0.5666587257969039,
+      -0.017743120657312737,
+      -1.569727907328193,
+      24.804066906790005,
+      19.02013851987021
+    ],
+    [
+      0.45778747811417747,
+      -0.027286002151699705,
+      -1.314357591595459,
+      19.020138519870205,
+      19.341927348077625
+    ]
+  ],
+  "diagnostics": {
+    "grad_l2_norm": 2.9256521767825552e-05,
+    "hessian_symmetry_max_abs_diff": 3.552713678800501e-15,
+    "hessian_eigvals_sym": [
+      0.0008035368066856076,
+      0.0011428809774569886,
+      0.04490285670344274,
+      2.8584670900615117,
+      41.40268332355898
+    ],
+    "hessian_eig_min": 0.0008035368066856076,
+    "hessian_eig_max": 41.40268332355898,
+    "hessian_is_psd": true,
+    "hessian_cond_abs": 51525.55922650874
+  },
+  "objective_debug": {
+    "n_quotes": 35,
+    "feature_order": [
+      "rho",
+      "kappa",
+      "gamma",
+      "bar_v",
+      "v0",
+      "moneyness",
+      "tau",
+      "r"
+    ],
+    "parameter_order": [
+      "rho",
+      "kappa",
+      "gamma",
+      "bar_v",
+      "v0"
+    ],
+    "regularization": "l2",
+    "lambda_reg": 1e-06
+  },
+  "artifacts": {
+    "json": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/curvature_theta_star.json",
+    "hessian_csv": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/hessian_theta_star.csv",
+    "jacobian_plot": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/jacobian_theta_star.png",
+    "hessian_plot": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/hessian_theta_star.png"
+  }
+}

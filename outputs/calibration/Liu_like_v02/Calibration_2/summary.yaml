@@ -1,0 +1,87 @@
+timestamp: 2026-04-11_12-49-59
+model_bucket: Liu_like_v02
+calibration_id: 2
+run_tag: liu_v02_l2
+quotes_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.csv
+market_quotes_copy: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/market_quotes_input.csv
+model_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_v02
+checkpoint: model_best.pt
+device: mps
+n_quotes: 35
+parameter_order:
+- rho
+- kappa
+- gamma
+- bar_v
+- v0
+theta_star:
+- -0.5696403975092336
+- 1.5023198411013983
+- 0.32323085348749614
+- 0.19748279895076487
+- 0.22312657224142235
+objective_fun: 7.791681937434133e-06
+success: true
+message: Optimization terminated successfully.
+nit: 124
+nfev: 251
+residual_rmse: 0.0004183618870385347
+weighted_mse: 1.7502666852644367e-07
+de_settings:
+  maxiter: 1000
+  popsize: 20
+  tol: 0.0001
+  mutation:
+  - 0.5
+  - 1.0
+  recombination: 0.7
+  seed: null
+  polish: true
+regularization:
+  type: l2
+  lambda: 1.0e-06
+bounds:
+  rho:
+  - -0.9
+  - 0.0
+  kappa:
+  - 0.0
+  - 3.0
+  gamma:
+  - 0.01
+  - 0.8
+  bar_v:
+  - 0.01
+  - 0.5
+  v0:
+  - 0.05
+  - 0.5
+theta_true:
+- -0.45
+- 1.0
+- 0.35
+- 0.2
+- 0.22
+theta_true_source: quotes_sidecar:/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.truth.yaml
+parameter_abs_error:
+  rho: 0.11964039750923355
+  kappa: 0.5023198411013983
+  gamma: 0.02676914651250384
+  bar_v: 0.0025172010492351404
+  v0: 0.0031265722414223485
+parameter_rel_error:
+  rho: 0.265867550020519
+  kappa: 0.5023198411013983
+  gamma: 0.07648327575001097
+  bar_v: 0.012586005246175702
+  v0: 0.01421169200646522
+parameter_error_artifacts:
+  table_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/parameter_errors.csv
+  abs_bar_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/parameter_error_abs_bar.png
+  abs_heatmap_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/parameter_error_abs_heatmap.png
+  rel_heatmap_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/parameter_error_rel_heatmap.png
+curvature_theta_star_artifacts:
+  json: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/curvature_theta_star.json
+  hessian_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/hessian_theta_star.csv
+  jacobian_plot: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/jacobian_theta_star.png
+  hessian_plot: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v02/Calibration_2/hessian_theta_star.png
