@@ -2,7 +2,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Experimental Setup And Evaluation Protocol}
-This chapter compares the three model blocks developed in the thesis under a common evaluation protocol: ANN pricing surrogate, calibration network workflow, and PINN-based pricing/Greeks.
+This chapter compares the three model blocks developed in the thesis under a common evaluation protocol: ANN pricing surrogate, calibration network workflow, and PINN-based pricing and Greeks computation.
 
 Unless explicitly stated, all reported metrics are computed on fixed evaluation sets with identical feature conventions, consistent preprocessing, and the same numerical references used in previous chapters.
 
@@ -13,55 +13,278 @@ The minimal pre-benchmark validation protocol includes:
     \item Black--Scholes consistency checks in near-constant-variance regimes.
 \end{itemize}
 
-\todos{Add final table with dataset/split definitions, run identifiers, and hardware context used for all benchmarks in this chapter.}
+These checks are used as a guardrail before comparing models, so that downstream differences can be attributed to model behavior rather than to numerical artifacts. For consistency across Sections~6.2--6.5, each block is analyzed with the same reading logic: global summary metrics, localized error diagnostics over relevant domains, and runtime indicators.
+
+\todos{Add final chapter-level table with dataset/split definitions and shared numerical settings used across Sections~6.2--6.5.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{ANN Pricer Performance}
-This section reports the performance of the supervised ANN pricer introduced in Chapter~3. The analysis is organized around implied-volatility error, regional error behavior over \((m,\tau)\), and inference cost under batched evaluation.
+This section reports the performance of the supervised ANN pricer introduced in Chapter~3. The objective is to assess mean implied-volatility accuracy and spatial stability over \((m,\tau)\), using a fully specified evaluation protocol that can be reproduced without implementation-specific references.
 
-\todos{Insert ANN global metrics table (MAE/RMSE/quantiles) from the final selected run.}
-\todos{Insert ANN regional error table by moneyness-maturity buckets.}
-\todos{Insert ANN runtime summary (throughput/latency) using the final benchmark configuration.}
+The ANN analyzed here corresponds to the selected baseline configuration from Chapter~3.
+
+\subsection{Reference Configuration And Reproducible Setup}
+
+Table~\ref{tab:ann_reference_setup} summarizes the ANN setup used as the baseline in this chapter.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Reference ANN setup used in Section~6.2.}\label{tab:ann_reference_setup}}
+    {\begin{tabular}{|P{4.4cm}|P{6.7cm}|}
+        \hline
+        \textbf{Item} & \textbf{Value} \\
+        \hline
+        ANN architecture & FCNN \(8\!\rightarrow\!200\!\rightarrow\!200\!\rightarrow\!200\!\rightarrow\!200\!\rightarrow\!1\), ReLU in hidden layers, linear output \\
+        \hline
+        Training objective & MSE with Adam (\(\eta=10^{-3}\)), StepLR (\(\text{step}=500,\ \gamma=0.5\)), \(8000\) epochs \\
+        \hline
+        Dataset definition & Synthetic Heston IV set, \(10^6\) samples, fixed seed, Feller admissibility control \\
+        \hline
+        Evaluation splits & Train \(=800{,}000\), Validation \(=100{,}000\), Test \(=100{,}000\) \\
+        \hline
+        Target variable & Implied volatility (decimal units) \\
+        \hline
+        Evaluation batch size & 8192 \\
+        \hline
+        Regional bins & \(m\in[0.6,1.4]\), \(\tau\in[0.05,3.0]\) (fixed bucket edges) \\
+        \hline
+        \multicolumn{2}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+\subsection{Global Error Metrics}
+
+Table~\ref{tab:ann_global_metrics} reports split-wise global errors for the selected ANN baseline.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Global ANN implied-volatility errors (baseline configuration).}\label{tab:ann_global_metrics}}
+    {\begin{tabular}{|P{1.8cm}|P{1.8cm}|P{2.2cm}|P{2.2cm}|P{2.2cm}|}
+        \hline
+        \textbf{Split} & \(\mathbf{n}\) & \textbf{RMSE} & \textbf{MAE} & \(\mathbf{p_{90}(|e|)}\) \\
+        \hline
+        Train & 800,000 & \(5.44\times10^{-4}\) & \(3.82\times10^{-4}\) & \(8.15\times10^{-4}\) \\
+        \hline
+        Validation & 100,000 & \(2.16\times10^{-3}\) & \(4.11\times10^{-4}\) & \(8.27\times10^{-4}\) \\
+        \hline
+        Test & 100,000 & \(3.03\times10^{-3}\) & \(4.29\times10^{-4}\) & \(8.28\times10^{-4}\) \\
+        \hline
+        \multicolumn{5}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+The test errors remain small in absolute IV units, and the upper-quantile behavior (\(p_{90}\)) stays in the \(10^{-3}\) range, which is consistent with a stable surrogate in the interpolation region.
+
+Figure~\ref{fig:extrapolation_grid_ann} provides a panel-wise diagnostic. Each row corresponds to one parameter plane: top \((\gamma,\bar v)\) (vol-of-vol versus long-run variance), middle \((\rho,\gamma)\) (correlation versus vol-of-vol), and bottom \((\kappa,\bar v)\) (mean reversion versus long-run variance). The left column shows ANN IV maps with white isoclines, while the right column shows \(\log |\,\mathrm{NN}-\mathrm{Heston}\,|\) on the same grids. The dashed black lines delimit interpolation limits; regions beyond those limits are extrapolation zones where the network was not trained.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/nn/sensitivity_grid_3x2_log.png}
+    \caption{Sensitivity grid for the ANN pricer. Top row: \((\gamma,\bar v)\), middle row: \((\rho,\gamma)\), bottom row: \((\kappa,\bar v)\). Left panels report IV-value maps with white isoclines; right panels report \(\log|\,\mathrm{NN}-\mathrm{Heston}\,|\). Dashed black lines indicate interpolation limits.}
+    \label{fig:extrapolation_grid_ann}
+\end{figure}
+
+\subsection{Regional Error Profile}
+
+Regional diagnostics identify where approximation error concentrates. Table~\ref{tab:ann_regional_profile} highlights representative high- and low-error regions on the test split.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Representative regional ANN errors on the test split.}\label{tab:ann_regional_profile}}
+    {\begin{tabular}{|P{2.4cm}|P{2.5cm}|P{1.8cm}|P{2.0cm}|P{2.0cm}|}
+        \hline
+        \textbf{Feature} & \textbf{Bin} & \textbf{Share (\%)} & \textbf{RMSE} & \textbf{MAE} \\
+        \hline
+        \(m\) & \([0.6,0.8]\) & 25.11 & \(5.98\times10^{-3}\) & \(6.11\times10^{-4}\) \\
+        \hline
+        \(\tau\) & \([0.05,0.25]\) & 6.79 & \(1.15\times10^{-2}\) & \(1.23\times10^{-3}\) \\
+        \hline
+        \(m\) & \([1.1,1.2]\) & 12.30 & \(4.73\times10^{-4}\) & \(3.51\times10^{-4}\) \\
+        \hline
+        \(\tau\) & \([2.0,3.0]\) & 33.89 & \(4.45\times10^{-4}\) & \(3.23\times10^{-4}\) \\
+        \hline
+        \multicolumn{5}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+By feature, the regional profile reads as follows. Along moneyness, the lowest bin (\(m\in[0.6,0.8]\)) concentrates the largest errors, while interior bins around \(m\in[0.9,1.2]\) are clearly more stable. Along maturity, the short-end bin (\(\tau\in[0.05,0.25]\)) is the most demanding region and the error decreases substantially as \(\tau\) moves toward medium and long maturities.
+
+Figure~\ref{fig:region_error_mse_ann} makes the same pattern explicit with two panels: left panel (MSE by moneyness bins) and right panel (MSE by maturity bins). The binning follows the fixed edges defined in the setup table of this section. In both validation and test curves, the first bin is clearly the most difficult, while errors drop sharply and remain much lower in interior bins. This is consistent with boundary/extrapolation effects and with the smoother behavior observed around central bins.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/nn/eval_region_mse.png}
+    \caption{Regional ANN MSE by moneyness bins (left) and maturity bins (right). Curves correspond to train, validation, and test.}
+    \label{fig:region_error_mse_ann}
+\end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Calibration Network Performance}
-This section summarizes the calibration workflow results from Chapter~4, focusing on fit quality and operational stability.
+This section reports the CaNN calibration results obtained with the ANN surrogate fixed in Section~6.2. The analysis is organized around three questions: (i) quote-level fit quality, (ii) effect of regularization on convergence and stability, and (iii) parameter-level recovery when synthetic ground truth is available.
 
-The main reported dimensions are:
-\begin{itemize}
-    \item objective-function quality at convergence,
-    \item residual statistics versus market quotes,
-    \item robustness diagnostics around the calibrated optimum.
-\end{itemize}
+\subsection{Reproducible Calibration Setup}
 
-\todos{Insert calibration metrics table (objective, weighted MSE, residual RMSE, convergence diagnostics).}
-\todos{Insert calibration robustness figure placeholders (e.g., curvature/Jacobian-based diagnostics at \(\theta^\star\)).}
+The calibration experiment uses a fixed quote universe and a fixed optimization protocol, so differences between variants can be attributed to the regularization choice.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Calibration setup used in Section~6.3.}\label{tab:cann_setup}}
+    {\begin{tabular}{|P{4.4cm}|P{6.7cm}|}
+        \hline
+        \textbf{Item} & \textbf{Value} \\
+        \hline
+        Input surrogate & ANN baseline from Section~6.2 (fixed weights) \\
+        \hline
+        Quote set size & 35 market quotes \\
+        \hline
+        Calibrated parameters & \((\rho,\kappa,\gamma,\bar v,v_0)\) \\
+        \hline
+        Bounds & \(\rho\in[-0.9,0],\ \kappa\in[0,3],\ \gamma\in[0.01,0.8],\ \bar v\in[0.01,0.5],\ v_0\in[0.05,0.5]\) \\
+        \hline
+        Optimizer & Differential Evolution with polish step \\
+        \hline
+        DE controls & maxiter \(=1000\), popsize \(=20\), tol \(=10^{-4}\), mutation \([0.5,1.0]\), recombination \(=0.7\) \\
+        \hline
+        Regularization variants & none (\(\lambda=0\)) and L2 (\(\lambda=10^{-6}\)) \\
+        \hline
+        \multicolumn{2}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+\subsection{Fit Quality And Convergence}
+
+The objective minimized by Differential Evolution is the weighted residual term plus optional regularization:
+\[
+\mathcal{J}(\theta)=\frac{1}{N}\sum_{i=1}^{N}w_i\left(\hat{\sigma}_i(\theta)-\sigma_i^{\mathrm{mkt}}\right)^2+\lambda\|\theta\|_2^2.
+\]
+
+Table~\ref{tab:cann_core_metrics} compares the two regularization variants under the same protocol.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Core calibration metrics for the selected CaNN setup.}\label{tab:cann_core_metrics}}
+    {\begin{tabular}{|P{2.6cm}|P{1.2cm}|P{2.1cm}|P{2.1cm}|P{2.1cm}|P{1.8cm}|}
+        \hline
+        \textbf{Variant} & \(\lambda\) & \textbf{Objective} & \textbf{Weighted MSE} & \textbf{Residual RMSE} & \textbf{nit / nfev} \\
+        \hline
+        No regularization & 0 & \(1.42\times10^{-6}\) & \(4.06\times10^{-8}\) & \(2.01\times10^{-4}\) & \(134 / 261\) \\
+        \hline
+        L2 regularization & \(10^{-6}\) & \(2.67\times10^{-6}\) & \(4.06\times10^{-8}\) & \(2.01\times10^{-4}\) & \(126 / 133\) \\
+        \hline
+        \multicolumn{6}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+Both variants converge successfully and produce practically identical quote-level fit: weighted MSE and residual RMSE differ only in the fourth decimal place of their scientific notation. The objective value increases under L2 because it includes the penalty term, while convergence effort is lower in function evaluations (from \(261\) to \(133\)).
+
+To characterize residual magnitudes directly in IV units, Table~\ref{tab:cann_residual_distribution} summarizes the absolute-residual distribution over the 35 quotes.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Absolute-residual distribution across market quotes.}\label{tab:cann_residual_distribution}}
+    {\begin{tabular}{|P{2.6cm}|P{2.1cm}|P{2.1cm}|P{2.1cm}|P{2.1cm}|}
+        \hline
+        \textbf{Variant} & \textbf{Mean \(|r|\)} & \textbf{Median \(|r|\)} & \(\mathbf{p_{95}(|r|)}\) & \textbf{Max \(|r|\)} \\
+        \hline
+        No regularization & \(1.70\times10^{-4}\) & \(1.58\times10^{-4}\) & \(3.30\times10^{-4}\) & \(4.52\times10^{-4}\) \\
+        \hline
+        L2 regularization & \(1.70\times10^{-4}\) & \(1.58\times10^{-4}\) & \(3.32\times10^{-4}\) & \(4.52\times10^{-4}\) \\
+        \hline
+        \multicolumn{5}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+Residual concentration is mild and stable across variants. The largest local deviations appear around intermediate-to-high moneyness and medium maturities, but their scale remains below \(5\times10^{-4}\) in absolute IV units.
+
+\subsection{Parameter Recovery Profile}
+
+Since this quote set includes sidecar synthetic truth, parameter-level errors can be reported for the reference no-regularization solution.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Parameter error profile for the reference CaNN calibration (no regularization).}\label{tab:cann_parameter_errors}}
+    {\begin{tabular}{|P{2.0cm}|P{2.0cm}|P{2.0cm}|P{2.0cm}|}
+        \hline
+        \textbf{Parameter} & \textbf{True value} & \textbf{Abs. error} & \textbf{Rel. error} \\
+        \hline
+        \(\rho\) & \(-0.45\) & \(7.41\times10^{-2}\) & \(1.65\times10^{-1}\) \\
+        \hline
+        \(\kappa\) & \(1.00\) & \(5.76\times10^{-2}\) & \(5.76\times10^{-2}\) \\
+        \hline
+        \(\gamma\) & \(0.35\) & \(5.04\times10^{-2}\) & \(1.44\times10^{-1}\) \\
+        \hline
+        \(\bar v\) & \(0.20\) & \(2.42\times10^{-3}\) & \(1.21\times10^{-2}\) \\
+        \hline
+        \(v_0\) & \(0.22\) & \(2.89\times10^{-4}\) & \(1.31\times10^{-3}\) \\
+        \hline
+        \multicolumn{4}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+The largest relative deviations appear in \(\rho\) and \(\gamma\), while \(\bar v\) and \(v_0\) are recovered with substantially smaller error. Comparing no-regularization and L2 solutions, the calibrated parameters remain almost unchanged (\(<5\times10^{-4}\) absolute difference in every coordinate), which supports local solution stability.
+
+\subsection{Calibration Diagnostics (Figure Placeholders)}
+
+The final chapter version should include three visual diagnostics that match the numerical reading above: global fit, residual localization, and optimization traces.
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.92\textwidth}{\centering \textbf{Placeholder -- Calibration fit}\\Scatter of market IV vs calibrated IV with identity line and per-variant color coding (none vs L2).}}
+    \caption{Placeholder for global calibration fit (market IV vs calibrated IV).}
+    \label{fig:cann_fit_placeholder}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.92\textwidth}{\centering \textbf{Placeholder -- Residual map}\\Heatmap of signed/absolute residuals over \((m,\tau)\), reported for the selected reference variant.}}
+    \caption{Placeholder for spatial residual diagnostics over \((m,\tau)\).}
+    \label{fig:cann_residual_map_placeholder}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.92\textwidth}{\centering \textbf{Placeholder -- Optimization traces}\\Objective trace vs iteration, accepted-step evolution, and convergence summary for Differential Evolution.}}
+    \caption{Placeholder for calibration traces and convergence diagnostics.}
+    \label{fig:cann_trace_placeholder}
+\end{figure}
+
+\todos{Optional: add Jacobian/Hessian local-curvature diagnostics at \(\theta^\star\) if robustness discussion is expanded.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{PINN Pricing Performance}
-This section reports baseline PINN pricing quality before entering Greek-specific analysis. The goal is to assess whether PDE-constrained training reaches competitive price accuracy and stable residual behavior over the evaluation domain.
+This section reports the baseline PINN pricing quality before introducing Sobolev terms in the training objective. The goal is to establish a reproducible reference for price-level accuracy and runtime against the COS/Heston engine.
 
-\subsection{Benchmark Setup}
+\subsection{Reproducible Benchmark Setup}
 
-The pricing benchmark compares the baseline PINN run against the COS/Heston reference under the same feature conventions and post-processing.
+The pricing benchmark compares a baseline parametric PINN against the COS/Heston reference under a common evaluation protocol and shared numerical conventions.
 
 \begin{table}[H]
-    \centering
-    \caption{PINN pricing benchmark protocol and dataset definition.}
-    \label{tab:pinn_pricing_protocol}
-    \begin{tabular}{|l|l|}
+    \ttabbox[\FBwidth]
+    {\caption{Pricing benchmark protocol used in Section~6.4.}\label{tab:pinn_pricing_setup}}
+    {\begin{tabular}{|P{4.4cm}|P{6.7cm}|}
         \hline
-        Item & Description \\
+        \textbf{Item} & \textbf{Value} \\
         \hline
-        Model run & \texttt{outputs/pinn/PINN\_mix\_scaled\_param} \\
-        Checkpoint & \texttt{train/checkpoints/model\_best.pt} \\
-        Reference engine & COS/Heston (\(N=1500\), \(L=50\), fallback \(L=80\), \texttt{sqrt\_t}) \\
-        Evaluation sample & 10,000 input points, 9,996 valid comparisons \\
-        COS invalid/failed cases & 14 invalid primary, 4 invalid after fallback \\
-        Input scaling & Enabled (\texttt{standardize\_train}) \\
-        Artifacts & \texttt{cos\_benchmark/metrics.yaml}, \texttt{metrics.csv}, \texttt{points\_pinn\_vs\_cos.csv} \\
+        Model variant & Baseline parametric PINN (without Sobolev terms) \\
         \hline
-    \end{tabular}
+        Reference method & Heston-COS pricing \\
+        \hline
+        Input variables & \(\left[\tau, m, v, \rho, \kappa, \gamma, \bar v, r\right]\) \\
+        \hline
+        Input preprocessing & Affine standardization fitted on training statistics \\
+        \hline
+        Evaluation sample & \(10{,}000\) candidates, \(9{,}996\) valid pricing comparisons \\
+        \hline
+        COS configuration & \(N=1500\), \(L=50\), fallback \(L=80\) \\
+        \hline
+        Contract convention & European put, strike \(K=1\) \\
+        \hline
+        Numerical tolerance & No-arbitrage check tolerance \(10^{-8}\) \\
+        \hline
+        Arithmetic context & Double precision on CPU \\
+        \hline
+        \multicolumn{2}{l}{Source: Own elaboration}
+    \end{tabular}}
 \end{table}
 
 \subsection{Global Pricing Metrics}
@@ -69,131 +292,218 @@ The pricing benchmark compares the baseline PINN run against the COS/Heston refe
 Table~\ref{tab:pinn_pricing_global_metrics} reports the compact global summary used in this chapter.
 
 \begin{table}[H]
-    \centering
-    \caption{Global PINN pricing metrics versus COS reference.}
-    \label{tab:pinn_pricing_global_metrics}
-    \begin{tabular}{|l|r|}
+    \ttabbox[\FBwidth]
+    {\caption{Global PINN pricing metrics versus COS reference.}\label{tab:pinn_pricing_global_metrics}}
+    {\begin{tabular}{|P{5.1cm}|P{6.0cm}|}
         \hline
-        Metric & Value \\
+        \textbf{Metric} & \textbf{Value} \\
         \hline
         \(n\) evaluated points & 9,996 \\
+        \hline
         MSE & \(3.1621 \times 10^{-5}\) \\
+        \hline
         RMSE & \(5.6233 \times 10^{-3}\) \\
+        \hline
         MAE & \(2.7458 \times 10^{-3}\) \\
+        \hline
         Median Abs. Err. & \(1.0214 \times 10^{-3}\) \\
+        \hline
         \(p_{95}\) Abs. Err. & \(1.1840 \times 10^{-2}\) \\
+        \hline
         MAPE (\%) & 16.0084 \\
+        \hline
         Max Abs. Err. & 0.1393 \\
-        Mean error bias & -0.001868 \\
+        \hline
         \(R^2\) & 0.99957 \\
         \hline
-    \end{tabular}
+        \multicolumn{2}{l}{Source: Own elaboration}
+    \end{tabular}}
 \end{table}
+
+These results are obtained with the baseline PINN only (without Sobolev augmentation). In runtime terms, the PINN evaluates the full benchmark in \(0.0203\) s (\(\approx 4.91\times 10^5\) points/s), while COS requires \(114.47\) s (\(\approx 87.36\) points/s), i.e., an empirical throughput ratio of approximately \(5.63\times 10^3\).
+
+\subsection{Spatial And Distributional Diagnostics}
+
+The pointwise agreement between PINN and COS prices is first assessed in Figure~\ref{fig:pinn_pricing_scatter}. The cloud remains tightly concentrated around the identity line (\(R^2=0.99957\)), while a mild negative bias (mean error \(-1.87\times 10^{-3}\)) indicates slight underpricing in the central price range.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/pricing/scatter_pinn_vs_cos.png}
+    \caption{PINN price predictions versus COS reference values on the benchmark set.}
+    \label{fig:pinn_pricing_scatter}
+\end{figure}
+
+The spatial structure of absolute pricing error is shown in Figure~\ref{fig:pinn_pricing_abs_error_map}. Error is not homogeneous over \((m,\tau)\): the largest deviations are concentrated in long maturities and moneyness tails, especially for \(m>1.2\) and \(\tau>2\), whereas the central region is markedly more stable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/pricing/abs_error_map_m_tau.png}
+    \caption{Absolute pricing-error map over the \((m,\tau)\) benchmark grid.}
+    \label{fig:pinn_pricing_abs_error_map}
+\end{figure}
+
+Relative error patterns are presented in Figure~\ref{fig:pinn_pricing_rel_error_map}. These values must be interpreted jointly with absolute errors: when the COS reference price is close to zero, relative error inflates, so local high percentages do not necessarily correspond to large monetary mispricing.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/pricing/rel_abs_error_map_m_tau.png}
+    \caption{Relative absolute pricing-error map over the \((m,\tau)\) benchmark grid.}
+    \label{fig:pinn_pricing_rel_error_map}
+\end{figure}
+
+The global distribution of absolute errors is summarized in Figure~\ref{fig:pinn_pricing_abs_error_cdf}. The median absolute error is \(1.02\times10^{-3}\), \(p_{95}=1.18\times10^{-2}\), and only about \(1.7\%\) of points exceed \(2\times10^{-2}\), which confirms high overall accuracy with a limited but non-negligible tail.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/pinn/pricing/abs_error_cdf.png}
+    \caption{Empirical CDF of absolute pricing errors for the baseline PINN.}
+    \label{fig:pinn_pricing_abs_error_cdf}
+\end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{PINN Greeks Performance}
-This section focuses on sensitivity estimation quality for the baseline PINN and then analyzes the Sobolev extension through a dedicated ablation.
+This section evaluates autodiff-based Greek quality for the baseline PINN and quantifies the effect of Sobolev augmentation through a controlled ablation.
 
-\subsection{Baseline PINN Greek Accuracy}
-Baseline Greek quality is evaluated against semi-analytical Heston characteristic-function Greeks, using per-Greek metrics and spatial diagnostics over the benchmark grid.
-
-\todos{Insert baseline PINN Greek metrics table (Delta/Gamma/Vega/Theta/Rho).}
-\todos{Insert baseline Greek error maps and histograms.}
-
-\subsection{Ablation: Baseline PINN vs Sobolev-Augmented PINN}
+\subsection{Ablation Design And Reproducible Protocol}
 \label{sec:ablation_pinn_sobolev}
-This subsection reports a controlled ablation focused on Greek accuracy. The objective is to isolate the impact of Jacobian-informed Sobolev terms on top of the baseline PINN loss, comparing:
+The ablation isolates the impact of Jacobian-informed Sobolev terms on top of the baseline PINN objective, comparing:
 \begin{itemize}
     \item \textbf{Baseline PINN}: PDE + terminal + lower-boundary losses only.
-    \item \textbf{Sobolev-augmented PINN}: baseline loss plus derivative supervision terms \(\mathcal{L}_{g,1}\) and \(\mathcal{L}_{g,2}\) as defined in Chapter 5.
+    \item \textbf{Sobolev-augmented PINN}: baseline loss plus derivative supervision terms \(\mathcal{L}_{g,1}\) and \(\mathcal{L}_{g,2}\) as defined in Chapter~5.
 \end{itemize}
 
-\subsection{Experimental Protocol}
-
-To make the comparison interpretable, both variants are evaluated under the same benchmark grid and the same reference Greek engine (Heston characteristic-function Greeks). The ablation is designed so that only the training objective changes, while architecture and evaluation protocol remain fixed.
-
-\todos{Confirm and report the exact run identifiers used in this ablation (baseline run dir/checkpoint and Sobolev run dir/checkpoint).}
-\todos{Confirm whether both variants use identical sampling seeds and identical collocation subsets. If not, report the exact differences.}
-
-\subsection{Metrics}
-
-Greek quality is reported with the same metrics exported by the benchmark pipeline:
-\[
-\text{MSE},\ \text{RMSE},\ R^2,\ \text{MAPE}(\%),\ \text{MAE},\ \max|e|.
-\]
-These metrics are computed per Greek (\(\Delta,\Gamma,\text{Vega},\Theta,\text{Rho}\)). In addition, runtime indicators are reported for training and for batched Greek inference.
+To keep the comparison interpretable, both variants are benchmarked on the same \((m,\tau)\) grid, with identical fixed parameters, the same Heston characteristic-function Greek engine, and the same numerical integration settings.
 
 \begin{table}[H]
-    \centering
-    \caption{Ablation metrics by Greek: baseline PINN vs Sobolev-augmented PINN (placeholder).}
-    \label{tab:ablation_metrics_by_greek}
-    \begin{tabular}{|l|l|r|r|r|r|r|r|r|}
+    \ttabbox[\FBwidth]
+    {\caption{Reproducible protocol for the Greek ablation benchmark.}\label{tab:pinn_greeks_ablation_setup}}
+    {\begin{tabular}{|P{4.4cm}|P{6.7cm}|}
         \hline
-        Variant & Greek & \(n\) & MSE & RMSE & \(R^2\) & MAPE (\%) & MAE & Max Abs. Err. \\
+        \textbf{Item} & \textbf{Value} \\
         \hline
-        Baseline PINN & Delta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Baseline PINN & Gamma & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Baseline PINN & Vega & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Baseline PINN & Theta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Baseline PINN & Rho & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Compared variants & Baseline PINN vs Sobolev-augmented PINN \\
         \hline
-        Sobolev PINN & Delta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Sobolev PINN & Gamma & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Sobolev PINN & Vega & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Sobolev PINN & Theta & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
-        Sobolev PINN & Rho & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} & \textit{TBD} \\
+        Architecture and features & Fixed across variants (same parametric PINN input convention) \\
         \hline
-    \end{tabular}
+        Evaluation grid & \(m\in[0.8,1.2]\) (161 points), \(\tau\in[0.05,2.0]\) (161 points) \\
+        \hline
+        Total evaluation size & \(n=25{,}921\) points per Greek \\
+        \hline
+        Fixed model parameters & \(v=0.04,\ \rho=-0.7,\ \kappa=2.0,\ \gamma=0.3,\ \bar v=0.04,\ r=0.01\) \\
+        \hline
+        Reference Greeks & Semi-analytical Heston characteristic-function Greeks \\
+        \hline
+        CF integration setup & \(u_{\min}=10^{-6}\), \(u_{\max}=200\), \(n_u=1200\) \\
+        \hline
+        Shared conventions & Put option, strike \(K=1\), \(\theta=-\partial V/\partial\tau\), MAPE floor \(10^{-4}\) \\
+        \hline
+        Arithmetic context & Double precision on CPU \\
+        \hline
+        \multicolumn{2}{l}{Source: Own elaboration}
+    \end{tabular}}
 \end{table}
 
+\subsection{Ablation Metrics By Greek}
 
+Greek quality is reported with the metrics exported by the benchmark pipeline: RMSE, \(R^2\), MAPE (\%), and MAE.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Ablation metrics by Greek for baseline and Sobolev PINN (\(n=25{,}921\) points per Greek).}\label{tab:ablation_metrics_by_greek}}
+    {\scriptsize
+    \begin{tabular}{|P{1.8cm}|P{1.3cm}|P{1.6cm}|P{1.3cm}|P{1.6cm}|P{1.6cm}|}
+        \hline
+        \textbf{Variant} & \textbf{Greek} & \textbf{RMSE} & \(\mathbf{R^2}\) & \textbf{MAPE (\%)} & \textbf{MAE} \\
+        \hline
+        Baseline & Delta & \(3.33\times 10^{-2}\) & 0.98308 & 10.74 & \(2.82\times 10^{-2}\) \\
+        \hline
+        Baseline & Gamma & \(3.85\times 10^{-1}\) & 0.85915 & 82.98 & \(2.85\times 10^{-1}\) \\
+        \hline
+        Baseline & Vega & \(6.55\times 10^{-2}\) & 0.55342 & 71.84 & \(5.80\times 10^{-2}\) \\
+        \hline
+        Baseline & Theta & \(4.82\times 10^{-3}\) & 0.92703 & 31.98 & \(3.10\times 10^{-3}\) \\
+        \hline
+        Baseline & Rho & \(8.37\times 10^{-2}\) & 0.94314 & 95.00 & \(7.16\times 10^{-2}\) \\
+        \hline
+        Sobolev & Delta & \(3.51\times 10^{-4}\) & 0.999998 & 0.28 & \(2.41\times 10^{-4}\) \\
+        \hline
+        Sobolev & Gamma & \(8.94\times 10^{-3}\) & 0.999924 & 31.29 & \(4.29\times 10^{-3}\) \\
+        \hline
+        Sobolev & Vega & \(3.17\times 10^{-3}\) & 0.99896 & 36.11 & \(1.70\times 10^{-3}\) \\
+        \hline
+        Sobolev & Theta & \(5.30\times 10^{-4}\) & 0.99912 & 1.88 & \(1.27\times 10^{-4}\) \\
+        \hline
+        Sobolev & Rho & \(1.43\times 10^{-3}\) & 0.999983 & 9.05 & \(1.02\times 10^{-3}\) \\
+        \hline
+        \multicolumn{6}{l}{Source: Own elaboration}
+    \end{tabular}}
+\end{table}
+
+Compared with the baseline PINN, Sobolev augmentation reduces RMSE by approximately \(9\times\) (Theta) to \(95\times\) (Delta), with large \(R^2\) gains for the two hardest Greeks in the baseline model (Gamma and Vega). Greek-inference throughput decreases from \(9.48\times 10^3\) to \(8.60\times 10^3\) points/s (\(\sim 9.3\%\) reduction), which is modest relative to the observed accuracy gains.
 
 \subsection{Visual Diagnostics}
 
+This subsection is organized as a before/after narrative. Baseline diagnostics are first used to localize the dominant Greek-error modes, and Sobolev diagnostics are then read with the same visual layout to make improvements directly comparable.
 
+Figure~\ref{fig:no_sobolev_greeks_error_maps} displays baseline relative absolute-error maps for the five Greeks. The spatial pattern is heterogeneous, with broad high-error regions in Gamma and Vega, which is consistent with their weaker baseline \(R^2\) values in Table~\ref{tab:ablation_metrics_by_greek}.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figures/pinn/greeks/no_sobolev_rel_abs_error_maps_5greeks.png}
-    \caption{Spatial error for the Greeks computed without the Sobolev method.}
+    \caption{Relative absolute-error maps for baseline PINN Greeks.}
     \label{fig:no_sobolev_greeks_error_maps}
 \end{figure}
+
+The baseline histogram panel complements this map-level view with error distributions. The heaviest tails appear in Gamma and Vega, while Delta, Theta, and Rho are comparatively tighter. This confirms that the baseline model captures coarse sensitivity structure but still exhibits non-negligible extreme deviations in the hardest derivatives.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figures/pinn/greeks/no_sobolev_error_hist_5greeks.png}
-    \caption{Error-distribution for the Greeks computed witout the Sobolev method.}
-    \label{fig:no_sobolev_error_histograms}
+    \caption{Error histograms for baseline PINN Greeks.}
 \end{figure}
 
+The baseline optimization trajectory in Figure~\ref{fig:greeks_loss_baseline} shows stable convergence, but the objective does not explicitly enforce derivative matching. As a result, acceptable aggregate loss values can coexist with localized Greek inaccuracies, particularly in regions where sensitivities vary sharply.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figures/pinn/greeks/loss_curve.png}
-    \caption{Training dynamics in the ablation study (placeholder).}
-    \label{fig:greeks_loss}
+    \caption{Training loss trajectory for the baseline PINN run.}
+    \label{fig:greeks_loss_baseline}
 \end{figure}
+
+After adding Sobolev terms, Figure~\ref{fig:sobolev_greeks_error_maps} shows a clear contraction of high-error regions across all Greeks. The strongest visual improvement appears in Gamma and Vega, where problematic zones become much smaller and less intense than in the baseline maps. This spatial change is consistent with the order-of-magnitude RMSE reductions reported in Table~\ref{tab:ablation_metrics_by_greek}.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_rel_abs_error_maps_5greeks.png}
-    \caption{Spatial error for the Greeks computed with the Sobolev method.}
+    \caption{Relative absolute-error maps for Sobolev-augmented PINN Greeks.}
     \label{fig:sobolev_greeks_error_maps}
 \end{figure}
+
+The same effect appears in Figure~\ref{fig:sobolev_error_histograms}: Sobolev training narrows the distributions and reduces tail mass, so large deviations become less frequent for all five Greeks compared with the baseline histogram panel. The tail compression is particularly visible in Gamma and Vega, where baseline outliers were most persistent.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_error_hist_5greeks.png}
-    \caption{Error-distribution for the Greeks computed with the Sobolev method.}
+    \caption{Error histograms for Sobolev-augmented PINN Greeks.}
     \label{fig:sobolev_error_histograms}
 \end{figure}
 
+Figure~\ref{fig:greeks_loss_sobolev} shows that this gain is also achieved with a stable optimization trajectory. Together, the six diagnostics indicate that Sobolev augmentation improves local derivative fidelity, not just aggregate scalar scores, with a modest computational trade-off already quantified in Section~6.5.2.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_loss_curve.png}
+    \caption{Training loss trajectory for the Sobolev-augmented PINN run.}
+    \label{fig:greeks_loss_sobolev}
+\end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Cross-Model Computational Comparison}
 This section provides a horizontal computational comparison across ANN pricing, calibration workflow, and PINN-based pricing/Greeks. The purpose is not to force a single winner, but to clarify where each component is computationally advantageous within the end-to-end research pipeline.
 
-\todos{Insert comparison table with representative latency/throughput/cost indicators for ANN, calibration workflow, baseline PINN, and Sobolev PINN.}
+\todos{Insert comparison table with representative latency/throughput/cost indicators for ANN (\texttt{Liu\_like\_v01}), calibration workflow, baseline PINN, and Sobolev PINN.}
+\todos{Include ANN runtime block here (latency/throughput by batch size) instead of Section~6.2, to keep a unified computational comparison.}
 \todos{Add one short paragraph on comparability limits (different objectives, output spaces, and optimization stages).}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
