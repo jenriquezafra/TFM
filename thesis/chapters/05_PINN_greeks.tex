@@ -344,9 +344,9 @@ This sampling strategy preserves the fully unsupervised nature of the method. No
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Extension: Sobolev-Enhanced Training for Greek Accuracy}
 
-The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\Gamma\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}.
+The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\Gamma\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}. The formulation below is an application-specific hybrid: it follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.
 
-The idea is to preserve the original physics loss and add a controlled supervision signal on selected Greeks at anchor points. Let
+The extension keeps the original physics objective and adds supervised derivative terms on a dedicated set of Greek-anchor points. Let
 \[
 \mathcal{L}_{\mathrm{base}}
 =
@@ -354,23 +354,24 @@ The idea is to preserve the original physics loss and add a controlled supervisi
 +\lambda_{\mathrm{term}}\mathcal{L}_{\mathrm{term}}
 +\lambda_{\mathrm{low}}\mathcal{L}_{\mathrm{low}},
 \]
-and let \(\mathcal{S}_{\mathrm{g}}\) be a set of Greek-anchor points in the same input space
+and let \(\mathcal{S}_{\mathrm{g}}\) be a set of anchor points in the same input space
 \[
 x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
 \]
 For each \(x\in\mathcal{S}_{\mathrm{g}}\), reference sensitivities
 \(\mathcal{G}^{\star}(x)\) are obtained from the semi-analytical Heston characteristic-function map (Section~\ref{sec:heston_cf_greeks}), while \(\mathcal{G}_{\phi}(x)\) are computed from autodiff on the PINN output.
 
-Using normalized residuals to avoid scale dominance across Greeks, we define
+To prevent scale dominance across Greeks, we use normalized residuals and split supervision into two blocks:
 \begin{align}
 \mathcal{L}_{\mathrm{g},1}
 &=
-\frac{1}{|\mathcal{S}_{\mathrm{g}}|}
+\frac{1}{|\mathcal{S}_{\mathrm{g}}|\,|\mathcal{Q}_1|}
 \sum_{x\in\mathcal{S}_{\mathrm{g}}}
-\sum_{q\in\{\Delta,\text{Vega}_{v},\Theta,\text{Rho}\}}
+\sum_{q\in\mathcal{Q}_1}
 \left(
 \frac{q_{\phi}(x)-q^{\star}(x)}{s_q+\varepsilon}
-\right)^2,\\
+\right)^2,\qquad
+\mathcal{Q}_1=\{\Delta,\text{Vega}_{v},\Theta,\text{Rho}\},\\
 \mathcal{L}_{\mathrm{g},2}
 &=
 \frac{1}{|\mathcal{S}_{\mathrm{g}}|}
@@ -379,7 +380,7 @@ Using normalized residuals to avoid scale dominance across Greeks, we define
 \frac{\Gamma_{\phi}(x)-\Gamma^{\star}(x)}{s_{\Gamma}+\varepsilon}
 \right)^2,
 \end{align}
-where \(s_q\) are fixed scale factors (e.g., robust quantiles from the reference sensitivities) and \(\varepsilon>0\) avoids numerical singularities near zero.
+where \(s_q\) are fixed scale factors (e.g., robust quantiles of \(|q^\star|\) on \(\mathcal{S}_{\mathrm{g}}\)) and \(\varepsilon>0\) avoids numerical singularities near zero. The separation of \(\mathcal{L}_{\mathrm{g},2}\) for \(\Gamma\) gives independent control of curvature supervision, which is typically more unstable than first-order terms.
 
 The prototype objective is then
 \begin{equation}
