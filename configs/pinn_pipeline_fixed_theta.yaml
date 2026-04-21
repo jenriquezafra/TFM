@@ -1,0 +1,39 @@
+meta:
+  experiment_name: "PINN_mix_scaled_fixed_theta"
+  seed: 42
+  description: "PINN scaffold with theta_star fixed from CaNN calibration."
+
+inputs:
+  cann:
+    calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_no_reg"
+    summary_file: "summary.yaml"
+    quotes_file: "quotes_comparison.parquet"
+    parameter_key: "theta_star" # key in CaNN summary.yaml
+    columns:
+      moneyness: "moneyness"
+      tau: "tau"
+      r: "r"
+      iv_market: "iv_market"
+      iv_pred: "iv_pred"
+
+  pricing_context:
+    target_name: "price_market"
+    spot: null
+    strike_column: null
+
+model:
+  architecture_config: "configs/pinn_model_architecture.yaml"
+
+training:
+  training_config: "configs/pinn_training_fixed_theta.yaml"
+
+pipeline:
+  stages:
+    prepare_dataset: true
+    train: true
+    evaluate: true
+
+outputs:
+  root_dir: "outputs/pinn"
+  run_name: "PINN_mix_scaled_fixed_theta"
+  dump_plan_filename: "pipeline_plan.yaml"

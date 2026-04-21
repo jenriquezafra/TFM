@@ -1,0 +1,79 @@
+timestamp: 2026-04-21_22-26-05
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta
+checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/checkpoints/model_best.pt
+architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture.yaml
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+device: cpu
+dtype: torch.float64
+n_input_points: 25921
+n_valid_points: 25921
+failed_reference_points: 0
+pinn_derivatives_seconds: 3.305802416987717
+reference_seconds: 7.2580943329958245
+pinn_points_per_second: 7841.061482319169
+reference_points_per_second: 3571.3231064194424
+spot_feature: moneyness
+vol_feature: v
+tau_feature: tau
+rate_feature: r
+theta_sign: minus_dv_dtau
+strike: 1.0
+option_type: put
+cf_integration:
+  u_min: 1.0e-06
+  u_max: 200.0
+  n_u: 1200
+benchmark_metrics:
+- greek: delta
+  n_points: 25921
+  mse: 2.4813120131989517e-06
+  rmse: 0.00157521808432958
+  r2: 0.9998650482162886
+  mape_pct: 0.3569972411492558
+  mae: 0.0011507347004887588
+  max_abs_error: 0.009309020515749333
+- greek: gamma
+  n_points: 25921
+  mse: 0.00027105751919573995
+  rmse: 0.016463824561618115
+  r2: 0.9987829079802216
+  mape_pct: 0.8043313280005376
+  mae: 0.008944273537534964
+  max_abs_error: 0.1402492985868493
+- greek: vega
+  n_points: 25921
+  mse: 1.3152460006967923e-06
+  rmse: 0.001146841750503003
+  r2: 0.9993170708323165
+  mape_pct: 0.5412795715723852
+  mae: 0.0009126842106904556
+  max_abs_error: 0.006954985335412153
+- greek: theta
+  n_points: 25921
+  mse: 2.7109059764674273e-06
+  rmse: 0.0016464829110766463
+  r2: 0.9988726894395067
+  mape_pct: 0.6984360740577327
+  mae: 0.0007286637669400534
+  max_abs_error: 0.018621198026268215
+- greek: rho
+  n_points: 25921
+  mse: 0.00017970822045048599
+  rmse: 0.013405529472963236
+  r2: 0.9984707673901417
+  mape_pct: 4.898246966133208
+  mae: 0.0112976275704348
+  max_abs_error: 0.049727965114867975
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/greeks/benchmark_cf/points_pinn_vs_heston_cf_greeks.csv
+  metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/greeks/benchmark_cf/metrics_by_greek.csv
+  metrics_yaml: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/greeks/benchmark_cf/metrics.yaml
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/greeks/benchmark_cf/figures

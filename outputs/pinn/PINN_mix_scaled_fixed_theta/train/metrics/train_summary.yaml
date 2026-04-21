@@ -1,0 +1,79 @@
+collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_fixed_theta_v01/collocation_sets_manifest.yaml
+device: mps
+optimizer_mode: mix_half
+mix_half_switch_epoch: 2001
+epochs: 4000
+batch_size_collocation: 2048
+batch_size_boundary: 512
+val_fraction: 0.2
+n_train_interior: 32000
+n_train_terminal: 8000
+n_train_lower: 8000
+n_val_interior: 8000
+n_val_terminal: 2000
+n_val_lower: 2000
+input_scaling:
+  enabled: true
+  method: standardize_train
+  eps: 1.0e-08
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  a:
+  - -1.2903227806091309
+  - -1.290091872215271
+  - -1.8067958354949951
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - -1.7328290939331055
+  b:
+  - 1.0319334268569946
+  - 1.5472521781921387
+  - 7.079763889312744
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 69.23895263671875
+  mean_train:
+  - 1.2503935098648071
+  - 0.8337954878807068
+  - 0.2552056908607483
+  - -0.5241299867630005
+  - 1.057623267173767
+  - 0.2995682656764984
+  - 0.19758449494838715
+  - 0.025026794523000717
+  std_train:
+  - 0.9690548181533813
+  - 0.6463070511817932
+  - 0.14124764502048492
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.01444273628294468
+  frozen_features:
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+best_val_total: 1.0236111847916618e-05
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/checkpoints/model_last.pt
+history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/metrics/train_history.csv
+figures:
+  loss_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/figures/loss_curve.png
+  loss_components_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/figures/loss_components_curve.png
+  learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/figures/learning_rate_curve.png
+  pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/figures/pde_residual_map_m_tau.png
+  pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/figures/pde_residual_map_m_tau_log.png
+total_training_seconds: 950.4541037910385

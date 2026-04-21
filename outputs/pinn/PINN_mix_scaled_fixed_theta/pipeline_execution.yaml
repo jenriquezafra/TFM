@@ -1,0 +1,23 @@
+timestamp: 2026-04-20_22-38-58
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_pipeline_fixed_theta.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta
+stages:
+  prepare_dataset:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_fixed_theta_v01/collocation_sets_manifest.yaml
+    collocation_output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_fixed_theta_v01
+    target_column_requested: price_market
+    feature_columns:
+    - moneyness
+    - tau
+    - r
+    dataset_file: null
+    dataset_status: skipped_target_missing
+    dataset_skip_reason: Target column 'price_market' not present in CaNN quotes.
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_fixed_theta_v01/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped
+    reason: Supervised evaluator requires dataset_file; PINN evaluator pending.

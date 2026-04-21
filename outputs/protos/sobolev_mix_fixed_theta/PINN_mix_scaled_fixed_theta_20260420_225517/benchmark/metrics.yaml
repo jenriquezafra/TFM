@@ -1,0 +1,95 @@
+timestamp: 2026-04-21_00-12-58
+source_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta
+source_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_fixed_theta/train/checkpoints/model_best.pt
+prototype_output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517
+epochs_requested: 8000
+epochs_completed: 8000
+stopped_early: false
+stop_reason: ''
+optimizer:
+  schedule: adam_then_lbfgs
+  switch_epoch: 4000
+  adam:
+    epochs: 4000
+    lr: 0.0001
+    weight_decay: 0.0
+    step_size: 1000
+    gamma_lr: 0.5
+  lbfgs:
+    epochs: 4000
+    lr: 0.2
+    max_iter: 20
+    history_size: 100
+    tolerance_grad: 1.0e-07
+    tolerance_change: 1.0e-09
+    line_search_fn: strong_wolfe
+sobolev:
+  anchor_points: 4096
+  anchor_batch_size: 256
+  lambda_g1_final: 0.25
+  lambda_g2_final: 0.25
+  warmup_epochs: 800
+  scales:
+    delta: 0.5665908817494288
+    vega: 0.2564381388509658
+    theta: 0.15523086710645634
+    rho: 1.0340484500176754
+    gamma: 1.6102714967769869
+benchmark:
+  model_source_for_eval: model_last
+  points_evaluated: 25921
+  valid_points: 25921
+  metrics:
+  - greek: delta
+    n_points: 25921
+    mse: 2.951429320869179e-08
+    rmse: 0.0001717972444735124
+    r2: 0.9999983947981985
+    mape_pct: 0.041083954399261186
+    mae: 0.0001438347014682553
+    max_abs_error: 0.000990226944721062
+  - greek: gamma
+    n_points: 25921
+    mse: 3.6279782201301504e-06
+    rmse: 0.001904725234812137
+    r2: 0.9999837097921034
+    mape_pct: 0.09215978434401817
+    mae: 0.001043138755965554
+    max_abs_error: 0.02376234817080025
+  - greek: vega
+    n_points: 25921
+    mse: 3.64899873750963e-08
+    rmse: 0.0001910235257110922
+    r2: 0.9999810529158092
+    mape_pct: 0.0940621863155246
+    mae: 0.0001368186995929101
+    max_abs_error: 0.001806992666110202
+  - greek: theta
+    n_points: 25921
+    mse: 7.473705314132244e-08
+    rmse: 0.0002733807841479032
+    r2: 0.9999689211392805
+    mape_pct: 0.14518854297105882
+    mae: 0.0001444144101017124
+    max_abs_error: 0.003943381244588484
+  - greek: rho
+    n_points: 25921
+    mse: 7.357356019546415e-07
+    rmse: 0.0008577503144590747
+    r2: 0.9999937392353454
+    mape_pct: 0.7036999395315893
+    mae: 0.00046697664970985424
+    max_abs_error: 0.010073944207643223
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517/benchmark/points_pinn_vs_heston_cf_greeks.csv
+  metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517/benchmark/metrics_by_greek.csv
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517/benchmark/figures
+training_artifacts:
+  history_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517/training/history.csv
+  loss_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517/training/loss_curve.png
+  checkpoint_best: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517/checkpoints/model_best.pt
+  checkpoint_last: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517/checkpoints/model_last.pt
+configs:
+  sobolev_runner_config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_sobolev_mix_fixed_theta.yaml
+  training_config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_training_fixed_theta.yaml
+  collocation_manifest_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_fixed_theta_v01/collocation_sets_manifest.yaml
+  benchmark_config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_greeks_benchmark_fixed_theta.yaml
