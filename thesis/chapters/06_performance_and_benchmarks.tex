@@ -6,7 +6,7 @@ This chapter compares the three model blocks developed in the thesis under a com
 
 Unless explicitly stated, all reported metrics are computed on fixed evaluation sets with identical feature conventions, consistent preprocessing, and the same numerical references used in previous chapters.
 
-The minimal pre-benchmark validation protocol combines three checks run before any model comparison: convergence with respect to \((N,L)\) in the COS expansion, put-call parity residual control across strikes, and Black--Scholes consistency in near-constant-variance regimes.
+The minimal pre-benchmark validation protocol combines three checks: convergence with respect to \((N,L)\) in the COS expansion, put-call parity residual control across strikes, and Black--Scholes consistency in near-constant-variance regimes.
 
 These checks are used as a guardrail before comparing models, so that downstream differences can be attributed to model behavior rather than to numerical artifacts. For consistency across Sections~6.2--6.5, each block is analyzed with the same reading logic: global summary metrics, localized error diagnostics over relevant domains, and runtime indicators.
 
@@ -24,7 +24,7 @@ The ANN analyzed here corresponds to the selected baseline configuration from Ch
 \[
 e=\hat{\sigma}_{\mathrm{IV}}-\sigma_{\mathrm{IV}}^{\mathrm{ref}},
 \]
-reported in decimal implied-volatility units.
+where \(\hat{\sigma}_{\mathrm{IV}}\) is the ANN-predicted implied volatility and \(\sigma_{\mathrm{IV}}^{\mathrm{ref}}\) is the reference implied volatility obtained from the Heston-COS/Brent pipeline. The error \(e\) is reported in decimal implied-volatility units.
 
 Global quality is summarized with RMSE, MAE, and \(p_{90}(|e|)\). Regional diagnostics use fixed bins over \(m\) and \(\tau\), and extrapolation behavior is analyzed through sensitivity maps with explicit interpolation limits (Figure~\ref{fig:extrapolation_grid_ann}).
 
