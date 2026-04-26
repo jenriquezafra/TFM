@@ -1,17 +1,6 @@
 \chapter{Introduction}
 \label{ch:introduction}
 
-\section{Motivation}
-Although the thesis title emphasizes derivative pricing, the practical objective of this work is broader: to build a fast and coherent workflow for market calibration, valuation, and Greek computation under stochastic volatility. In the Heston setting, each of these tasks is numerically demanding on its own, and in practice they must be executed jointly and repeatedly.
-
-This creates a central practical tension: high-fidelity numerical references are reliable, yet expensive when used at scale. The cost becomes especially visible in repetitive workloads such as calibration iterations across market surfaces, scenario analysis, and dense batches of sensitivities. As a result, computational latency can become a bottleneck even before model quality is exhausted.
-
-For this reason, surrogate approaches are explored as acceleration layers on top of trusted numerical benchmarks. The goal is not to replace model-consistent finance with a black-box shortcut, but to preserve reference behavior within controlled error levels while reducing runtime enough for practical use.
-
-Within this strategy, two priorities are central. First, robust market calibration, since all downstream valuation depends on the quality and stability of fitted parameters. Second, fast Greek estimation through PINN-based differentiable surrogates, so that sensitivities can be obtained efficiently without relying on repeated finite-difference repricing.
-
-This thesis is developed as a research-oriented prototype rather than as a production deployment. The methodological pipeline (data generation, reference solvers, surrogate training, calibration, and benchmarking logic) is designed to be reusable beyond a single contract class. However, some components are intentionally case-specific: in particular, the Greeks block based on the PINN formulation is developed for European vanilla contracts under the Heston PDE constraints used in this work. This distinction clarifies from the start what is expected to generalize and what remains tied to the chosen pricing setting.
-
 \section{Main Objectives}
 This thesis focuses on the Heston stochastic-volatility framework and aims to evaluate computational methods under a consistent speed-accuracy trade-off perspective. The first objective is to build a reproducible end-to-end pipeline covering data preparation, reference numerical pricing, calibration, surrogate/PINN training, and benchmark execution. This objective is methodological: the full workflow must be easy to rerun and auditable at each stage.
 \todos{add final references to scripts and modules once the pipeline layout is done. if needed, consolidate these references in an appendix table}
