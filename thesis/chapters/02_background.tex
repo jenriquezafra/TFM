@@ -106,13 +106,9 @@ This is the form used in the pricing formulas of the following sections \cite{he
 
 Here, $\nu_t$ is the instantaneous variance (equivalent to the $v_t$ notation used in later data-driven chapters). The variance process is of CIR type, so it is mean-reverting toward $\bar\nu$ at speed $\kappa$, with volatility of variance controlled by $\gamma$.
 
-In this thesis, implied volatility is defined as the value $\sigma_{imp}$ that reproduces a given option price when inserted into the Black--Scholes formula with the same contract and market inputs \cite{black_scholes_1973}:
-\begin{equation}
-    V_{BS}(S_0,K,r,\tau,\sigma_{imp})=V_{\text{target}}.
-\end{equation}
-Here, $S_0$ is the initial underlying price, $K$ is the strike, $V_{BS}$ is the Black--Scholes price, and $V_{\text{target}}$ is the target option value to be matched. Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
+The five Heston parameters have distinct financial roles. The pair $(\bar\nu,\nu_0)$ controls the level of variance, with $\nu_0$ mainly affecting the short end and $\bar\nu$ anchoring longer maturities. The speed $\kappa$ determines how quickly variance reverts toward its long-run level. The parameter $\gamma$ controls the variability of the variance process itself, and therefore the curvature of option smiles. Finally, $\rho$ links spot and variance shocks; in equity-index applications it is usually negative, which generates the left-skewed implied-volatility patterns observed in markets.
 
-Parameter interpretation is directly linked to the implied-volatility (IV) surface:
+This parameter interpretation is directly linked to the implied-volatility (IV) surface:
 \begin{table}[H]
     \ttabbox[\FBwidth]
     {\caption{Interpretation of Heston parameters}}
@@ -133,6 +129,12 @@ Parameter interpretation is directly linked to the implied-volatility (IV) surfa
         \multicolumn{3}{l}{Source: Based on \cite{heston} and \cite[Chs.~2--3]{rouah_heston_book}}
     \end{tabular}}
 \end{table}
+
+In this thesis, implied volatility is defined as the value $\sigma_{imp}$ that reproduces a given option price when inserted into the Black--Scholes formula with the same contract and market inputs \cite{black_scholes_1973}:
+\begin{equation}
+    V_{BS}(S_0,K,r,\tau,\sigma_{imp})=V_{\text{target}}.
+\end{equation}
+Here, $S_0$ is the initial underlying price, $K$ is the strike, $V_{BS}$ is the Black--Scholes price, and $V_{\text{target}}$ is the target option value to be matched. Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). It is nevertheless the natural comparison space for calibration and machine-learning experiments, because market option quotes are usually summarized across strikes and maturities through IV surfaces rather than raw prices. The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
 
 A common positivity condition for the CIR variance process is the Feller condition
 \begin{equation}
