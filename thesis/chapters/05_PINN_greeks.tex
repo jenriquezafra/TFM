@@ -67,7 +67,7 @@ An essential ingredient of this approach is automatic differentiation. Since the
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Heston Pricing PDE}
 
-Under the risk-neutral measure, the Heston model is described by the coupled system \todos{dejar solo en los primeros chapters y referencialos, o poner bibliografia}
+Starting from the Heston dynamics introduced in Chapter~2 (Equation~\ref{eq:heston_dynamics}), the risk-neutral version used for pricing is
 \begin{align}
     dS_t &= rS_t\,dt + \sqrt{v_t}\,S_t\,dW_t^{(1)}, \\
     dv_t &= \kappa(\bar v-v_t)\,dt + \gamma\sqrt{v_t}\,dW_t^{(2)},
@@ -460,3 +460,4 @@ Compared with bump-and-reprice finite differences, this approach has three pract
 \end{itemize}
 
 From a financial perspective, the interpretation remains standard: each Greek is the local slope or curvature of the price surface produced by the PINN around the evaluation point. The quality of those sensitivities therefore depends on both the local smoothness of the trained network and the fidelity of the learned price function in that region.
+This closes the link with the Heston dynamics introduced in Chapter~2: the PINN price surface is trained through the PDE implied by Equation~\ref{eq:heston_dynamics}, and the Greeks are then derivatives of that model-consistent learned surface.
