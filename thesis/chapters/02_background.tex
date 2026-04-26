@@ -97,6 +97,7 @@ In a general diffusion form, the Heston dynamics can be written as
     dS_t &= \mu S_t\,dt+\sqrt{\nu_t}\,S_t\,dW_t^{(S)},\\
     d\nu_t &= \kappa(\bar\nu-\nu_t)\,dt+\gamma\sqrt{\nu_t}\,dW_t^{(\nu)},\\
     d\langle W^{(S)},W^{(\nu)}\rangle_t &= \rho\,dt.
+    \label{eq:heston_dynamics}
 \end{align}
 Here, $S_t$ is the underlying price, $\nu_t$ is the instantaneous variance, $W_t^{(S)}$ and $W_t^{(\nu)}$ are Brownian motions driving the price and variance shocks, and $d\langle W^{(S)},W^{(\nu)}\rangle_t$ denotes their instantaneous quadratic covariation. The parameter $\mu$ denotes a generic drift under the original measure. For pricing, we move to the risk-neutral measure $\mathbb Q$, under which the discounted asset price is a martingale and, in the no-dividend case considered in this thesis, the drift becomes $r$:
 \begin{equation}
