@@ -49,7 +49,7 @@ The raw variable set includes Heston parameters $\Theta=\{\rho,\kappa,\gamma,\ba
 \mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\in\mathbb{R}^8.
 \]
 
-A full Cartesian grid is computationally prohibitive in this dimension, since using $N$ points per variable scales as $N^9$ (already intractable for moderate $N$). Therefore, we rely on Latin Hypercube Sampling (LHS) to obtain broad coverage of the domain with a fixed number of samples. The specific ranges, constraints, and splitting/preprocessing rules are detailed in the following subsections.
+A full Cartesian grid is computationally prohibitive in this dimension, since using $N$ points per variable scales as $N^8$ (already intractable for moderate $N$). Therefore, the synthetic inputs are sampled with Latin Hypercube Sampling (LHS), which stratifies each coordinate and provides broad marginal coverage with a fixed budget \cite{mckay_2000}. In our implementation, LHS is applied directly to the full input vector with a fixed seed and a target size of $10^7$ samples in the master dataset. The specific ranges, constraints, and splitting/preprocessing rules are detailed below.
 
 \subsection{Parameter Ranges And Constraints}
 The sampling domain combines Heston parameters, contract variables, and market rate. Following the ranges used in our configuration (largely aligned with \cite{liu}), the training domain is summarized in the table below.
@@ -93,16 +93,6 @@ and the binary indicator $feller\_ok=\mathbb{1}\{feller\_slack\ge 0\}$. Importan
 
 During synthesis we fix the strike to $K=1$ and price European put options. Fixing $K$ is equivalent to expressing spot through moneyness, which reduces the dimensionality from nine variables $(\Theta,S_0,K,\tau,r)$ to eight inputs $(\Theta,m,\tau,r)$ without loss of information for this setup.
 
-\subsection{Sampling Strategy: Latin Hypercube Sampling}
-The training of the neural network requires generating a large set of model parameters distributed over a high-dimensional domain. In our case, the parameter space is $\mathbb R^8$. A purely random sampling of this space may generate highly populated regions while leaving other regions scarcely explored. As a consequence, the resulting training dataset may be poorly representative, leading to suboptimal training performance.
-
-To avoid this problem, we will use the \textit{Latin Hypercube Sampling} (LHS), a sampling method designed to uniformly cover each dimension. The main idea consists in splitting each dimension of the parameter space into $N$ disjoint subintervals of equal length, and randomly selecting exactly one sample within each subinterval.
-
-Thus, LHS guarantees a one-dimensional marginal distribution along each coordinate, independently of the total dimension of the space. This results in a sampling scheme that is more representative of the parameter space.
-
-This creates a representative distribution sampling of the parameter space. In contrast to a full-grid sampling, the total number of samples $N$ remains fixed, preventing exponential growth in the number of dimensions.
-
-The use of LHS is supported by the classical design-of-experiments literature, where stratified one-dimensional coverage is shown to improve space-filling behaviour with respect to naive random sampling for a fixed budget \cite{mckay_2000}. In our implementation, sampling is performed directly in the 8-dimensional input domain with a fixed seed and a target of $10^7$ samples in the master dataset. This is consistent with standard surrogate-modeling practice, where the quality and coverage of the design points strongly influence final emulator accuracy and robustness \cite{gramacy2020surrogates}.
 \subsection{Dataset Splitting And Preprocessing}
 After generation, we keep all selected rows in the master dataset and split into train/validation/test subsets with proportions $0.8/0.1/0.1$. In the reported configuration, splits are random (without mandatory stratification), and filtering policies are deferred to each training experiment.
 
