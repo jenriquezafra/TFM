@@ -1,5 +1,34 @@
 \chapter{Mathematical and Financial Background}
 
+\section{State Of The Art}
+The literature relevant to this thesis can be grouped into three blocks. First, classical model-based pricing combines closed or semi-closed formulas (e.g., Black--Scholes and Heston) with deterministic numerical solvers under explicit stochastic assumptions \cite{black_scholes_1973,heston}. These methods are financially interpretable and robust, but repeated calls in calibration or surface-generation loops can be computationally expensive.
+
+Second, spectral/Fourier pricing methods exploit characteristic functions to obtain fast and accurate valuation formulas, with FFT- and COS-based implementations as standard references \cite{carr_madan_1999,fang_oosterlee_2009}. Their main strength is the accuracy-speed tradeoff in repeated pricing, while practical performance still depends on stable parameterization choices (truncation interval, series size, and numerical inversion settings).
+
+Third, neural surrogates learn the pricing map directly from synthetic or market-consistent labels. Feed-forward ANN surrogates have shown substantial acceleration in calibration workflows \cite{liu}. More recently, PINN-type approaches have been proposed to inject structural constraints and improve data efficiency \cite{hainaut2024pinn,yu2022gpinn}. However, the PINN literature also reports optimization pathologies, sensitivity to loss balancing, and robustness issues outside the training distribution \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
+
+Within this landscape, this thesis reuses the Heston-COS framework as high-accuracy numerical reference and contributes an empirical comparison of data-driven alternatives (ANN and PINN-family variants) under a common data-generation, evaluation, and benchmarking protocol.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Methodological blocks and role in this thesis}}
+    {\begin{tabular}{|P{2.9cm}|P{3.7cm}|P{3.3cm}|P{3.2cm}|}
+        \hline
+        \textbf{Block} & \textbf{Representative methods} & \textbf{Main strengths} & \textbf{Main limitations} \\
+        \hline
+        Classical model-based pricing & Black--Scholes, Heston semi-closed pricing \cite{black_scholes_1973,heston} & Financial interpretability; strong theoretical grounding & High computational cost in repeated evaluations \\
+        \hline
+        Spectral pricing & FFT/Carr--Madan, COS/Fang--Oosterlee \cite{carr_madan_1999,fang_oosterlee_2009} & High accuracy with efficient repeated pricing & Requires careful numerical setup ($[a,b]$, $N$, inversion stability) \\
+        \hline
+        Data-driven surrogates & ANN pricers/calibrators \cite{liu} & Very fast inference once trained & Domain-shift and extrapolation risk \\
+        \hline
+        Physics-informed surrogates & PINN/gPINN variants \cite{hainaut2024pinn,yu2022gpinn} & Injects structural constraints into learning & Training instability and sensitive optimization \cite{wang2021gradientpath,wang2022pinnntk,urban_2025} \\
+        \hline
+        \multicolumn{4}{l}{Source: Author's synthesis from the cited literature}
+    \end{tabular}}
+\end{table}
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Mathematical Framework For Option Pricing}
 This section defines the common mathematical setup used in the rest of the thesis for pricing European-style derivatives.
@@ -308,30 +337,3 @@ In the results chapters, IV errors are the primary evaluation metrics:
 To capture tail behavior, quantiles of absolute IV error are also reported (e.g., $q_{95}$ and $q_{99}$), together with stratified summaries by moneyness and maturity buckets.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{State Of The Art}
-The literature relevant to this thesis can be grouped into three blocks. First, classical model-based pricing combines closed or semi-closed formulas (e.g., Black--Scholes and Heston) with deterministic numerical solvers under explicit stochastic assumptions \cite{black_scholes_1973,heston}. These methods are financially interpretable and robust, but repeated calls in calibration or surface-generation loops can be computationally expensive.
-
-Second, spectral/Fourier pricing methods exploit characteristic functions to obtain fast and accurate valuation formulas, with FFT- and COS-based implementations as standard references \cite{carr_madan_1999,fang_oosterlee_2009}. Their main strength is the accuracy-speed tradeoff in repeated pricing, while practical performance still depends on stable parameterization choices (truncation interval, series size, and numerical inversion settings).
-
-Third, neural surrogates learn the pricing map directly from synthetic or market-consistent labels. Feed-forward ANN surrogates have shown substantial acceleration in calibration workflows \cite{liu}. More recently, PINN-type approaches have been proposed to inject structural constraints and improve data efficiency \cite{hainaut2024pinn,yu2022gpinn}. However, the PINN literature also reports optimization pathologies, sensitivity to loss balancing, and robustness issues outside the training distribution \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
-
-Within this landscape, this thesis reuses the Heston-COS framework as high-accuracy numerical reference and contributes an empirical comparison of data-driven alternatives (ANN and PINN-family variants) under a common data-generation, evaluation, and benchmarking protocol.
-
-\begin{table}[H]
-    \ttabbox[\FBwidth]
-    {\caption{Methodological blocks and role in this thesis}}
-    {\begin{tabular}{|P{2.9cm}|P{3.7cm}|P{3.3cm}|P{3.2cm}|}
-        \hline
-        \textbf{Block} & \textbf{Representative methods} & \textbf{Main strengths} & \textbf{Main limitations} \\
-        \hline
-        Classical model-based pricing & Black--Scholes, Heston semi-closed pricing \cite{black_scholes_1973,heston} & Financial interpretability; strong theoretical grounding & High computational cost in repeated evaluations \\
-        \hline
-        Spectral pricing & FFT/Carr--Madan, COS/Fang--Oosterlee \cite{carr_madan_1999,fang_oosterlee_2009} & High accuracy with efficient repeated pricing & Requires careful numerical setup ($[a,b]$, $N$, inversion stability) \\
-        \hline
-        Data-driven surrogates & ANN pricers/calibrators \cite{liu} & Very fast inference once trained & Domain-shift and extrapolation risk \\
-        \hline
-        Physics-informed surrogates & PINN/gPINN variants \cite{hainaut2024pinn,yu2022gpinn} & Injects structural constraints into learning & Training instability and sensitive optimization \cite{wang2021gradientpath,wang2022pinnntk,urban_2025} \\
-        \hline
-        \multicolumn{4}{l}{Source: Author's synthesis from the cited literature}
-    \end{tabular}}
-\end{table}
