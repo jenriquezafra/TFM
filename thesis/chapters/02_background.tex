@@ -41,6 +41,7 @@ As a practical starting point for this thesis, we use the standard risk-neutral 
 \begin{equation}
     V_t=e^{-r\tau}\,\mathbb E_t^{\mathbb Q}[\Psi].
 \end{equation}
+Here, $V_t$ is the option value at time $t$, $\tau=T-t$ is time to maturity, $\Psi$ is the terminal payoff, and $\mathbb E_t^{\mathbb Q}[\cdot]$ denotes conditional expectation under the risk-neutral measure $\mathbb Q$.
 
 In the following sections, this framework is connected to three ingredients used throughout the thesis: the stochastic-calculus tools needed for the model equations, the Heston stochastic-volatility dynamics, and the characteristic-function/Fourier-COS pricing route.
 
@@ -53,6 +54,7 @@ For a real random variable $X$, the cumulative distribution function is
 \begin{equation}
     F_X(x)=\mathbb P(X\le x).
 \end{equation}
+Here, $x$ is a real evaluation point and $\mathbb P$ denotes probability.
 If $F_X$ is differentiable, the associated probability density function is
 \begin{equation}
     f_X(x)=\frac{\partial F_X(x)}{\partial x}.
@@ -62,11 +64,11 @@ Following this notation, the characteristic function of $X$ is
 \begin{equation}
     \phi_X(u) :=\mathbb E\left[ e^{iuX} \right] = \int_{-\infty}^\infty e^{iux}dF_X(x) = \int_{-\infty}^\infty e^{iux}f_X(x)dx,
 \end{equation}
-\noindent for $u\in\mathbb R$.
+\noindent for $u\in\mathbb R$, where $i$ is the imaginary unit.
 
 Applying the logarithm to $\phi_X$, we obtain the cumulant characteristic function
 \begin{equation}
-    \zeta_X(u) = \log \mathbb E\left[e^{iux}\right] = \log \phi_X(u).
+    \zeta_X(u) = \log \mathbb E\left[e^{iuX}\right] = \log \phi_X(u).
 \end{equation}
 Its Maclaurin expansion is
 \begin{equation}
@@ -77,7 +79,7 @@ where $\zeta_k \equiv\frac{\partial^k \zeta_X(u)}{\partial u^k}\bigg|_{u=0}$ is 
 
 The moment generating function is
 \begin{equation}
-    \mathcal M_X(u):= \phi_X(-iu) = \mathbb E\left[ e^{ux} \right]. 
+    \mathcal M_X(u):= \phi_X(-iu) = \mathbb E\left[ e^{uX} \right]. 
 \end{equation}
 
 
@@ -96,7 +98,7 @@ In a general diffusion form, the Heston dynamics can be written as
     d\nu_t &= \kappa(\bar\nu-\nu_t)\,dt+\gamma\sqrt{\nu_t}\,dW_t^{(\nu)},\\
     d\langle W^{(S)},W^{(\nu)}\rangle_t &= \rho\,dt.
 \end{align}
-The parameter $\mu$ denotes a generic drift under the original measure. For pricing, we move to the risk-neutral measure $\mathbb Q$, under which the discounted asset price is a martingale and, in the no-dividend case considered in this thesis, the drift becomes $r$:
+Here, $S_t$ is the underlying price, $\nu_t$ is the instantaneous variance, $W_t^{(S)}$ and $W_t^{(\nu)}$ are Brownian motions driving the price and variance shocks, and $d\langle W^{(S)},W^{(\nu)}\rangle_t$ denotes their instantaneous quadratic covariation. The parameter $\mu$ denotes a generic drift under the original measure. For pricing, we move to the risk-neutral measure $\mathbb Q$, under which the discounted asset price is a martingale and, in the no-dividend case considered in this thesis, the drift becomes $r$:
 \begin{equation}
     dS_t = rS_t\,dt+\sqrt{\nu_t}\,S_t\,dW_t^{(S,\mathbb Q)}.
 \end{equation}
@@ -108,7 +110,7 @@ In this thesis, implied volatility is defined as the value $\sigma_{imp}$ that r
 \begin{equation}
     V_{BS}(S_0,K,r,\tau,\sigma_{imp})=V_{\text{target}}.
 \end{equation}
-Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
+Here, $S_0$ is the initial underlying price, $K$ is the strike, $V_{BS}$ is the Black--Scholes price, and $V_{\text{target}}$ is the target option value to be matched. Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
 
 Parameter interpretation is directly linked to the implied-volatility (IV) surface:
 \begin{table}[H]
@@ -148,6 +150,7 @@ Using the notation adopted in the next section, with $x=X(t_0)$ and $y=X(T)$, th
 \begin{equation}
     V(t_0,x)=e^{-r\tau}\int_{\mathbb R}V(T,y)\,f_X(T,y;t_0,x)\,dy.
 \end{equation}
+Here, $t_0$ is the valuation date, $X$ is the state variable used for transform pricing, $V(T,y)$ is the terminal payoff as a function of the terminal state $y$, and $f_X(T,y;t_0,x)$ is the conditional transition density of $X(T)=y$ given $X(t_0)=x$.
 The corresponding conditional characteristic function is
 \begin{equation}
     \phi_X(u;t_0,x):=\mathbb E_{t_0}^{\mathbb Q}\!\left[e^{iuX(T)}\mid X(t_0)=x\right]
@@ -174,10 +177,11 @@ Let $x=X(t_0)$ and $y=X(T)$, and consider a truncation interval $[a,b]$ that con
 \begin{equation}
     \hat f_X(y)=\sum_{k=0}^{N-1}\!'\ \bar F_k\cos\left(\pi k\frac{y-a}{b-a}\right),
 \end{equation}
-where $\sum'$ indicates that the $k=0$ term is weighted by $1/2$, and the cosine coefficients are obtained from the characteristic function:
+where $\hat f_X$ is the truncated cosine approximation of the density, $N$ is the number of cosine terms, $k$ indexes the expansion terms, $\sum'$ indicates that the $k=0$ term is weighted by $1/2$, and the cosine coefficients are obtained from the characteristic function:
 \begin{equation}
     \bar F_k:=\frac{2}{b-a}\Re\!\left[\phi_X\!\left(\frac{\pi k}{b-a}\right)\exp\!\left(-\frac{i\pi ak}{b-a}\right)\right].
 \end{equation}
+The operator $\Re[\cdot]$ denotes the real part.
 
 Starting from
 \begin{equation}
@@ -208,7 +212,7 @@ From a numerical viewpoint, it is useful to separate two error sources:
     +
     \underbrace{\varepsilon_{N}}_{\text{finite cosine series}}.
 \end{equation}
-Increasing $L$ reduces $\varepsilon_{\mathrm{trunc}}$ but may require larger $N$ to keep $\varepsilon_N$ small; reducing $L$ has the opposite effect. In practice, we choose $(L,N)$ jointly and verify stability, especially for extreme strikes and short maturities, where numerical artifacts appear first.
+Here, $V_N^{\mathrm{COS}}$ is the COS approximation using $N$ terms, $\varepsilon_{\mathrm{trunc}}$ is the error from truncating the integration domain to $[a,b]$, and $\varepsilon_N$ is the finite-series error. Increasing $L$ reduces $\varepsilon_{\mathrm{trunc}}$ but may require larger $N$ to keep $\varepsilon_N$ small; reducing $L$ has the opposite effect. In practice, we choose $(L,N)$ jointly and verify stability, especially for extreme strikes and short maturities, where numerical artifacts appear first.
 
 Implementation is fully vectorized: frequencies $u_k=\pi k/(b-a)$, exponential phase factors, and payoff coefficients are precomputed once per maturity, then reused across strike grids. This is one of the reasons COS is well suited for repeated-pricing workflows such as calibration loops and synthetic dataset generation.
 
@@ -229,7 +233,7 @@ with
     C(u,\tau)&=iur\tau+\frac{\kappa\bar\nu}{\gamma^2}\!\left[\left(\kappa-i\rho\gamma u-d(u)\right)\tau-2\log\!\left(\frac{1-g(u)e^{-d(u)\tau}}{1-g(u)}\right)\right],\\
     D(u,\tau)&=\frac{\kappa-i\rho\gamma u-d(u)}{\gamma^2}\left(\frac{1-e^{-d(u)\tau}}{1-g(u)e^{-d(u)\tau}}\right).
 \end{align}
-This is the standard semi-closed representation used in Fourier pricing; numerically, consistency in branch selection for $d(u)$ and the complex logarithm is required for stability \cite[Chs.~2--3]{rouah_heston_book}.
+Here, $\varphi_H$ denotes the Heston characteristic function of the log-moneyness state, while $C$, $D$, $d$, and $g$ are complex-valued auxiliary functions of the Fourier variable $u$ and maturity $\tau$. This is the standard semi-closed representation used in Fourier pricing; numerically, consistency in branch selection for $d(u)$ and the complex logarithm is required for stability \cite[Chs.~2--3]{rouah_heston_book}.
 
 The COS price for one strike can then be written as
 \begin{equation}
@@ -249,6 +253,7 @@ with
         \dfrac{b-a}{k\pi}\left[\sin(u_k(d-a))-\sin(u_k(c-a))\right], & k\ge 1.
     \end{cases}
 \end{align}
+Here, $\chi_k$ and $\psi_k$ are analytical payoff integrals over generic bounds $c$ and $d$ inside the truncation interval.
 In the implementation of this thesis, data generation is run on European puts as a numerical convention, mainly associated with the COS-pricing setup used in the project configuration.
 
 This subsection establishes the analytical Heston-COS pricing block used as the reference framework in the following chapters.
@@ -260,7 +265,7 @@ For validation purposes, Greeks can also be defined in the semi-analytical Hesto
 \begin{equation}
 C(S_0,K,\tau)=S_0\,\Pi_1-Ke^{-r\tau}\,\Pi_2,
 \end{equation}
-where
+where $C(S_0,K,\tau)$ is the European call price and $\Pi_1,\Pi_2$ are risk-neutral probability-type terms in the Heston pricing formula:
 \begin{equation}
 \Pi_j=\frac{1}{2}+\frac{1}{\pi}\int_0^\infty
 \Re\!\left(
@@ -272,7 +277,7 @@ with
 \Psi_2(u)=\phi_X(u),\qquad
 \Psi_1(u)=\frac{\phi_X(u-i)}{\phi_X(-i)},
 \end{equation}
-and \(\phi_X\) the characteristic function of \(X_T=\log S_T\) under Heston \cite{heston}; see also \cite[Chapter~1]{rouah_heston_book}.
+where \(j\) selects the two probability terms, \(\Psi_j\) are the corresponding Fourier integrands, and \(\phi_X\) is the characteristic function of \(X_T=\log S_T\) under Heston \cite{heston}; see also \cite[Chapter~1]{rouah_heston_book}.
 
 Let \(p\) denote a generic model/input variable (\(r,\tau,v_0,\rho,\kappa,\gamma,\bar v\), etc.). Under standard regularity and integrability conditions for affine models, differentiation under the integral sign yields \cite[Chapter~11]{rouah_heston_book}
 \begin{equation}
@@ -326,7 +331,7 @@ Stopping is based on standard price and parameter tolerances:
     |\sigma_{n+1}-\sigma_n|\le \varepsilon_{\sigma},
     \qquad n\le n_{\max}.
 \end{equation}
-If convergence is not reached, or if the target price violates arbitrage bounds, the point is flagged as invalid for IV reporting. In edge cases near the IV floor, the pricing stage may be recomputed with a wider COS truncation interval before retrying inversion.
+Here, $\sigma_n$ is the volatility iterate at step $n$, $\varepsilon_{\text{price}}$ and $\varepsilon_\sigma$ are stopping tolerances, and $n_{\max}$ is the maximum number of iterations. If convergence is not reached, or if the target price violates arbitrage bounds, the point is flagged as invalid for IV reporting. In edge cases near the IV floor, the pricing stage may be recomputed with a wider COS truncation interval before retrying inversion.
 
 In the results chapters, IV errors are the primary evaluation metrics:
 \begin{equation}
@@ -334,6 +339,6 @@ In the results chapters, IV errors are the primary evaluation metrics:
     \qquad
     \mathrm{RMSE}_{IV}=\sqrt{\frac{1}{N}\sum_{i=1}^{N}\left(\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right)^2 }.
 \end{equation}
-To capture tail behavior, quantiles of absolute IV error are also reported (e.g., $q_{95}$ and $q_{99}$), together with stratified summaries by moneyness and maturity buckets.
+Here, $\mathrm{MAE}_{IV}$ and $\mathrm{RMSE}_{IV}$ are the mean absolute error and root mean squared error in IV units, $\hat\sigma_i$ is the model-implied volatility prediction, $\sigma_i^{\mathrm{ref}}$ is the reference implied volatility, and $N$ is the number of evaluation points in the metric. To capture tail behavior, quantiles of absolute IV error are also reported (e.g., $q_{95}$ and $q_{99}$), together with stratified summaries by moneyness and maturity buckets.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
