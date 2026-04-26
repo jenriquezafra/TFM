@@ -6,8 +6,8 @@ It is intended as a living reference and can be expanded as additional notation 
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Global notation glossary (v1)}}
-    {\begin{tabular}{|P{3.2cm}|P{8.6cm}|}
+    {\caption{Global notation glossary: core pricing and model notation}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
         \hline
         \textbf{Symbol} & \textbf{Meaning} \\
         \hline
@@ -21,19 +21,62 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         $V_t$ & Arbitrage-free option value at time $t$. \\
         \hline
+        $V(t_0,x)$ & Option value at valuation time $t_0$ when the state variable is $x$. \\
+        \hline
+        $V_{BS},\;V_{\text{target}}$ & Black--Scholes option value and target option value used in IV inversion. \\
+        \hline
         $\Psi$ & Option payoff function at maturity. \\
         \hline
-        $X_t$ & State vector of model factors (e.g., log-price and variance). \\
+        $X_t,\;x,\;y$ & State variable and its initial/terminal values, typically $x=X(t_0)$ and $y=X(T)$. \\
+        \hline
+        $F_X,\;f_X$ & Cumulative distribution function and probability density function of $X$. \\
         \hline
         $\theta$ & Generic model-parameter vector. \\
         \hline
-        $\kappa,\;\bar v,\;\gamma,\;\rho,\;v_0$ & Heston parameters: mean reversion, long-run variance, vol-of-vol, correlation, and initial variance. \\
+        $\mu$ & Generic drift under the original probability measure. \\
+        \hline
+        $W_t^{(S)},\;W_t^{(\nu)}$ & Brownian motions driving the spot and variance processes. \\
+        \hline
+        $\kappa,\;\bar\nu,\;\gamma,\;\rho,\;\nu_0$ & Heston parameters: mean reversion, long-run variance, vol-of-vol, correlation, and initial variance. Later chapters also use $\bar v$ and $v_0$ for the variance parameters. \\
+        \hline
+        \multicolumn{2}{l}{Source: Author's elaboration}
+    \end{tabular}}
+\end{table}
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Global notation glossary: transform, COS, and IV notation}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
+        \hline
+        \textbf{Symbol} & \textbf{Meaning} \\
         \hline
         $\phi_X(u)$ & Characteristic function of random variable $X$. \\
         \hline
-        $\zeta_k$ & $k$-th cumulant of the log-price distribution. \\
+        $\mathcal M_X(u),\;\zeta_X(u),\;\zeta_k$ & Moment generating function, cumulant characteristic function, and $k$-th cumulant. \\
+        \hline
+        $u,\;u_k,\;i$ & Fourier variable, COS frequency $u_k=k\pi/(b-a)$, and imaginary unit. \\
+        \hline
+        $[a,b],\;L,\;N,\;k$ & COS truncation interval, truncation scaling parameter, number of terms, and series index. \\
+        \hline
+        $\bar F_k,\;H_k,\;U_k$ & COS density, payoff, and Heston-COS payoff coefficients. \\
+        \hline
+        $\hat V_T(u),\;V_N^{\mathrm{COS}}$ & Fourier transform of the maturity payoff and $N$-term COS price approximation. \\
+        \hline
+        $\varphi_H,\;C,\;D,\;d,\;g$ & Heston characteristic function and its affine auxiliary functions. \\
+        \hline
+        $\chi_k,\;\psi_k$ & Closed-form payoff integrals used in COS coefficients. \\
         \hline
         $\sigma_{imp}$ & Implied volatility obtained from numerical inversion. \\
+        \hline
+        $F(\sigma),\;\varepsilon_{\text{price}},\;\varepsilon_\sigma,\;n_{\max}$ & IV root function, price tolerance, volatility tolerance, and maximum number of solver iterations. \\
+        \hline
+        $\hat\sigma_i,\;\sigma_i^{\mathrm{ref}}$ & Predicted and reference implied volatilities for evaluation point $i$. \\
+        \hline
+        $\mathrm{MAE}_{IV},\;\mathrm{RMSE}_{IV}$ & Mean absolute error and root mean squared error computed in implied-volatility units. \\
+        \hline
+        $\Pi_j,\;\Psi_j$ & Heston call-pricing probability terms and their Fourier integrands. \\
+        \hline
+        $\Delta,\;\Gamma,\;\text{Vega},\;\text{Rho},\;\Theta$ & Standard option Greeks: spot first derivative, spot second derivative, variance/volatility sensitivity, interest-rate sensitivity, and time sensitivity. \\
         \hline
         \multicolumn{2}{l}{Source: Author's elaboration}
     \end{tabular}}
