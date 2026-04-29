@@ -33,7 +33,7 @@ Within this landscape, this thesis reuses the Heston-COS framework as high-accur
 \section{Mathematical Framework For Option Pricing}
 This section defines the common mathematical setup used in the rest of the thesis for pricing European-style derivatives.
 
-Time is continuous on $[0,T]$, with current time $t$ and maturity $T$. Rather than introducing the full probabilistic machinery, we keep a pricing-focused notation that is sufficient for the methods used later in the thesis.
+Time is continuous on $[0,T]$, with current time $t$ and maturity $T$. A derivative is a financial contract whose value depends on an underlying asset price process $S_t$; in particular, $S_T$ denotes the underlying price at maturity. A European option gives its holder a right, but not an obligation, exercisable only at maturity $T$: a call option pays when $S_T$ finishes above the strike $K$, while a put option pays when $S_T$ finishes below $K$. For example, the terminal payoff is $(S_T-K)^+$ for a European call and $(K-S_T)^+$ for a European put, where $(x)^+=\max(x,0)$. Rather than introducing the full probabilistic machinery, we keep a pricing-focused notation that is sufficient for the methods used later in the thesis.
 
 A global notation glossary is provided in Appendix C and will be extended as new symbols are introduced.
 
@@ -41,7 +41,7 @@ As a practical starting point for this thesis, we use the standard risk-neutral 
 \begin{equation}
     V_t=e^{-r\tau}\,\mathbb E_t^{\mathbb Q}[\Psi].
 \end{equation}
-Here, $V_t$ is the option value at time $t$, $\tau=T-t$ is time to maturity, $\Psi$ is the terminal payoff, and $\mathbb E_t^{\mathbb Q}[\cdot]$ denotes conditional expectation under the risk-neutral measure $\mathbb Q$.
+Here, $V_t$ is the option value at time $t$, $\tau=T-t$ is time to maturity, $\Psi$ is the terminal payoff, and $\mathbb E_t^{\mathbb Q}[\cdot]$ denotes conditional expectation under the risk-neutral measure $\mathbb Q$. The risk-neutral measure is the pricing probability measure under which discounted tradable assets have no expected excess return; this is why future payoffs can be discounted at the risk-free rate $r$ in this formula.
 
 In the following sections, this framework is connected to three ingredients used throughout the thesis: the stochastic-calculus tools needed for the model equations, the Heston stochastic-volatility dynamics, and the characteristic-function/Fourier-COS pricing route.
 
@@ -99,7 +99,7 @@ In a general diffusion form, the Heston dynamics can be written as
     d\langle W^{(S)},W^{(\nu)}\rangle_t &= \rho\,dt.
     \label{eq:heston_dynamics}
 \end{align}
-Here, $S_t$ is the underlying price, $\nu_t$ is the instantaneous variance, $W_t^{(S)}$ and $W_t^{(\nu)}$ are Brownian motions driving the price and variance shocks, and $d\langle W^{(S)},W^{(\nu)}\rangle_t$ denotes their instantaneous quadratic covariation. The parameter $\mu$ denotes a generic drift under the original measure. For pricing, we move to the risk-neutral measure $\mathbb Q$, under which the discounted asset price is a martingale and, in the no-dividend case considered in this thesis, the drift becomes $r$:
+Here, $\nu_t$ is the instantaneous variance, $W_t^{(S)}$ and $W_t^{(\nu)}$ are Brownian motions driving the price and variance shocks, and $d\langle W^{(S)},W^{(\nu)}\rangle_t$ denotes their instantaneous quadratic covariation. The parameter $\mu$ denotes a generic drift under the original measure. In the no-dividend risk-neutral pricing form used in this thesis, the drift becomes $r$:
 \begin{equation}
     dS_t = rS_t\,dt+\sqrt{\nu_t}\,S_t\,dW_t^{(S,\mathbb Q)}.
 \end{equation}
@@ -109,7 +109,7 @@ Here, $\nu_t$ is the instantaneous variance (equivalent to the $v_t$ notation us
 
 The five Heston parameters have distinct financial roles. The pair $(\bar\nu,\nu_0)$ controls the level of variance, with $\nu_0$ mainly affecting the short end and $\bar\nu$ anchoring longer maturities. The speed $\kappa$ determines how quickly variance reverts toward its long-run level. The parameter $\gamma$ controls the variability of the variance process itself, and therefore the curvature of option smiles. Finally, $\rho$ links spot and variance shocks; in equity-index applications it is usually negative, which generates the left-skewed implied-volatility patterns observed in markets.
 
-This parameter interpretation is directly linked to the implied-volatility (IV) surface:
+This parameter interpretation is directly linked to the implied-volatility (IV) surface, i.e., the map of implied volatilities across strikes and maturities. At a fixed maturity, the cross-section of this surface is often called the volatility smile:
 \begin{table}[H]
     \ttabbox[\FBwidth]
     {\caption{Interpretation of Heston parameters}}
@@ -135,7 +135,7 @@ In this thesis, implied volatility is defined as the value $\sigma_{imp}$ that r
 \begin{equation}
     V_{BS}(S_0,K,r,\tau,\sigma_{imp})=V_{\text{target}}.
 \end{equation}
-Here, $S_0$ is the initial underlying price, $K$ is the strike, $V_{BS}$ is the Black--Scholes price, and $V_{\text{target}}$ is the target option value to be matched. Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). It is nevertheless the natural comparison space for calibration and machine-learning experiments, because market option quotes are usually summarized across strikes and maturities through IV surfaces rather than raw prices. The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
+Here, $S_0$ is the initial value of the underlying price process, $V_{BS}$ is the Black--Scholes price, and $V_{\text{target}}$ is the target option value to be matched. Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). It is nevertheless the natural comparison space for calibration and machine-learning experiments, because market option quotes are usually summarized across strikes and maturities through IV surfaces rather than raw prices. The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
 
 A common positivity condition for the CIR variance process is the Feller condition
 \begin{equation}
@@ -225,6 +225,7 @@ Following the notation of Sections 2.4--2.5 and \cite[Sec.~3]{fang_oosterlee_200
 \[
 u_k:=\frac{k\pi}{b-a},\qquad x:=\log\!\left(\frac{S_0}{K}\right),\qquad y:=\log\!\left(\frac{S_T}{K}\right).
 \]
+Here, $x$ and $y$ are log-moneyness variables: they measure the underlying price relative to the strike before and at maturity. Positive log-moneyness means the underlying is above the strike, while negative log-moneyness means it is below the strike.
 Under Heston dynamics, the conditional characteristic function of $y$ can be written in affine form \cite{heston,rouah_heston_book}
 \begin{equation}
     \varphi_H(u;\tau,x,\nu_0)=\exp\!\left(C(u,\tau)+D(u,\tau)\nu_0+iux\right),
@@ -281,6 +282,8 @@ with
 \Psi_1(u)=\frac{\phi_X(u-i)}{\phi_X(-i)},
 \end{equation}
 where \(j\) selects the two probability terms, \(\Psi_j\) are the corresponding Fourier integrands, and \(\phi_X\) is the characteristic function of \(X_T=\log S_T\) under Heston \cite{heston}; see also \cite[Chapter~1]{rouah_heston_book}.
+
+In this context, Greeks are sensitivities of the option value to market or model inputs. Delta measures sensitivity to the underlying price, Gamma measures the curvature of that sensitivity, Vega measures sensitivity to volatility or variance, Rho measures sensitivity to the interest rate, and Theta measures sensitivity to the passage of time.
 
 Let \(p\) denote a generic model/input variable (\(r,\tau,v_0,\rho,\kappa,\gamma,\bar v\), etc.). Under standard regularity and integrability conditions for affine models, differentiation under the integral sign yields \cite[Chapter~11]{rouah_heston_book}
 \begin{equation}
