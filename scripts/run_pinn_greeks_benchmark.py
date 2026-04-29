@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import time
@@ -38,6 +39,19 @@ DEFAULT_FIXED_VALUES = {
     "bar_v": 0.04,
     "r": 0.01,
 }
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Benchmark PINN Greeks against Heston CF Greeks."
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help="Path to benchmark YAML config.",
+    )
+    return parser
 
 
 def _load_yaml(path: Path) -> dict:
@@ -367,10 +381,17 @@ def _save_heatmap(
 
 
 def main() -> None:
-    if not DEFAULT_CONFIG_PATH.exists():
-        raise FileNotFoundError(f"Config file not found: {DEFAULT_CONFIG_PATH}")
+    parser = _build_parser()
+    args = parser.parse_args()
 
-    cfg = _load_yaml(DEFAULT_CONFIG_PATH)
+    config_path = args.config
+    if not config_path.is_absolute():
+        config_path = (PROJECT_ROOT / config_path).resolve()
+
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    cfg = _load_yaml(config_path)
     global_cfg = cfg.get("global", {})
     benchmark_cfg = cfg.get("benchmark", {})
     if not isinstance(global_cfg, dict):
@@ -675,7 +696,7 @@ def main() -> None:
         yaml.safe_dump(
             {
                 "timestamp": payload["timestamp"],
-                "config_source": str(DEFAULT_CONFIG_PATH),
+                "config_source": str(config_path),
                 "global_config": global_cfg,
                 "benchmark_config": benchmark_cfg,
                 "resolved": {
@@ -692,7 +713,7 @@ def main() -> None:
             sort_keys=False,
         )
 
-    print(f"Config: {DEFAULT_CONFIG_PATH}")
+    print(f"Config: {config_path}")
     print(f"Run dir: {loaded.run_dir}")
     print(f"Output dir: {out_dir}")
     print(f"Valid points: {int(np.sum(valid_mask))} / {n_rows}")

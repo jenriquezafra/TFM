@@ -36,7 +36,7 @@ experiment_logs_dir = PROJECT_ROOT / "outputs" / "experiment_logs"
 calibration_folder_pattern = re.compile(r"^Calibration_(\d+)$")
 
 
-def _resolve_training_config_path() -> Path:
+def _parse_cli_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train ANN pricer.")
     parser.add_argument(
         "--config",
@@ -44,23 +44,45 @@ def _resolve_training_config_path() -> Path:
         default=str(config_path),
         help="Path to training YAML config (absolute or relative to project root).",
     )
-    args = parser.parse_args()
-    path = Path(args.config)
+    parser.add_argument(
+        "--model-config",
+        type=str,
+        default=str(model_config_path),
+        help="Path to model architecture YAML config (absolute or relative to project root).",
+    )
+    parser.add_argument(
+        "--run-name",
+        type=str,
+        default=None,
+        help="Optional output folder name under outputs/runs. Defaults to a timestamp.",
+    )
+    return parser.parse_args()
+
+
+def _resolve_config_path(raw_path: str | Path) -> Path:
+    path = Path(raw_path)
     if not path.is_absolute():
         path = PROJECT_ROOT / path
     return path.resolve()
 
 
-config_path = _resolve_training_config_path()
+cli_args = _parse_cli_args()
+config_path = _resolve_config_path(cli_args.config)
+model_config_path = _resolve_config_path(cli_args.model_config)
+
 if not config_path.exists():
     raise FileNotFoundError(f"Training config not found: {config_path}")
+if not model_config_path.exists():
+    raise FileNotFoundError(f"Model architecture config not found: {model_config_path}")
 
 DEFAULT_FEATURE_COLUMNS = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
 TARGET_FALLBACK_CANDIDATES = ("iv_brent", "IV")
 
 # to save the run outputs
 RUNS_DIR = PROJECT_ROOT / "outputs" / "runs"
-run_id = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+run_id = cli_args.run_name.strip() if cli_args.run_name else datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+if not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
+    raise ValueError(f"Invalid --run-name: {run_id!r}")
 run_dir = RUNS_DIR / run_id
 
 # create files for the runs
@@ -75,7 +97,7 @@ shutil.copy(
     run_dir / "model_training_copy.yaml"
 )
 shutil.copy(
-    PROJECT_ROOT / "configs" / "model_architecture.yaml",
+    model_config_path,
     run_dir / "model_architecture_copy.yaml"
 )
 
