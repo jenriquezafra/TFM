@@ -23,7 +23,7 @@ Methodological details of each block are kept in their dedicated chapters (Chapt
 \label{sec:ann_pricer_performance}
 This section reports the performance of the supervised ANN pricer introduced in Chapter~\ref{ch:ann_surrogate}. The objective is to assess mean implied-volatility accuracy and spatial stability over \((m,\tau)\), using a fully specified evaluation protocol that can be reproduced without implementation-specific references.
 
-The ANN analyzed here corresponds to the selected baseline configuration from Chapter~\ref{ch:ann_surrogate}. The benchmark uses fixed weights (no retraining in Chapter~\ref{ch:performance_benchmarks}) and fixed train/validation/test splits of sizes \(800{,}000/100{,}000/100{,}000\). Pointwise error is defined as
+The ANN analyzed here corresponds to the selected baseline configuration from Chapter~\ref{ch:ann_surrogate}. The benchmark uses fixed weights (no retraining in Chapter~\ref{ch:performance_benchmarks}) and fixed train/validation/test splits of sizes \(8.0\times10^5/1.0\times10^5/1.0\times10^5\). Pointwise error is defined as
 \[
 e=\hat{\sigma}_{\mathrm{IV}}-\sigma_{\mathrm{IV}}^{\mathrm{ref}},
 \]
@@ -42,11 +42,11 @@ Table~\ref{tab:ann_global_metrics} reports split-wise global errors for the sele
         \hline
         \textbf{Split} & \(\mathbf{n}\) & \textbf{RMSE} & \textbf{MAE} & \(\mathbf{p_{90}(|e|)}\) \\
         \hline
-        Train & 800,000 & \(5.44\times10^{-4}\) & \(3.82\times10^{-4}\) & \(8.15\times10^{-4}\) \\
+        Train & \(8.0\times10^5\) & \(5.44\times10^{-4}\) & \(3.82\times10^{-4}\) & \(8.15\times10^{-4}\) \\
         \hline
-        Validation & 100,000 & \(2.16\times10^{-3}\) & \(4.11\times10^{-4}\) & \(8.27\times10^{-4}\) \\
+        Validation & \(1.0\times10^5\) & \(2.16\times10^{-3}\) & \(4.11\times10^{-4}\) & \(8.27\times10^{-4}\) \\
         \hline
-        Test & 100,000 & \(3.03\times10^{-3}\) & \(4.29\times10^{-4}\) & \(8.28\times10^{-4}\) \\
+        Test & \(1.0\times10^5\) & \(3.03\times10^{-3}\) & \(4.29\times10^{-4}\) & \(8.28\times10^{-4}\) \\
         \hline
         \multicolumn{5}{l}{Source: Own elaboration}
     \end{tabular}}
@@ -281,7 +281,7 @@ with affine standardization fitted on training statistics. Concretely, each feat
 \[
 \tilde{x}_j=\frac{x_j-\mu_j^{\mathrm{train}}}{\sigma_j^{\mathrm{train}}},
 \]
-where \(\mu_j^{\mathrm{train}}\) and \(\sigma_j^{\mathrm{train}}\) are computed only on the training split and then reused unchanged in validation/test/benchmark evaluation. This is used to keep features on comparable scales and to stabilize training and gradient computation, which is especially important in PINN settings; it also avoids data-leakage from evaluation sets. The evaluation sample contains \(10{,}000\) candidates, with \(9{,}996\) valid comparisons after numerical filtering. COS pricing is computed with \(N=1500\), \(L=50\), and fallback \(L=80\), under European put convention (\(K=1\)) and no-arbitrage tolerance \(10^{-8}\). All reported metrics are computed in double precision on CPU.
+where \(\mu_j^{\mathrm{train}}\) and \(\sigma_j^{\mathrm{train}}\) are computed only on the training split and then reused unchanged in validation/test/benchmark evaluation. This is used to keep features on comparable scales and to stabilize training and gradient computation, which is especially important in PINN settings; it also avoids data-leakage from evaluation sets. The evaluation sample contains \(1.0\times10^4\) candidates, with \(9.996\times10^3\) valid comparisons after numerical filtering. COS pricing is computed with \(N=1500\), \(L=50\), and fallback \(L=80\), under European put convention (\(K=1\)) and no-arbitrage tolerance \(10^{-8}\). All reported metrics are computed in double precision on CPU.
 
 \subsection{Global Pricing Metrics}
 
@@ -294,7 +294,7 @@ Table~\ref{tab:pinn_pricing_global_metrics} reports the compact global summary u
         \hline
         \textbf{Metric} & \textbf{Value} \\
         \hline
-        \(n\) evaluated points & 9,996 \\
+        \(n\) evaluated points & \(9.996\times10^3\) \\
         \hline
         MSE & \(3.1621 \times 10^{-5}\) \\
         \hline
@@ -385,7 +385,7 @@ To keep the comparison interpretable, both variants are benchmarked on the same 
         \hline
         Evaluation grid & \(m\in[0.8,1.2]\) (161 points), \(\tau\in[0.05,2.0]\) (161 points) \\
         \hline
-        Total evaluation size & \(n=25{,}921\) points per Greek \\
+        Total evaluation size & \(n=2.5921\times10^4\) points per Greek \\
         \hline
         Fixed model parameters & \(v=0.04,\ \rho=-0.7,\ \kappa=2.0,\ \gamma=0.3,\ \bar v=0.04,\ r=0.01\) \\
         \hline
@@ -407,7 +407,7 @@ Greek quality is reported with the metrics exported by the benchmark pipeline: R
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Greek metrics for baseline and Sobolev PINN (\(n=25{,}921\) per Greek).}\label{tab:ablation_metrics_by_greek}}
+    {\caption{Greek metrics for baseline and Sobolev PINN (\(n=2.5921\times10^4\) per Greek).}\label{tab:ablation_metrics_by_greek}}
     {\small
     \begin{tabular}{|P{1.8cm}|P{1.6cm}|P{1.6cm}|P{1.6cm}|P{1.6cm}|P{1.6cm}|}
         \hline
