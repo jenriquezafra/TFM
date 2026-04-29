@@ -362,34 +362,34 @@ class SensitivityPricer2D:
 
         finite = error_surface[np.isfinite(error_surface)]
         if finite.size == 0:
-            return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+            return Normalize(vmin=err_lo, vmax=err_hi), "gray_r"
 
         if self.error_metric == "difference":
             if scale == "log":
                 finite_abs = np.abs(finite)
                 positive_abs = finite_abs[finite_abs > 0]
                 if positive_abs.size == 0:
-                    return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+                    return Normalize(vmin=err_lo, vmax=err_hi), "gray_r"
                 vmax = max(float(np.max(finite_abs)), 1.0e-12)
                 linthresh = max(float(np.percentile(positive_abs, 5.0)), 1.0e-12)
-                return SymLogNorm(linthresh=linthresh, vmin=-vmax, vmax=vmax), "gray"
+                return SymLogNorm(linthresh=linthresh, vmin=-vmax, vmax=vmax), "gray_r"
             if err_lo < 0.0 < err_hi:
-                return TwoSlopeNorm(vmin=err_lo, vcenter=0.0, vmax=err_hi), "gray"
-            return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+                return TwoSlopeNorm(vmin=err_lo, vcenter=0.0, vmax=err_hi), "gray_r"
+            return Normalize(vmin=err_lo, vmax=err_hi), "gray_r"
 
         # Non-negative metrics: rmse, mse, abs_diff
         if scale == "log":
             positive = finite[finite > 0.0]
             if positive.size == 0:
-                return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+                return Normalize(vmin=err_lo, vmax=err_hi), "gray_r"
             vmin = float(np.min(positive))
             vmax = float(np.max(positive))
             if np.isclose(vmin, vmax):
                 eps = max(1.0e-12, vmin * 1.0e-3)
-                return Normalize(vmin=vmin - eps, vmax=vmax + eps), "gray"
-            return LogNorm(vmin=vmin, vmax=vmax, clip=True), "gray"
+                return Normalize(vmin=vmin - eps, vmax=vmax + eps), "gray_r"
+            return LogNorm(vmin=vmin, vmax=vmax, clip=True), "gray_r"
 
-        return Normalize(vmin=err_lo, vmax=err_hi), "gray"
+        return Normalize(vmin=err_lo, vmax=err_hi), "gray_r"
 
     def _plot_grid_3x2(
         self,
@@ -410,6 +410,11 @@ class SensitivityPricer2D:
         error_scale: str,
         output_name: str,
     ) -> Path:
+        title_size = 22
+        label_size = 20
+        tick_size = 16
+        cbar_tick_size = 15
+
         fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(14, 16), constrained_layout=True)
 
         for (
@@ -453,8 +458,9 @@ class SensitivityPricer2D:
                     print(f"Warning: could not draw Heston contours for pair {param1}/{param2}")
             ax_val.set_xlabel(param1_label)
             ax_val.set_ylabel(param2_label)
-            ax_val.set_title(f"{param1_label} vs {param2_label} | IV values (NN)")
-            fig.colorbar(mesh_val, ax=ax_val, shrink=0.85)
+            ax_val.set_title(f"{param1_label} vs {param2_label} | IV values (NN)", fontsize=title_size)
+            cbar_val = fig.colorbar(mesh_val, ax=ax_val, shrink=0.85)
+            cbar_val.ax.tick_params(labelsize=cbar_tick_size)
 
             err_norm, err_cmap = self._build_error_norm(
                 error_surface=error_surface,
@@ -475,15 +481,21 @@ class SensitivityPricer2D:
             ax_err.set_ylabel(param2_label)
             if self.error_metric == "abs_diff":
                 ax_err.set_title(
-                    f"{param1_label} vs {param2_label} | |NN - Heston| ({error_scale.lower()})"
+                    f"{param1_label} vs {param2_label} | |NN - Heston| ({error_scale.lower()})",
+                    fontsize=title_size,
                 )
             else:
                 ax_err.set_title(
-                    f"{param1_label} vs {param2_label} | {self.error_metric.upper()} error ({error_scale.lower()})"
+                    f"{param1_label} vs {param2_label} | {self.error_metric.upper()} error ({error_scale.lower()})",
+                    fontsize=title_size,
                 )
-            fig.colorbar(mesh_err, ax=ax_err, shrink=0.85)
+            cbar_err = fig.colorbar(mesh_err, ax=ax_err, shrink=0.85)
+            cbar_err.ax.tick_params(labelsize=cbar_tick_size)
 
             for ax in (ax_val, ax_err):
+                ax.xaxis.label.set_size(label_size)
+                ax.yaxis.label.set_size(label_size)
+                ax.tick_params(axis="both", which="major", labelsize=tick_size)
                 ax.axvline(p1_interp_bounds[0], linestyle="--", linewidth=1.0, color="black")
                 ax.axvline(p1_interp_bounds[1], linestyle="--", linewidth=1.0, color="black")
                 ax.axhline(p2_interp_bounds[0], linestyle="--", linewidth=1.0, color="black")
