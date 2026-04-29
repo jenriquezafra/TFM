@@ -7,7 +7,7 @@ This chapter develops the calibration stage used in the thesis pipeline. The obj
 \]
 from an implied-volatility surface. The chapter is primarily based on the neural calibration framework of Liu et al. \cite{liu}. In that approach, calibration is not performed by repeatedly calling the full Heston pricing engine. Instead, a trained neural pricer is kept fixed and used as a fast forward map inside an inverse optimization loop.
 
-The role of this chapter is therefore methodological. The contribution is not a new calibration architecture in isolation, but a reproducible implementation and adaptation of the Liu et al. workflow within the present thesis pipeline, with explicit diagnostics for residual fit, parameter recovery, regularization, and local identifiability. The quantitative benchmark results are reported later in Chapter~6; here we define the calibration problem and explain the design choices that make the benchmark interpretable.
+The role of this chapter is therefore methodological. The contribution is not a new calibration architecture in isolation, but a reproducible implementation and adaptation of the Liu et al. workflow within the present thesis pipeline, with explicit diagnostics for residual fit, parameter recovery, regularization, and local identifiability. The quantitative benchmark results are reported later in Chapter~\ref{ch:performance_benchmarks}; here we define the calibration problem and explain the design choices that make the benchmark interpretable.
 
 To make the dependence on \cite{liu} explicit, the main inherited ideas are:
 \begin{itemize}
@@ -21,13 +21,13 @@ The additions in this thesis are the integration with the reproducible COS/Brent
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Role of Calibration in the Pipeline}
 
-The supervised ANN pricer of Chapter~3 approximates the forward map
+The supervised ANN pricer of Chapter~\ref{ch:ann_surrogate} approximates the forward map
 \[
 f_{NN}:(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\mapsto \sigma_{\mathrm{IV}},
 \]
 where \(\sigma_{\mathrm{IV}}\) denotes implied volatility. Calibration uses the same map in the inverse direction: given a set of observed implied volatilities over moneyness and maturity, it searches for the Heston parameters that reproduce those observations as closely as possible. This forward-surrogate-in-the-loop view is the central CaNN idea adopted from Liu et al. \cite{liu}.
 
-This stage is the bridge between the synthetic pricing surrogate and the downstream PINN analysis. Once the calibrated vector \(\theta^\star\) is obtained, it defines the market state consumed by later pricing and Greek-computation experiments. In particular, Chapter~5 uses the calibrated structural parameters \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) and the calibrated initial variance \(v_0^\star\) to evaluate the PINN at the corresponding market configuration.
+This stage is the bridge between the synthetic pricing surrogate and the downstream PINN analysis. Once the calibrated vector \(\theta^\star\) is obtained, it defines the market state consumed by later pricing and Greek-computation experiments. In particular, Chapter~\ref{ch:pinn_greeks} uses the calibrated structural parameters \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) and the calibrated initial variance \(v_0^\star\) to evaluate the PINN at the corresponding market configuration.
 
 \begin{figure}[H]
     \centering
@@ -169,7 +169,7 @@ The Heston parameters are repeated across all quotes, while \((m_j,\tau_j,r_j)\)
 
 The calibration architecture follows the Liu et al. principle of separating the expensive forward pricing approximation from the inverse optimization task \cite{liu}. In this implementation it is a composition of three components:
 \begin{enumerate}
-    \item a frozen ANN pricer trained in Chapter~3,
+    \item a frozen ANN pricer trained in Chapter~\ref{ch:ann_surrogate},
     \item a quote-table encoder that builds ANN inputs for each candidate parameter vector,
     \item a global optimizer that updates candidate parameter vectors to reduce the calibration objective.
 \end{enumerate}
@@ -291,7 +291,7 @@ R_{L^2\text{-sq}}(\theta)=\|\theta\|_2^2.
 
 In the reported synthetic experiment, the no-regularization run is used as the reference because it gives the best residual fit and the \(L^2\) variant produces only a marginal change in the objective. Nevertheless, keeping the regularization interface is useful for future market-data experiments, where noisy quotes, bid--ask effects, or incomplete surfaces may make unconstrained calibration less stable.
 
-Generalization in this chapter has a specific meaning. The calibration optimizer is not learning a new model; it is searching through the input space of the already trained ANN pricer. Therefore, the main generalization risk is inherited from the forward surrogate. If the optimizer moves into regions poorly represented during ANN training, the calibration objective may become an artifact of extrapolation rather than a meaningful Heston fit. The parameter bounds in Table~\ref{tab:cann_parameter_bounds} and the quote-domain controls are used to keep calibration within the region where the ANN benchmark in Chapter~6 supports reliable interpolation.
+Generalization in this chapter has a specific meaning. The calibration optimizer is not learning a new model; it is searching through the input space of the already trained ANN pricer. Therefore, the main generalization risk is inherited from the forward surrogate. If the optimizer moves into regions poorly represented during ANN training, the calibration objective may become an artifact of extrapolation rather than a meaningful Heston fit. The parameter bounds in Table~\ref{tab:cann_parameter_bounds} and the quote-domain controls are used to keep calibration within the region where the ANN benchmark in Chapter~\ref{ch:performance_benchmarks} supports reliable interpolation.
 
 \begin{figure}[H]
     \centering
@@ -373,7 +373,7 @@ The calibrated vector \(\theta^\star\) is the output of the CaNN stage. It is pa
 \[
 \theta^\star=(\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star,v_0^\star).
 \]
-In the PINN formulation of Chapter~5, \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) define the Heston PDE operator, while \(v_0^\star\) is used as the current variance state at inference time. This separation matters because the PINN is trained over a variance-state coordinate \(v\), whereas calibration estimates the current initial variance \(v_0\).
+In the PINN formulation of Chapter~\ref{ch:pinn_greeks}, \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) define the Heston PDE operator, while \(v_0^\star\) is used as the current variance state at inference time. This separation matters because the PINN is trained over a variance-state coordinate \(v\), whereas calibration estimates the current initial variance \(v_0\).
 
 Consequently, the CaNN stage is not an isolated side experiment. It supplies the parameter bridge between market-implied-volatility fitting and model-consistent price/Greek evaluation. The reliability of the downstream analysis therefore depends on both components: the ANN surrogate must be accurate in the calibration domain, and the calibration objective must produce a stable, interpretable \(\theta^\star\).
 

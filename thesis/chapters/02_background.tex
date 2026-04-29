@@ -1,4 +1,5 @@
 \chapter{Mathematical and Financial Background}
+\label{ch:background}
 
 \section{State Of The Art}
 The literature relevant to this thesis can be grouped into three blocks. First, classical model-based pricing combines closed or semi-closed formulas (e.g., Black--Scholes and Heston) with deterministic numerical solvers under explicit stochastic assumptions \cite{black_scholes_1973,heston}. These methods are financially interpretable and robust, but repeated calls in calibration or surface-generation loops can be computationally expensive.
@@ -35,7 +36,7 @@ This section defines the common mathematical setup used in the rest of the thesi
 
 Time is continuous on $[0,T]$, with current time $t$ and maturity $T$. A derivative is a financial contract whose value depends on an underlying asset price process $S_t$; in particular, $S_T$ denotes the underlying price at maturity. A European option gives its holder a right, but not an obligation, exercisable only at maturity $T$: a call option pays when $S_T$ finishes above the strike $K$, while a put option pays when $S_T$ finishes below $K$. For example, the terminal payoff is $(S_T-K)^+$ for a European call and $(K-S_T)^+$ for a European put, where $(x)^+=\max(x,0)$. Rather than introducing the full probabilistic machinery, we keep a pricing-focused notation that is sufficient for the methods used later in the thesis.
 
-A global notation glossary is provided in Appendix C and will be extended as new symbols are introduced.
+A global notation glossary is provided in Appendix~\ref{app:global_glossary} and will be extended as new symbols are introduced.
 
 As a practical starting point for this thesis, we use the standard risk-neutral valuation formula for European claims with constant rate $r$ \cite[Ch.~8]{oksendal2003}:
 \begin{equation}
@@ -48,6 +49,7 @@ In the following sections, this framework is connected to three ingredients used
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Stochastic Calculus Background}
+\label{sec:stochastic_calculus_background}
 This section introduces only the stochastic-calculus notions needed by the pricing methods used later. The presentation follows standard probability definitions and the transform-pricing notation adopted in \cite[Ch.~1]{oksendal2003} and \cite[Sec.~2]{fang_oosterlee_2009}.
 
 For a real random variable $X$, the cumulative distribution function is
@@ -135,7 +137,7 @@ In this thesis, implied volatility is defined as the value $\sigma_{imp}$ that r
 \begin{equation}
     V_{BS}(S_0,K,r,\tau,\sigma_{imp})=V_{\text{target}}.
 \end{equation}
-Here, $S_0$ is the initial value of the underlying price process, $V_{BS}$ is the Black--Scholes price, and $V_{\text{target}}$ is the target option value to be matched. Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). It is nevertheless the natural comparison space for calibration and machine-learning experiments, because market option quotes are usually summarized across strikes and maturities through IV surfaces rather than raw prices. The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section 2.6.
+Here, $S_0$ is the initial value of the underlying price process, $V_{BS}$ is the Black--Scholes price, and $V_{\text{target}}$ is the target option value to be matched. Therefore, implied volatility is a quoting transformation of prices (not a structural parameter of Heston). It is nevertheless the natural comparison space for calibration and machine-learning experiments, because market option quotes are usually summarized across strikes and maturities through IV surfaces rather than raw prices. The numerical inversion used to compute $\sigma_{imp}$ is detailed in Section~\ref{sec:iv_numerical_inversion}.
 
 A common positivity condition for the CIR variance process is the Feller condition
 \begin{equation}
@@ -147,6 +149,7 @@ For pricing, the key advantage of Heston is that the log-price characteristic fu
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Pricing Via Characteristic Functions}
+\label{sec:pricing_characteristic_functions}
 When the characteristic function is available in closed or semi-closed form, pricing in the Fourier domain becomes a natural alternative to direct density integration. Following \cite[Sec.~2]{fang_oosterlee_2009}, we write the option value in terms of the conditional transition density of the terminal state variable.
 
 Using the notation adopted in the next section, with $x=X(t_0)$ and $y=X(T)$, the discounted valuation formula is
@@ -174,6 +177,7 @@ The Fourier-COS method used in the next section is a specific spectral discretiz
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The Fourier-COS method}
+\label{sec:fourier_cos_method}
 The Fourier-COS method approximates transition densities and option values by a cosine series on a finite interval \cite[Secs.~3--4]{fang_oosterlee_2009}. Its practical appeal in this thesis is that it combines spectral convergence with efficient vectorized evaluation once the model characteristic function is available.
 
 Let $x=X(t_0)$ and $y=X(T)$, and consider a truncation interval $[a,b]$ that concentrates most of the probability mass of $X(T)\mid X(t_0)=x$. On this interval, the conditional density is approximated by
@@ -204,7 +208,7 @@ The choice of $[a,b]$ controls truncation error. Following the cumulant-based ru
 \begin{equation}
     [a,b]=\left[c_1-L\sqrt{c_2+\sqrt{c_4}},\;c_1+L\sqrt{c_2+\sqrt{c_4}}\right],
 \end{equation}
-with $c_1,c_2,c_4$ the first, second, and fourth cumulants of $X(T)$ and $L>0$ a scaling parameter. This connects directly with the cumulant machinery introduced in Section 2.2.
+with $c_1,c_2,c_4$ the first, second, and fourth cumulants of $X(T)$ and $L>0$ a scaling parameter. This connects directly with the cumulant machinery introduced in Section~\ref{sec:stochastic_calculus_background}.
 In the numerical experiments of this thesis, the integration interval is selected using the refined cumulant-based strategy detailed in Appendix~\ref{app:cos_error}.
 
 From a numerical viewpoint, it is useful to separate two error sources:
@@ -221,7 +225,7 @@ Implementation is fully vectorized: frequencies $u_k=\pi k/(b-a)$, exponential p
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{The COS Method Applied To The Heston Model}
-Following the notation of Sections 2.4--2.5 and \cite[Sec.~3]{fang_oosterlee_2009}, define
+Following the notation of Sections~\ref{sec:pricing_characteristic_functions}--\ref{sec:fourier_cos_method} and \cite[Sec.~3]{fang_oosterlee_2009}, define
 \[
 u_k:=\frac{k\pi}{b-a},\qquad x:=\log\!\left(\frac{S_0}{K}\right),\qquad y:=\log\!\left(\frac{S_T}{K}\right).
 \]
@@ -320,6 +324,7 @@ The practical advantage is that all sensitivities are expressed in terms of deri
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Implied Volatility And Numerical Inversion}
+\label{sec:iv_numerical_inversion}
 For each target option value $V_{\text{target}}$ (market quote or model-generated price), implied volatility is obtained by inverting the Black--Scholes map \cite{black_scholes_1973}. This provides a common representation across strikes and maturities, which is the main comparison space used in this thesis.
 
 Numerically, we solve the scalar nonlinear equation

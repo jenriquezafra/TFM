@@ -1,4 +1,5 @@
 \chapter{Neural Network pricer for Heston}
+\label{ch:ann_surrogate}
 
 The main objective of this chapter is to construct an ANN-based surrogate pricer for European vanilla options under the Heston stochastic-volatility model. The target quantity is implied volatility, and the surrogate is designed to approximate the forward map
 \[
@@ -9,7 +10,7 @@ Reference pricing based on numerical methods (in our pipeline, Heston COS valuat
 
 Methodologically, this chapter follows the ANN-pricing framework of Liu et al. \cite{liu} as the main reference (architecture family, data ranges, and training philosophy), while explicitly documenting the implementation choices adopted in this project.
 
-This chapter focuses exclusively on the pricing network; the calibration architecture is treated separately in Chapter 4.
+This chapter focuses exclusively on the pricing network; the calibration architecture is treated separately in Chapter~\ref{ch:cann}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Problem Formulation}
@@ -52,11 +53,11 @@ The raw variable set includes Heston parameters $\Theta=\{\rho,\kappa,\gamma,\ba
 A full Cartesian grid is computationally prohibitive in this dimension, since using $N$ points per variable scales as $N^8$ (already intractable for moderate $N$). Therefore, the synthetic inputs are sampled with Latin Hypercube Sampling (LHS), which stratifies each coordinate and provides broad marginal coverage with a fixed budget \cite{mckay_2000}. In our implementation, LHS is applied directly to the full input vector with a fixed seed and a target size of $10^7$ samples in the master dataset. The specific ranges, constraints, and splitting/preprocessing rules are detailed below.
 
 \subsection{Parameter Ranges And Constraints}
-The sampling domain combines Heston parameters, contract variables, and market rate. Following the ranges used in our configuration (largely aligned with \cite{liu}), the training domain is summarized in the table below.
+The sampling domain combines Heston parameters, contract variables, and market rate. Following the ranges used in our configuration (largely aligned with \cite{liu}), the training domain is summarized in Table~\ref{tab:ann_synth_input_ranges}.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Input ranges used for synthetic data generation}}
+    {\caption{Input ranges used for synthetic data generation}\label{tab:ann_synth_input_ranges}}
     {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
         \hline
         \textbf{Parameter} & \textbf{Range} \\
@@ -155,7 +156,7 @@ Weights are initialized with Xavier uniform initialization and biases are initia
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Neural network architecture used for the ANN pricer}}
+    {\caption{Neural network architecture used for the ANN pricer}\label{tab:ann_architecture}}
     {\begin{tabular}{|P{5.2cm}|P{6.6cm}|}
         \hline
         \textbf{Hyperparameter} & \textbf{Value} \\
@@ -219,7 +220,7 @@ Under this criterion, the selected reference ANN is \texttt{Liu\_like\_v01} (Ada
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Reference and runner-up runs used in optimizer selection}}
+    {\caption{Reference and runner-up runs used in optimizer selection}\label{tab:ann_optimizer_selection}}
     {\begin{tabular}{|P{3.8cm}|P{3.1cm}|P{2.0cm}|P{2.0cm}|}
         \hline
         \textbf{Run} & \textbf{Optimizer mode} & \textbf{Val MAE} & \textbf{Test MAE} \\
@@ -232,11 +233,11 @@ Under this criterion, the selected reference ANN is \texttt{Liu\_like\_v01} (Ada
     \end{tabular}}
 \end{table}
 
-The hyperparameters of the selected reference run (\texttt{Liu\_like\_v01}) are summarized below.
+The hyperparameters of the selected reference run (\texttt{Liu\_like\_v01}) are summarized in Table~\ref{tab:ann_selected_hyperparameters}.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Training hyperparameters of the selected run (\texttt{Liu\_like\_v01})}}
+    {\caption{Training hyperparameters of the selected run (\texttt{Liu\_like\_v01})}\label{tab:ann_selected_hyperparameters}}
     {\begin{tabular}{|P{5.0cm}|P{6.8cm}|}
         \hline
         \textbf{Hyperparameter} & \textbf{Value} \\

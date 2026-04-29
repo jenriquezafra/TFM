@@ -1,26 +1,29 @@
 \chapter{Neural Network Performance And Benchmarking}
+\label{ch:performance_benchmarks}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Experimental Setup And Evaluation Protocol}
+\label{sec:benchmark_protocol}
 This chapter compares the three model blocks developed in the thesis under a common evaluation protocol: ANN pricing surrogate, calibration network workflow, and PINN-based pricing and Greeks computation.
 
 Unless explicitly stated, all reported metrics are computed on fixed evaluation sets with identical feature conventions, consistent preprocessing, and the same numerical references used in previous chapters.
 
 The minimal pre-benchmark validation protocol combines three checks: convergence with respect to \((N,L)\) in the COS expansion, put-call parity residual control across strikes, and Black--Scholes consistency in near-constant-variance regimes.
 
-These checks are used as a guardrail before comparing models, so that downstream differences can be attributed to model behavior rather than to numerical artifacts. For consistency across Sections~6.2--6.5, each block is analyzed with the same reading logic: global summary metrics, localized error diagnostics over relevant domains, and runtime indicators.
+These checks are used as a guardrail before comparing models, so that downstream differences can be attributed to model behavior rather than to numerical artifacts. For consistency across Sections~\ref{sec:ann_pricer_performance}--\ref{sec:pinn_greeks_performance}, each block is analyzed with the same reading logic: global summary metrics, localized error diagnostics over relevant domains, and runtime indicators.
 
 The protocol is fixed as follows. Randomness is controlled with a common seed (\(42\)) in data generation and training configurations; in calibration, the Differential Evolution seed follows the same base value unless explicitly overridden. The Heston domain is shared across experiments, with \(\rho\in[-0.9,0]\), \(\kappa\in[0,3]\), \(\gamma\in[0.01,0.8]\), \(\bar v\in[0.01,0.5]\), \(v_0\in[0.05,0.5]\), and contract coordinates \(m\in[0.6,1.4]\), \(\tau\in[0.05,3.0]\) for ANN/CaNN benchmarks. Reference numerics are also fixed: COS pricing with \(N=1500\), \(L=50\), and fallback \(L=80\) when required by stability checks, plus Brent IV inversion with \(\mathrm{tol}=10^{-8}\) and bounded search interval.
 
 Reported metrics are always computed on fixed held-out sets, with ANN split policy fixed to \(0.8/0.1/0.1\) (train/validation/test), and values reported in decimal units (IV for ANN/CaNN, price for PINN). Finally, each model block reports equivalent evidence layers (global table, regional/spatial diagnostic, and convergence or runtime indicator), so cross-model comparisons remain methodologically aligned.
 
-Methodological details of each block are kept in their dedicated chapters (Chapter~3 for ANN, Chapter~4 for CaNN, and Chapter~5 for PINN), while this chapter focuses on consolidated benchmark outcomes under the protocol above.
+Methodological details of each block are kept in their dedicated chapters (Chapter~\ref{ch:ann_surrogate} for ANN, Chapter~\ref{ch:cann} for CaNN, and Chapter~\ref{ch:pinn_greeks} for PINN), while this chapter focuses on consolidated benchmark outcomes under the protocol above.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{ANN Pricer Performance}
-This section reports the performance of the supervised ANN pricer introduced in Chapter~3. The objective is to assess mean implied-volatility accuracy and spatial stability over \((m,\tau)\), using a fully specified evaluation protocol that can be reproduced without implementation-specific references.
+\label{sec:ann_pricer_performance}
+This section reports the performance of the supervised ANN pricer introduced in Chapter~\ref{ch:ann_surrogate}. The objective is to assess mean implied-volatility accuracy and spatial stability over \((m,\tau)\), using a fully specified evaluation protocol that can be reproduced without implementation-specific references.
 
-The ANN analyzed here corresponds to the selected baseline configuration from Chapter~3. The benchmark uses fixed weights (no retraining in Chapter~6) and fixed train/validation/test splits of sizes \(800{,}000/100{,}000/100{,}000\). Pointwise error is defined as
+The ANN analyzed here corresponds to the selected baseline configuration from Chapter~\ref{ch:ann_surrogate}. The benchmark uses fixed weights (no retraining in Chapter~\ref{ch:performance_benchmarks}) and fixed train/validation/test splits of sizes \(800{,}000/100{,}000/100{,}000\). Pointwise error is defined as
 \[
 e=\hat{\sigma}_{\mathrm{IV}}-\sigma_{\mathrm{IV}}^{\mathrm{ref}},
 \]
@@ -103,11 +106,12 @@ Figure~\ref{fig:region_error_mse_ann} makes the same pattern explicit with two p
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Calibration Network Performance}
-This section reports the benchmark outcomes of the CaNN workflow. The full calibration methodology (problem formulation, optimizer mechanics, and detailed design choices) is developed in Chapter~4; here we focus on final metrics and on the selection of the reference calibration run used in the rest of the chapter.
+\label{sec:cann_performance}
+This section reports the benchmark outcomes of the CaNN workflow. The full calibration methodology (problem formulation, optimizer mechanics, and detailed design choices) is developed in Chapter~\ref{ch:cann}; here we focus on final metrics and on the selection of the reference calibration run used in the rest of the chapter.
 
 \subsection{Benchmark Snapshot}
 
-The calibration benchmark in this section uses a fixed ANN surrogate (from Section~6.2) and one fixed quote universe of 35 contracts (Table~\ref{tab:cann_quote_universe}). The calibrated vector is \((\rho,\kappa,\gamma,\bar v,v_0)\), optimized with Differential Evolution plus polish under the same bounds and controls defined in Chapter~4.
+The calibration benchmark in this section uses a fixed ANN surrogate (from Section~\ref{sec:ann_pricer_performance}) and one fixed quote universe of 35 contracts (Table~\ref{tab:cann_quote_universe}). The calibrated vector is \((\rho,\kappa,\gamma,\bar v,v_0)\), optimized with Differential Evolution plus polish under the same bounds and controls defined in Chapter~\ref{ch:cann}.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
@@ -132,7 +136,7 @@ The calibration benchmark in this section uses a fixed ANN surrogate (from Secti
 
 \subsection{Fit Quality And Convergence}
 
-A compact regularization mini-study was run with the same quote set and optimizer controls. The no-regularization variant (\(\lambda=0\)) yields residual RMSE \(2.01441\times10^{-4}\), while the L2 variant (\(\lambda=10^{-6}\)) yields \(2.01445\times10^{-4}\). The difference is marginal, but the no-regularization run is slightly better and is therefore selected as the reference configuration for the remainder of Section~6.3.
+A compact regularization mini-study was run with the same quote set and optimizer controls. The no-regularization variant (\(\lambda=0\)) yields residual RMSE \(2.01441\times10^{-4}\), while the L2 variant (\(\lambda=10^{-6}\)) yields \(2.01445\times10^{-4}\). The difference is marginal, but the no-regularization run is slightly better and is therefore selected as the reference configuration for the remainder of Section~\ref{sec:cann_performance}.
 
 To characterize residual magnitudes directly in IV units, Table~\ref{tab:cann_residual_distribution} summarizes the absolute-residual distribution over the 35 quotes for the selected run.
 
@@ -213,7 +217,7 @@ The largest relative deviations appear in \(\rho\) and \(\gamma\), while \(\bar 
     \end{tabular}}
 \end{table}
 
-In Table~\ref{tab:cann_vs_liu}, \textit{Weighted MSE} denotes the weighted mean-squared IV residual used as calibration objective (same weighting convention as Chapter~4). The pattern is consistent across both studies: \((\bar v,v_0)\) are recovered more accurately than \((\rho,\gamma)\). The comparison is informative but not a strict ranking, because quote set design, optimization budget, and implementation details are not identical.
+In Table~\ref{tab:cann_vs_liu}, \textit{Weighted MSE} denotes the weighted mean-squared IV residual used as calibration objective (same weighting convention as Chapter~\ref{ch:cann}). The pattern is consistent across both studies: \((\bar v,v_0)\) are recovered more accurately than \((\rho,\gamma)\). The comparison is informative but not a strict ranking, because quote set design, optimization budget, and implementation details are not identical.
 
 \subsection{Local Smoothness And Curvature Study}
 
@@ -262,6 +266,7 @@ The results above define the selected CaNN benchmark used in the rest of this ch
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{PINN Pricing Performance}
+\label{sec:pinn_pricing_performance}
 This section reports the baseline PINN pricing quality before introducing Sobolev terms in the training objective. The goal is to establish a reproducible reference for price-level accuracy and runtime against the COS/Heston engine.
 
 \subsection{Reproducible Benchmark Setup}
@@ -354,6 +359,7 @@ The global distribution of absolute errors is summarized in Figure~\ref{fig:pinn
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{PINN Greeks Performance}
+\label{sec:pinn_greeks_performance}
 This section evaluates autodiff-based Greek quality for the baseline PINN and quantifies the effect of Sobolev augmentation through a controlled ablation.
 
 \subsection{Ablation Design And Reproducible Protocol}
@@ -361,7 +367,7 @@ This section evaluates autodiff-based Greek quality for the baseline PINN and qu
 The ablation isolates the impact of Jacobian-informed Sobolev terms on top of the baseline PINN objective, comparing:
 \begin{itemize}
     \item \textbf{Baseline PINN}: PDE + terminal + lower-boundary losses only.
-    \item \textbf{Sobolev-augmented PINN}: baseline loss plus derivative supervision terms \(\mathcal{L}_{g,1}\) and \(\mathcal{L}_{g,2}\) as defined in Chapter~5.
+    \item \textbf{Sobolev-augmented PINN}: baseline loss plus derivative supervision terms \(\mathcal{L}_{g,1}\) and \(\mathcal{L}_{g,2}\) as defined in Chapter~\ref{ch:pinn_greeks}.
 \end{itemize}
 
 To keep the comparison interpretable, both variants are benchmarked on the same \((m,\tau)\) grid, with identical fixed parameters, the same Heston characteristic-function Greek engine, and the same numerical integration settings.
@@ -494,6 +500,7 @@ Figure~\ref{fig:greeks_loss_sobolev} shows the two-phase optimization schedule u
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Cross-Model Computational Comparison}
+\label{sec:cross_model_computational_comparison}
 This section summarizes the end-to-end pipeline in operational order, emphasizing where each model contributes and how computational cost is distributed.
 
 First, market calibration is driven by the ANN pricer plus the CaNN optimization loop. The ANN stage provides fast implied-volatility evaluations (\(\approx 8.43\times10^5\) points/s), while CaNN concentrates cost in iterative inverse fitting (\(134\) iterations, \(261\) objective evaluations) and reaches residual RMSE \(2.01441\times10^{-4}\) on the quote set.
@@ -502,4 +509,4 @@ Second, the calibrated market state \((\rho,\kappa,\gamma,\bar v,v_0)\) is injec
 
 Third, Greek extraction is performed on top of the same calibrated parameter state. The baseline PINN Greek pass runs at \(\approx 9.48\times10^3\) points/s, while the Sobolev variant runs at \(\approx 8.60\times10^3\) points/s (about \(9.3\%\) slower) and substantially improves derivative accuracy (for example, GAMMA RMSE from \(3.85\times10^{-1}\) to \(8.94\times10^{-3}\), VEGA RMSE from \(6.55\times10^{-2}\) to \(3.17\times10^{-3}\)).
 
-Pipeline-level error should be read as stagewise bounds, not as a single scalar. The ANN and CaNN stages control IV-space mismatch used for calibration, pricing quality is validated in price space against COS, and Greek quality is validated in derivative space. Since these are different output spaces and objectives, the most reliable reading is the per-stage error envelope reported above and in Sections~6.2--6.5.
+Pipeline-level error should be read as stagewise bounds, not as a single scalar. The ANN and CaNN stages control IV-space mismatch used for calibration, pricing quality is validated in price space against COS, and Greek quality is validated in derivative space. Since these are different output spaces and objectives, the most reliable reading is the per-stage error envelope reported above and in Sections~\ref{sec:ann_pricer_performance}--\ref{sec:pinn_greeks_performance}.
