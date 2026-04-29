@@ -1,0 +1,105 @@
+{
+  "timestamp": "2026-04-28_17-08-01",
+  "model_bucket": "Liu_like_tanh_1M_v01",
+  "calibration_id": 2,
+  "run_tag": "tanh_1m",
+  "quotes_file": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.csv",
+  "market_quotes_copy": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/market_quotes_input.csv",
+  "model_run_dir": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01",
+  "checkpoint": "model_best.pt",
+  "device": "mps",
+  "n_quotes": 35,
+  "parameter_order": [
+    "rho",
+    "kappa",
+    "gamma",
+    "bar_v",
+    "v0"
+  ],
+  "theta_star": [
+    -0.4580521656046723,
+    1.0008479100720014,
+    0.34342840240528694,
+    0.19989821428766616,
+    0.21981678356626227
+  ],
+  "objective_fun": 2.599741913019093e-08,
+  "success": false,
+  "message": "Maximum number of iterations has been exceeded.",
+  "nit": 1500,
+  "nfev": 1627,
+  "residual_rmse": 2.7254052977855254e-05,
+  "weighted_mse": 7.427834037197408e-10,
+  "de_settings": {
+    "maxiter": 1500,
+    "popsize": 10,
+    "tol": 0.0001,
+    "mutation": [
+      0.5,
+      1.0
+    ],
+    "recombination": 0.7,
+    "seed": null,
+    "polish": true
+  },
+  "regularization": {
+    "type": "none",
+    "lambda": 0.0
+  },
+  "bounds": {
+    "rho": [
+      -0.9,
+      0.0
+    ],
+    "kappa": [
+      0.0,
+      3.0
+    ],
+    "gamma": [
+      0.01,
+      0.8
+    ],
+    "bar_v": [
+      0.01,
+      0.5
+    ],
+    "v0": [
+      0.05,
+      0.5
+    ]
+  },
+  "theta_true": [
+    -0.45,
+    1.0,
+    0.35,
+    0.2,
+    0.22
+  ],
+  "theta_true_source": "synthetic_truth.truth_file:/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.truth.yaml",
+  "parameter_abs_error": {
+    "rho": 0.008052165604672312,
+    "kappa": 0.0008479100720013566,
+    "gamma": 0.006571597594713041,
+    "bar_v": 0.0001017857123338517,
+    "v0": 0.00018321643373772623
+  },
+  "parameter_rel_error": {
+    "rho": 0.017893701343716248,
+    "kappa": 0.0008479100720013566,
+    "gamma": 0.018775993127751547,
+    "bar_v": 0.0005089285616692585,
+    "v0": 0.0008328019715351192
+  },
+  "parameter_error_artifacts": {
+    "table_csv": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/parameter_errors.csv",
+    "abs_bar_png": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/parameter_error_abs_bar.png",
+    "abs_heatmap_png": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/parameter_error_abs_heatmap.png",
+    "rel_heatmap_png": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/parameter_error_rel_heatmap.png"
+  },
+  "curvature_theta_star_artifacts": {
+    "json": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/curvature_theta_star.json",
+    "hessian_csv": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/hessian_theta_star.csv",
+    "jacobian_plot": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/jacobian_theta_star.png",
+    "hessian_plot": "/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_tanh_1M_v01/Calibration_2/hessian_theta_star.png"
+  }
+}

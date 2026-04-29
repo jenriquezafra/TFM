@@ -1,0 +1,79 @@
+timestamp: 2026-04-28_17-38-46
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01
+checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/train/checkpoints/model_best.pt
+architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture.yaml
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+device: cpu
+dtype: torch.float64
+n_input_points: 25921
+n_valid_points: 25921
+failed_reference_points: 0
+pinn_derivatives_seconds: 2.791296458017314
+reference_seconds: 7.028125209006248
+pinn_points_per_second: 9286.365812398139
+reference_points_per_second: 3688.181304280596
+spot_feature: moneyness
+vol_feature: v
+tau_feature: tau
+rate_feature: r
+theta_sign: minus_dv_dtau
+strike: 1.0
+option_type: put
+cf_integration:
+  u_min: 1.0e-06
+  u_max: 200.0
+  n_u: 1200
+benchmark_metrics:
+- greek: delta
+  n_points: 25921
+  mse: 1.4852633736827842e-06
+  rmse: 0.001218713819435385
+  r2: 0.9999197389227314
+  mape_pct: 0.24911629028606155
+  mae: 0.0007943849315140657
+  max_abs_error: 0.009840948078981837
+- greek: gamma
+  n_points: 25921
+  mse: 0.0002907301273521561
+  rmse: 0.017050810167031832
+  r2: 0.9986937074268947
+  mape_pct: 0.6898722115039404
+  mae: 0.008269385036259066
+  max_abs_error: 0.19588847019722033
+- greek: vega
+  n_points: 25921
+  mse: 1.5598529332460929e-06
+  rmse: 0.00124894072447258
+  r2: 0.9992577851789013
+  mape_pct: 0.5669183955593561
+  mae: 0.0009160980537385776
+  max_abs_error: 0.009732454872120697
+- greek: theta
+  n_points: 25921
+  mse: 3.1558993620806983e-06
+  rmse: 0.0017764851145114326
+  r2: 0.998687552989043
+  mape_pct: 0.4406675511119758
+  mae: 0.0005721713697048074
+  max_abs_error: 0.023426347361198196
+- greek: rho
+  n_points: 25921
+  mse: 0.00010222482647915354
+  rmse: 0.010110629380961085
+  r2: 0.999129252909433
+  mape_pct: 4.859053549456593
+  mae: 0.008442430770004821
+  max_abs_error: 0.030283130945585848
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf_tanh_cann_1m/points_pinn_vs_heston_cf_greeks.csv
+  metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf_tanh_cann_1m/metrics_by_greek.csv
+  metrics_yaml: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf_tanh_cann_1m/metrics.yaml
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf_tanh_cann_1m/figures

@@ -1,0 +1,71 @@
+timestamp: 2026-04-28_17-34-37
+config_source: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_greeks_benchmark.yaml
+global_config:
+  run_dir: latest
+  checkpoint_name: model_best.pt
+  architecture_config: null
+  device: auto
+  dtype: float64
+  feature_order: null
+  spot_feature: moneyness
+  vol_feature: v
+  tau_feature: tau
+  rate_feature: r
+  theta_sign: minus_dv_dtau
+  strike: 1.0
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+benchmark_config:
+  source_mode: surface_grid
+  collocation_manifest: null
+  collocation_dataset: interior
+  input_csv: null
+  n_points: 1200
+  seed: 42
+  option_type: put
+  mape_floor: 0.0001
+  n_bins: 161
+  output_subdir: benchmark_cf
+  surface_grid:
+    x_feature: moneyness
+    x_min: 0.8
+    x_max: 1.2
+    x_points: 161
+    y_feature: tau
+    y_min: 0.05
+    y_max: 2.0
+    y_points: 161
+  fixed_values:
+    tau: 1.0
+    moneyness: 1.0
+    v: 0.04
+    rho: -0.7
+    kappa: 2.0
+    gamma: 0.3
+    bar_v: 0.04
+    r: 0.01
+  cf_integration:
+    u_min: 1.0e-06
+    u_max: 200.0
+    n_u: 1200
+resolved:
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01
+  checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/train/checkpoints/model_best.pt
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture.yaml
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  device: cpu
+  dtype: torch.float64
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf/points_pinn_vs_heston_cf_greeks.csv
+  metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf/metrics_by_greek.csv
+  metrics_yaml: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf/metrics.yaml
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_fixed_theta_tanh_cann_1M_v01/greeks/benchmark_cf/figures

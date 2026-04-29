@@ -1,0 +1,19 @@
+name: "ANN_Heston_IV_Tanh"
+
+type: "mlp"
+
+input:
+  name: "heston_params_m_tau_r"
+  dim: 8
+
+hidden:
+  dims: [200, 200, 200, 200]
+  activation: "tanh"
+  initialization: "xavier_uniform"
+  dropout_rate: 0.0
+  batch_norm: false
+
+output:
+  dim: 1
+  name: "IV"
+  activation: "linear"
