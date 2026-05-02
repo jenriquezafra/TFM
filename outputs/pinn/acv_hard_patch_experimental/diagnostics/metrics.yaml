@@ -1,0 +1,182 @@
+config_path: configs/acv_hard_patch_diagnostics.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental
+checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental/checkpoints/model_best.pt
+acv_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental/run_config.yaml
+detail_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental/diagnostics/surface_diagnostics.csv
+metrics:
+  full:
+    n: 32761
+    price:
+      rmse: 0.004263465176699034
+      mae: 0.003733325325200558
+      p90_abs_error: 0.006439744675579562
+      p99_abs_error: 0.006675659229011999
+      max_abs_error: 0.006750545237514172
+    delta:
+      rmse: 0.03326843074246092
+      mae: 0.02804233582964685
+      p90_abs_error: 0.058148956624408776
+      p99_abs_error: 0.07711767128493376
+      max_abs_error: 0.0954942036119143
+    gamma:
+      rmse: 1.7900697447093128
+      mae: 0.45260474804632445
+      p90_abs_error: 0.6953620506546008
+      p99_abs_error: 5.680595989675513
+      max_abs_error: 63.30265242137033
+    vega:
+      rmse: 0.06442129669540063
+      mae: 0.05655018682644948
+      p90_abs_error: 0.09678166165505281
+      p99_abs_error: 0.11657117250992689
+      max_abs_error: 0.12344529424488443
+    theta:
+      rmse: 0.010290969205527313
+      mae: 0.0043488751385220075
+      p90_abs_error: 0.007852801511764547
+      p99_abs_error: 0.054723480781628725
+      max_abs_error: 0.1700820696005591
+    rho:
+      rmse: 0.08203629209803207
+      mae: 0.0700256170178866
+      p90_abs_error: 0.12865256743647668
+      p99_abs_error: 0.16187914277803772
+      max_abs_error: 0.17329560740111277
+    pde_residual:
+      rmse: 0.036715992187426535
+      mae: 0.00919701149515224
+      p90_abs_error: 0.01099520969476226
+      p99_abs_error: 0.12204836686628184
+      max_abs_error: 1.145655784005513
+  short_maturity:
+    n: 905
+    price:
+      rmse: 0.0012565117062016155
+      mae: 0.0009502594516367092
+      p90_abs_error: 0.00217512400771502
+      p99_abs_error: 0.0038512285492698366
+      max_abs_error: 0.004040720796281129
+    delta:
+      rmse: 0.022180424073907523
+      mae: 0.016486914669018193
+      p90_abs_error: 0.03613646678645064
+      p99_abs_error: 0.06684814840724039
+      max_abs_error: 0.08085167576142327
+    gamma:
+      rmse: 9.665933162745342
+      mae: 4.795426381230729
+      p90_abs_error: 14.970740450331812
+      p99_abs_error: 40.29819269141711
+      max_abs_error: 63.30265242137033
+    vega:
+      rmse: 0.01271735871751892
+      mae: 0.010513928158472805
+      p90_abs_error: 0.019841377948337204
+      p99_abs_error: 0.03585365091144708
+      max_abs_error: 0.042311142974447685
+    theta:
+      rmse: 0.049643644135651706
+      mae: 0.03921613552780404
+      p90_abs_error: 0.0842084513241035
+      p99_abs_error: 0.12519744968940583
+      max_abs_error: 0.1700820696005591
+    rho:
+      rmse: 0.04417773610949726
+      mae: 0.03669373111556335
+      p90_abs_error: 0.07297680998718974
+      p99_abs_error: 0.10744181804766115
+      max_abs_error: 0.11322525924996618
+    pde_residual:
+      rmse: 0.19698539774459375
+      mae: 0.10705684621286944
+      p90_abs_error: 0.33589422538261515
+      p99_abs_error: 0.8207595425689207
+      max_abs_error: 1.145655784005513
+  atm:
+    n: 4887
+    price:
+      rmse: 0.005569899497765468
+      mae: 0.005390577483987496
+      p90_abs_error: 0.006542816513718785
+      p99_abs_error: 0.006640143991711759
+      max_abs_error: 0.006705780604197298
+    delta:
+      rmse: 0.018046498355939584
+      mae: 0.016068727893591428
+      p90_abs_error: 0.025637236306294744
+      p99_abs_error: 0.04271366990941652
+      max_abs_error: 0.07909575402626845
+    gamma:
+      rmse: 2.9171683320093207
+      mae: 0.7229064078674728
+      p90_abs_error: 0.5124638362610019
+      p99_abs_error: 14.331926377526976
+      max_abs_error: 51.66804973928971
+    vega:
+      rmse: 0.09327571926175061
+      mae: 0.0910719528119436
+      p90_abs_error: 0.11483645712439343
+      p99_abs_error: 0.12042058064918071
+      max_abs_error: 0.12344529424488443
+    theta:
+      rmse: 0.014101987375791046
+      mae: 0.0055050974685926304
+      p90_abs_error: 0.008319480778798492
+      p99_abs_error: 0.07733064209534923
+      max_abs_error: 0.12523847093854773
+    rho:
+      rmse: 0.07451365332342871
+      mae: 0.05471151845411368
+      p90_abs_error: 0.13958531599432317
+      p99_abs_error: 0.16867270919554486
+      max_abs_error: 0.17321316072950294
+    pde_residual:
+      rmse: 0.06170367498557694
+      mae: 0.015930043714731182
+      p90_abs_error: 0.011887458036226676
+      p99_abs_error: 0.3102243855093841
+      max_abs_error: 1.145655784005513
+  hard:
+    n: 135
+    price:
+      rmse: 0.0016092690866840115
+      mae: 0.0013128100551277407
+      p90_abs_error: 0.0026297766792352665
+      p99_abs_error: 0.0036117416266889177
+      max_abs_error: 0.003775327371977666
+    delta:
+      rmse: 0.031326747245590224
+      mae: 0.02478415487357364
+      p90_abs_error: 0.05453167026791337
+      p99_abs_error: 0.07474846122372335
+      max_abs_error: 0.07909575402626845
+    gamma:
+      rmse: 15.84832603078266
+      mae: 12.03019305703438
+      p90_abs_error: 25.023171372905576
+      p99_abs_error: 45.263619920112504
+      max_abs_error: 51.66804973928971
+    vega:
+      rmse: 0.01648964753128659
+      mae: 0.01317197758436951
+      p90_abs_error: 0.027382023972976746
+      p99_abs_error: 0.0403476039875602
+      max_abs_error: 0.042311142974447685
+    theta:
+      rmse: 0.061594192920786675
+      mae: 0.05693241188212673
+      p90_abs_error: 0.08581507879828042
+      p99_abs_error: 0.09237978162063579
+      max_abs_error: 0.12523847093854773
+    rho:
+      rmse: 0.016273473273099682
+      mae: 0.013264829048057527
+      p90_abs_error: 0.027006236652683067
+      p99_abs_error: 0.03486847519713511
+      max_abs_error: 0.036138087281357756
+    pde_residual:
+      rmse: 0.3300028115988925
+      mae: 0.25454136722620885
+      p90_abs_error: 0.5363771222411854
+      p99_abs_error: 0.9217605029916512
+      max_abs_error: 1.145655784005513

@@ -1,0 +1,45 @@
+global:
+  run_dir: "acv_hard_patch_experimental"
+  checkpoint_name: "model_best.pt"
+  acv_config: null
+  device: "auto"
+  dtype: "float64"
+
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+  chunk_size_pde: 128
+
+diagnostics:
+  output_subdir: "diagnostics"
+  option_type: "put"
+  compute_pde_residual: true
+
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+
+  surface_grid:
+    x_feature: "moneyness"
+    x_min: 0.8
+    x_max: 1.2
+    x_points: 181
+    y_feature: "tau"
+    y_min: 0.005
+    y_max: 2.0
+    y_points: 181
+
+  fixed_values:
+    tau: 1.0
+    moneyness: 1.0
+    v: 0.04
+    rho: -0.7
+    kappa: 2.0
+    gamma: 0.3
+    bar_v: 0.04
+    r: 0.01
+
+  cf_integration:
+    u_min: 1.0e-6
+    u_max: 200.0
+    n_u: 1200

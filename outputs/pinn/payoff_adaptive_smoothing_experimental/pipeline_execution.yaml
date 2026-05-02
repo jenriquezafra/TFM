@@ -1,0 +1,12 @@
+timestamp: 2026-05-01_13-15-22
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_pipeline_payoff_adaptive_smoothing_experimental.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/payoff_adaptive_smoothing_experimental
+stages:
+  prepare_dataset:
+    status: skipped
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/payoff_adaptive_smoothing_experimental/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped

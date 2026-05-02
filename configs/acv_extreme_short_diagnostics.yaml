@@ -1,0 +1,64 @@
+global:
+  device: "auto"
+  dtype: "float64"
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+  chunk_size_pde: 128
+
+baseline:
+  run_dir: "PINN_mix_scaled_param"
+  checkpoint_name: "model_best.pt"
+  architecture_config: null
+  feature_order: null
+
+acv:
+  run_dir: "acv_hard_patch_control_variate"
+  checkpoint_name: "model_best.pt"
+  acv_config: null
+
+grid:
+  tau_min: 1.0e-4
+  tau_max: 5.0e-2
+  tau_points: 80
+  log_moneyness_min: -0.06
+  log_moneyness_max: 0.06
+  x_points: 121
+  fixed_values:
+    tau: 1.0
+    moneyness: 1.0
+    v: 0.04
+    rho: -0.7
+    kappa: 2.0
+    gamma: 0.3
+    bar_v: 0.04
+    r: 0.01
+
+regions:
+  hard_x_abs: 0.03
+  patch_x_abs: 0.06
+  ultra_short_tau: 1.0e-3
+  near_zero_tau: 5.0e-3
+  hard_tau: 5.0e-2
+
+tau_buckets:
+  - 1.0e-4
+  - 5.0e-4
+  - 1.0e-3
+  - 5.0e-3
+  - 1.0e-2
+  - 5.0e-2
+
+diagnostics:
+  option_type: "put"
+  compute_pde_residual: true
+
+cf_integration:
+  u_min: 1.0e-6
+  # Extreme-short Gamma is a narrow Fourier feature; use a wider integration
+  # range than the standard diagnostics before trusting tau ~= 1e-4 metrics.
+  u_max: 600.0
+  n_u: 2400
+
+outputs:
+  output_dir: "outputs/pinn/acv_hard_patch_control_variate/extreme_short"

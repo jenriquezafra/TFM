@@ -1,0 +1,39 @@
+meta:
+  experiment_name: "multi_output_greek_consistency"
+  seed: 42
+  description: "Experimental multi-output PINN with no-label Greek consistency heads."
+
+inputs:
+  cann:
+    calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_l2_reg"
+    summary_file: "summary.yaml"
+    quotes_file: "quotes_comparison.parquet"
+    parameter_key: "theta_star"
+    columns:
+      moneyness: "moneyness"
+      tau: "tau"
+      r: "r"
+      iv_market: "iv_market"
+      iv_pred: "iv_pred"
+
+  pricing_context:
+    target_name: "price_market"
+    spot: null
+    strike_column: null
+
+model:
+  architecture_config: "configs/pinn_model_architecture_multi_output_greek_consistency.yaml"
+
+training:
+  training_config: "configs/pinn_training_multi_output_greek_consistency.yaml"
+
+pipeline:
+  stages:
+    prepare_dataset: false
+    train: true
+    evaluate: false
+
+outputs:
+  root_dir: "outputs/pinn"
+  run_name: "multi_output_greek_consistency"
+  dump_plan_filename: "pipeline_plan.yaml"

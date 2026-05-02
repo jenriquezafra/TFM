@@ -1,0 +1,91 @@
+meta:
+  experiment_id: acv_hard_patch_control_variate
+  seed: 42
+  device: auto
+  dtype: float64
+  description: 'Experimental ACV-HardPatch ablation with zero residual network. This
+    keeps the frozen baseline and local PUT Black-Scholes control variate, but does
+    not train R_theta.
+
+    '
+baseline:
+  run_dir: PINN_mix_scaled_param
+  checkpoint_name: model_best.pt
+  architecture_config: null
+  feature_order: null
+model:
+  residual:
+    hidden_dims:
+    - 128
+    - 128
+    - 128
+    - 128
+    activation: tanh
+    fourier_frequencies: 6
+    final_init_scale: 0.0
+patch:
+  gate:
+    x_center: 0.08
+    tau_center: 0.1
+    delta_x: 0.01
+    delta_tau: 0.015
+  scales:
+    q_epsilon: 1.0e-10
+    bs_epsilon: 1.0e-12
+    tau_epsilon: 1.0e-08
+    terminal_tau: 0.0
+    z_clip: 50.0
+sampling:
+  tau_min: 0.0001
+  domain:
+    tau:
+    - 0.0
+    - 3.0
+    moneyness:
+    - 0.01
+    - 2.0
+    v:
+    - 0.01
+    - 0.5
+    r:
+    - 0.0
+    - 0.05
+    heston_params:
+      rho:
+      - -0.9
+      - 0.0
+      kappa:
+      - 0.0
+      - 3.0
+      gamma:
+      - 0.01
+      - 0.8
+      bar_v:
+      - 0.01
+      - 0.5
+  hard_region:
+    x_abs: 0.03
+    tau_max: 0.05
+  patch_region:
+    x_abs: 0.06
+    tau_max: 0.08
+    buffer_x_abs: 0.08
+    buffer_tau_max: 0.1
+  z_sampling:
+    z_min: -4.0
+    z_max: 4.0
+  pde_mix:
+    hard_core: 0.35
+    z_layer: 0.2
+    buffer: 0.3
+    global: 0.15
+price_labels:
+  enabled: false
+stencil_labels:
+  enabled: false
+training:
+  save_initial_checkpoint_only: true
+  stages: []
+outputs:
+  root_dir: outputs/pinn
+  run_name: acv_hard_patch_control_variate_best_gate_tau_floor_5e4

@@ -1,0 +1,14 @@
+experiment_id: acv_hard_patch_experimental
+status: completed
+config_path: configs/acv_hard_patch_experimental.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental
+device: cpu
+dtype: torch.float64
+best_loss: 0.0010312416482326282
+best_stage: stage2_pde_terminal_interface
+n_steps: 4000
+history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental/metrics/train_history.csv
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental/checkpoints/model_last.pt
+baseline_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param
+baseline_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt

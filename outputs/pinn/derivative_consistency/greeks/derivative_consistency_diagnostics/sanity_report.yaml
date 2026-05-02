@@ -1,0 +1,66 @@
+timestamp: 2026-05-01_12-45-25
+experiment_id: derivative_consistency
+pde_convention:
+  time_variable: tau = T - t
+  calendar_theta: theta = -dV/dtau when theta_sign='minus_dv_dtau'
+  implemented_residual: u_tau - 0.5*v*m^2*u_mm - rho*gamma*v*m*u_mv - 0.5*gamma^2*v*u_vv
+    - r*m*u_m - kappa*(bar_v-v)*u_v + r*u
+  pde_feature_order_supported:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  pde_residual_computed: true
+  derivative_residual_computed: false
+greek_definitions:
+  delta: dV/dmoneyness; converted to spot S with strike=1.0 when moneyness is used
+  gamma: d2V/dmoneyness2; converted to spot S with strike=1.0 when moneyness is used
+  vega: dV/dv; current convention is sensitivity to variance v
+  theta: calendar-time theta = -dV/dtau
+  rho: dV/dr
+regions:
+  epsilon_m: 0.03
+  epsilon_tau: 0.05
+  counts:
+    full: 32761
+    short_maturity: 905
+    atm: 4887
+    hard: 135
+run:
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency
+  checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency/train/checkpoints/model_best.pt
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture.yaml
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  device: cpu
+  dtype: torch.float64
+timing:
+  pinn_derivatives_seconds: 3.3967683330120053
+  reference_seconds: 8.842498165991856
+  pinn_points_per_second: 9644.755481734588
+  reference_points_per_second: 3704.9484642245584
+reference:
+  option_type: put
+  failed_reference_points: 0
+  cf_integration:
+    u_min: 1.0e-06
+    u_max: 200.0
+    n_u: 1200
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency/greeks/derivative_consistency_diagnostics/points_baseline_diagnostics.csv
+  metrics_by_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency/greeks/derivative_consistency_diagnostics/metrics_by_region.csv
+  no_reference_diagnostics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency/greeks/derivative_consistency_diagnostics/no_reference_diagnostics.csv
+  finite_difference_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency/greeks/derivative_consistency_diagnostics/finite_difference_consistency.csv
+  finite_difference_metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency/greeks/derivative_consistency_diagnostics/finite_difference_metrics.csv
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/derivative_consistency/greeks/derivative_consistency_diagnostics/figures

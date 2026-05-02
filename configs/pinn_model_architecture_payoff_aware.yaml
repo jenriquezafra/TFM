@@ -1,0 +1,34 @@
+name: "PINN_Heston_Price_PayoffAware"
+type: "mlp_pinn_payoff_aware"
+
+input:
+  # Expected structure: [tau, moneyness, v, rho, kappa, gamma, bar_v, r]
+  dim: 8
+  features: ["tau", "moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+
+hidden:
+  dims: [256, 256, 256, 256]
+  activation: "tanh"
+  initialization: "xavier_uniform"
+  dropout_rate: 0.0
+  batch_norm: false
+
+output:
+  dim: 1
+  name: "price"
+  activation: "linear"
+
+payoff_aware:
+  enabled: true
+  option_type: "put"
+  tau_index: 0
+  spot_index: 1
+  strike: 1.0
+  payoff_smoothing: 1.0e-3
+  time_factor: "linear_tau"
+  time_epsilon: 1.0e-6
+
+physics:
+  equation: "heston_pde"
+  requires_autograd: true
+  derivative_order: 2

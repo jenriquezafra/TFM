@@ -1,0 +1,61 @@
+meta:
+  seed: 42
+  device: "auto"
+  optimizer: "adam"
+  initial_checkpoint: null
+
+data:
+  supervised_source: "cann_quotes_comparison"
+  target_column: "price_market"
+  val_fraction: 0.2
+  input_scaling:
+    enabled: true
+    method: "from_train_summary"
+    summary_file: null
+
+optimizers:
+  - name: "adam"
+    learn_rate: 2.0e-4
+    weight_decay: 0.0
+  - name: "L-BFGS"
+    learn_rate: 0.5
+    max_iter: 20
+    line_search_fn: "strong_wolfe"
+    historic_size: 100
+    full_batch: true
+
+loss:
+  reduction: "mean"
+  weights:
+    pde: 1.0
+    term: 1.0
+    low: 1.0
+    no_arbitrage: 1.0
+
+loop:
+  epochs: 1000
+  mix_half_switch_epoch: null
+  batch_size_collocation: 2048
+  batch_size_boundary: 512
+  log_every: 50
+
+callbacks:
+  checkpoint:
+    enabled: true
+    filename_best: "model_best.pt"
+    filename_last: "model_last.pt"
+  early_stopping:
+    enabled: false
+    monitor: "val_total_loss"
+    patience: 200
+    min_delta: 1.0e-7
+  lr_scheduler:
+    enabled: true
+    name: "step"
+    step_size: 250
+    gamma: 0.5
+
+evaluation:
+  enabled: true
+  batch_size: 8192
+  metrics: ["mse", "mae", "rmse", "pde_residual_l2"]

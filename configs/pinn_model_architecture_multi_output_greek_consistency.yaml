@@ -1,0 +1,31 @@
+name: "PINN_Heston_MultiOutput_GreekConsistency"
+type: "mlp_pinn_multi_output_greek_consistency"
+
+input:
+  # Raw financial input structure expected by losses and Greek diagnostics:
+  # [tau, moneyness, v, rho, kappa, gamma, bar_v, r]
+  dim: 8
+  features: ["tau", "moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+
+hidden:
+  dims: [256, 256, 256, 256]
+  activation: "tanh"
+  initialization: "xavier_uniform"
+  dropout_rate: 0.0
+  batch_norm: false
+
+output:
+  dim: 4
+  names: ["price", "delta_m", "gamma_mm", "vega_v"]
+  activation: "linear"
+
+greek_consistency:
+  enabled: true
+  experimental: true
+  head_order: ["price", "delta_m", "gamma_mm", "vega_v"]
+  notes: "Experimental no-label Greek consistency; forward() returns price only, forward_all() returns all heads."
+
+physics:
+  equation: "heston_pde"
+  requires_autograd: true
+  derivative_order: 2

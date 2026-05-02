@@ -1,0 +1,31 @@
+project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_pipeline_payoff_aware.yaml
+experiment_name: payoff_aware_pinn
+description: Payoff-aware PINN using terminal payoff structure and the baseline parametric
+  domain.
+architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_model_architecture_payoff_aware.yaml
+training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_training_payoff_aware.yaml
+outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn
+run_name: payoff_aware_pinn
+plan_filename: pipeline_plan.yaml
+plan_path: null
+cann_inputs:
+  calibration_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_l2_reg
+  summary_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_l2_reg/summary.yaml
+  quotes_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_l2_reg/quotes_comparison.parquet
+  parameter_key: theta_star
+pipeline:
+  stages:
+  - name: prepare_dataset
+    enabled: false
+    description: Read calibrated parameters from CaNN and build supervised + physics
+      datasets.
+    owner_module: src.pinn.data_builder
+  - name: train
+    enabled: true
+    description: Train the PINN with data loss and PDE residual losses.
+    owner_module: src.pinn.trainer
+  - name: evaluate
+    enabled: false
+    description: Evaluate PINN pricing quality and physics consistency metrics.
+    owner_module: src.pinn.evaluator

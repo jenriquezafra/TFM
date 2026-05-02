@@ -244,6 +244,110 @@ def _build_input_affine_from_train(
     }
 
 
+def _resolve_config_path(path_raw: str | Path, *, base_dir: Path | None = None) -> Path:
+    path = Path(path_raw)
+    if path.is_absolute():
+        return path
+    if base_dir is not None:
+        candidate = base_dir / path
+        if candidate.exists():
+            return candidate
+    return Path.cwd() / path
+
+
+def _load_input_affine_from_summary(
+    *,
+    summary_path: Path,
+    feature_order: list[str],
+) -> dict:
+    if not summary_path.exists():
+        raise FileNotFoundError(f"Input-scaling summary file not found: {summary_path}")
+    summary = _load_yaml(summary_path)
+    input_affine = summary.get("input_scaling", {})
+    if not isinstance(input_affine, dict):
+        raise ValueError(f"train_summary input_scaling must be a dictionary: {summary_path}")
+    if not bool(input_affine.get("enabled", False)):
+        return {
+            "enabled": False,
+            "method": "none",
+        }
+
+    stats_feature_order = list(input_affine.get("feature_order", []))
+    if not stats_feature_order:
+        raise ValueError(f"input_scaling.feature_order missing in {summary_path}")
+    missing = [name for name in feature_order if name not in stats_feature_order]
+    if missing:
+        raise KeyError(
+            f"Input-scaling summary {summary_path} missing features {missing}. "
+            f"Available: {stats_feature_order}"
+        )
+
+    a_all = np.asarray(input_affine.get("a", []), dtype=np.float32).reshape(-1)
+    b_all = np.asarray(input_affine.get("b", []), dtype=np.float32).reshape(-1)
+    if a_all.size != len(stats_feature_order) or b_all.size != len(stats_feature_order):
+        raise ValueError(
+            f"input_scaling dimension mismatch in {summary_path}: "
+            f"feature_order={len(stats_feature_order)} a={a_all.size} b={b_all.size}"
+        )
+    lookup = {name: idx for idx, name in enumerate(stats_feature_order)}
+    order_idx = [lookup[name] for name in feature_order]
+
+    out = dict(input_affine)
+    out["enabled"] = True
+    out["method"] = "from_train_summary"
+    out["source_summary_file"] = str(summary_path)
+    out["feature_order"] = list(feature_order)
+    out["a"] = a_all[order_idx].astype(np.float32).tolist()
+    out["b"] = b_all[order_idx].astype(np.float32).tolist()
+    for key in ("mean_train", "std_train"):
+        if key in input_affine:
+            values = np.asarray(input_affine.get(key, []), dtype=np.float32).reshape(-1)
+            if values.size == len(stats_feature_order):
+                out[key] = values[order_idx].astype(np.float32).tolist()
+    return out
+
+
+def _build_input_affine(
+    *,
+    x_train: dict[str, np.ndarray],
+    feature_order: list[str],
+    scaling_cfg: dict,
+    output_dir: Path,
+) -> dict | None:
+    enabled = bool(scaling_cfg.get("enabled", False))
+    if not enabled:
+        return None
+
+    method = str(scaling_cfg.get("method", "standardize_train")).strip().lower()
+    if method in {"standardize_train"}:
+        return _build_input_affine_from_train(
+            x_train=x_train,
+            feature_order=feature_order,
+            scaling_cfg=scaling_cfg,
+        )
+    if method in {"from_train_summary", "frozen_train_summary"}:
+        summary_raw = (
+            scaling_cfg.get("summary_file")
+            or scaling_cfg.get("train_summary_file")
+            or scaling_cfg.get("source_summary_file")
+        )
+        if summary_raw is None:
+            raise KeyError(
+                "data.input_scaling.method='from_train_summary' requires "
+                "'summary_file' or 'train_summary_file'."
+            )
+        loaded = _load_input_affine_from_summary(
+            summary_path=_resolve_config_path(summary_raw, base_dir=output_dir),
+            feature_order=feature_order,
+        )
+        return loaded if bool(loaded.get("enabled", False)) else None
+
+    raise ValueError(
+        f"Unsupported data.input_scaling.method='{method}'. "
+        "Use 'standardize_train' or 'from_train_summary'."
+    )
+
+
 def _to_torch_input_affine(
     *,
     input_affine: dict | None,
@@ -254,6 +358,67 @@ def _to_torch_input_affine(
     return {
         "a": torch.tensor(input_affine["a"], dtype=torch.float32, device=device),
         "b": torch.tensor(input_affine["b"], dtype=torch.float32, device=device),
+    }
+
+
+def _load_checkpoint_state(path: Path, *, device: torch.device) -> dict:
+    if not path.exists():
+        raise FileNotFoundError(f"Initial checkpoint file not found: {path}")
+    payload = torch.load(path, map_location=device)
+    if isinstance(payload, dict) and "model_state_dict" in payload:
+        payload = payload["model_state_dict"]
+    if not isinstance(payload, dict):
+        raise TypeError(f"Unexpected checkpoint payload type {type(payload)!r}: {path}")
+    return payload
+
+
+def _load_state_dict_flexible(
+    *,
+    model: nn.Module,
+    state: dict,
+) -> dict:
+    """
+    Load a checkpoint into a changed architecture where possible.
+
+    Exact-shape tensors are copied normally. If the target tensor has a larger
+    first dimension and all remaining dimensions match, the source tensor is
+    copied into the leading slice. This supports initializing a multi-output
+    head from a scalar-price checkpoint by copying the old price output into
+    head 0 while leaving the new Greek heads randomly initialized.
+    """
+
+    current = model.state_dict()
+    merged = dict(current)
+    copied: list[str] = []
+    partial: list[str] = []
+    skipped: list[str] = []
+    for key, source_value in state.items():
+        if key not in current:
+            skipped.append(key)
+            continue
+        target_value = current[key]
+        source_tensor = torch.as_tensor(source_value, dtype=target_value.dtype, device=target_value.device)
+        if source_tensor.shape == target_value.shape:
+            merged[key] = source_tensor
+            copied.append(key)
+            continue
+        if (
+            source_tensor.ndim == target_value.ndim
+            and source_tensor.ndim >= 1
+            and source_tensor.shape[0] <= target_value.shape[0]
+            and source_tensor.shape[1:] == target_value.shape[1:]
+        ):
+            updated = target_value.clone()
+            updated[: source_tensor.shape[0]] = source_tensor
+            merged[key] = updated
+            partial.append(key)
+            continue
+        skipped.append(key)
+    model.load_state_dict(merged, strict=True)
+    return {
+        "copied": copied,
+        "partial": partial,
+        "skipped": skipped,
     }
 
 
@@ -330,12 +495,34 @@ def _save_loss_curves(*, history_df: pd.DataFrame, figures_dir: Path) -> dict[st
     outputs["loss_curve"] = str(fig_total)
 
     fig_components = figures_dir / "loss_components_curve.png"
-    _, axes = plt.subplots(1, 3, figsize=(14.5, 4.3), sharex=True)
-    for ax, key, label in zip(
-        axes,
-        ("pde", "term", "low"),
-        ("PDE", "Terminal", "Lower boundary"),
-    ):
+    component_specs = [
+        ("pde", "PDE"),
+        ("dpde", "Derivative PDE"),
+        ("greek_delta", "Delta consistency"),
+        ("greek_gamma", "Gamma consistency"),
+        ("greek_vega", "Vega consistency"),
+        ("term", "Terminal"),
+        ("low", "Lower boundary"),
+    ]
+    component_specs = [
+        (key, label)
+        for key, label in component_specs
+        if f"train_{key}" in history_df.columns and f"val_{key}" in history_df.columns
+        and (
+            np.nanmax(
+                np.concatenate(
+                    [
+                        history_df[f"train_{key}"].to_numpy(dtype=np.float64),
+                        history_df[f"val_{key}"].to_numpy(dtype=np.float64),
+                    ]
+                )
+            )
+            > 0.0
+        )
+    ]
+    _, axes = plt.subplots(1, len(component_specs), figsize=(4.8 * len(component_specs), 4.3), sharex=True)
+    axes = np.atleast_1d(axes)
+    for ax, (key, label) in zip(axes, component_specs):
         ax.plot(epochs, history_df[f"train_{key}"].to_numpy(), label=f"train_{key}")
         ax.plot(epochs, history_df[f"val_{key}"].to_numpy(), label=f"val_{key}")
         ax.set_yscale("log")
@@ -564,17 +751,59 @@ class PINNTrainer:
             "terminal": x_terminal_val,
             "lower": x_lower_val,
         }
-        input_affine_np = _build_input_affine_from_train(
+        input_affine_np = _build_input_affine(
             x_train=x_train,
             feature_order=feature_order,
             scaling_cfg=input_scaling_cfg,
+            output_dir=self.output_dir,
         )
 
         model = build_pinn_model(model_config).to(device)
+        configure_input_affine = getattr(model, "configure_input_affine", None)
+        if callable(configure_input_affine):
+            configure_input_affine(input_affine_np)
         input_affine = _to_torch_input_affine(
             input_affine=input_affine_np,
             device=device,
         )
+
+        initial_checkpoint_raw = (
+            meta_cfg.get("initial_checkpoint")
+            or meta_cfg.get("warm_start_checkpoint")
+            or self.training_config.get("initial_checkpoint")
+        )
+        initial_checkpoint_path: Path | None = None
+        initial_checkpoint_report: dict | None = None
+        if initial_checkpoint_raw:
+            initial_checkpoint_path = _resolve_config_path(
+                initial_checkpoint_raw,
+                base_dir=self.output_dir,
+            )
+            initial_state = _load_checkpoint_state(initial_checkpoint_path, device=device)
+            initial_checkpoint_strict = bool(meta_cfg.get("initial_checkpoint_strict", True))
+            if initial_checkpoint_strict:
+                model.load_state_dict(initial_state, strict=True)
+                initial_checkpoint_report = {
+                    "strict": True,
+                    "copied": sorted(initial_state.keys()),
+                    "partial": [],
+                    "skipped": [],
+                }
+            else:
+                initial_checkpoint_report = {
+                    "strict": False,
+                    **_load_state_dict_flexible(model=model, state=initial_state),
+                }
+            if callable(configure_input_affine):
+                configure_input_affine(input_affine_np)
+            print(f"[PINN] warm-start checkpoint loaded: {initial_checkpoint_path}")
+            if initial_checkpoint_report is not None and not initial_checkpoint_report["strict"]:
+                print(
+                    "[PINN] flexible warm-start: "
+                    f"copied={len(initial_checkpoint_report['copied'])} "
+                    f"partial={len(initial_checkpoint_report['partial'])} "
+                    f"skipped={len(initial_checkpoint_report['skipped'])}"
+                )
 
         optimizers_by_name: dict[str, torch.optim.Optimizer] = {}
         schedulers_by_name: dict[str, torch.optim.lr_scheduler.LRScheduler | None] = {}
@@ -724,6 +953,10 @@ class PINNTrainer:
 
             train_loss_sum = 0.0
             train_pde_sum = 0.0
+            train_dpde_sum = 0.0
+            train_greek_delta_sum = 0.0
+            train_greek_gamma_sum = 0.0
+            train_greek_vega_sum = 0.0
             train_term_sum = 0.0
             train_low_sum = 0.0
             train_no_arb_sum = 0.0
@@ -773,6 +1006,10 @@ class PINNTrainer:
 
                 train_loss_sum += step_total
                 train_pde_sum += step_terms.pde
+                train_dpde_sum += step_terms.dpde
+                train_greek_delta_sum += step_terms.greek_delta
+                train_greek_gamma_sum += step_terms.greek_gamma
+                train_greek_vega_sum += step_terms.greek_vega
                 train_term_sum += step_terms.term
                 train_low_sum += step_terms.low
                 train_no_arb_sum += step_terms.no_arbitrage
@@ -780,6 +1017,10 @@ class PINNTrainer:
             train_total = train_loss_sum / max(n_steps, 1)
             train_terms = PINNLossTerms(
                 pde=train_pde_sum / max(n_steps, 1),
+                dpde=train_dpde_sum / max(n_steps, 1),
+                greek_delta=train_greek_delta_sum / max(n_steps, 1),
+                greek_gamma=train_greek_gamma_sum / max(n_steps, 1),
+                greek_vega=train_greek_vega_sum / max(n_steps, 1),
                 term=train_term_sum / max(n_steps, 1),
                 low=train_low_sum / max(n_steps, 1),
                 no_arbitrage=train_no_arb_sum / max(n_steps, 1),
@@ -804,11 +1045,19 @@ class PINNTrainer:
                     "lr": current_lr,
                     "train_total": float(train_total),
                     "train_pde": float(train_terms.pde),
+                    "train_dpde": float(train_terms.dpde),
+                    "train_greek_delta": float(train_terms.greek_delta),
+                    "train_greek_gamma": float(train_terms.greek_gamma),
+                    "train_greek_vega": float(train_terms.greek_vega),
                     "train_term": float(train_terms.term),
                     "train_low": float(train_terms.low),
                     "train_no_arbitrage": float(train_terms.no_arbitrage),
                     "val_total": float(val_total),
                     "val_pde": float(val_terms.pde),
+                    "val_dpde": float(val_terms.dpde),
+                    "val_greek_delta": float(val_terms.greek_delta),
+                    "val_greek_gamma": float(val_terms.greek_gamma),
+                    "val_greek_vega": float(val_terms.greek_vega),
                     "val_term": float(val_terms.term),
                     "val_low": float(val_terms.low),
                     "val_no_arbitrage": float(val_terms.no_arbitrage),
@@ -831,8 +1080,8 @@ class PINNTrainer:
                     f"lr={current_lr:.3e} | "
                     f"train={train_total:.3e} | "
                     f"val={val_total:.3e} | "
-                    f"train(pde/term/low)=({train_terms.pde:.3e}, {train_terms.term:.3e}, {train_terms.low:.3e}) | "
-                    f"val(pde/term/low)=({val_terms.pde:.3e}, {val_terms.term:.3e}, {val_terms.low:.3e}) | "
+                    f"train(pde/dpde/gD/gG/gV/term/low)=({train_terms.pde:.3e}, {train_terms.dpde:.3e}, {train_terms.greek_delta:.3e}, {train_terms.greek_gamma:.3e}, {train_terms.greek_vega:.3e}, {train_terms.term:.3e}, {train_terms.low:.3e}) | "
+                    f"val(pde/dpde/gD/gG/gV/term/low)=({val_terms.pde:.3e}, {val_terms.dpde:.3e}, {val_terms.greek_delta:.3e}, {val_terms.greek_gamma:.3e}, {val_terms.greek_vega:.3e}, {val_terms.term:.3e}, {val_terms.low:.3e}) | "
                     f"best_val={best_val_loss:.3e} | "
                     f"epoch_t={_format_seconds(epoch_elapsed)} | "
                     f"elapsed={_format_seconds(elapsed_total)} | "
@@ -871,6 +1120,10 @@ class PINNTrainer:
             "epochs": epochs,
             "batch_size_collocation": batch_size_collocation,
             "batch_size_boundary": batch_size_boundary,
+            "initial_checkpoint": (
+                str(initial_checkpoint_path) if initial_checkpoint_path is not None else None
+            ),
+            "initial_checkpoint_report": initial_checkpoint_report,
             "val_fraction": val_fraction,
             "n_train_interior": int(len(x_train["interior"])),
             "n_train_terminal": int(len(x_train["terminal"])),

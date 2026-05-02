@@ -1,0 +1,12 @@
+timestamp: 2026-04-30_17-46-55
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/pinn_pipeline_boundary_layer_no_payoff.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/boundary_layer_pinn_no_payoff
+stages:
+  prepare_dataset:
+    status: skipped
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/boundary_layer_pinn_no_payoff/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped

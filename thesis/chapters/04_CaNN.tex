@@ -1,72 +1,111 @@
-\chapter{ANN-Accelerated Calibration of the Heston Model}
+\chapter{Neural Calibration as an Inverse Problem}
 \label{ch:cann}
 
-This chapter develops the calibration stage used in the thesis pipeline. The objective is to recover a market-consistent Heston parameter vector
+The previous chapter asked whether a neural network can reproduce the Heston implied-volatility map with sufficient accuracy to be useful as a pricer. This chapter turns the direction of the question around. Given a finite implied-volatility surface, what Heston parameter vector is implied by it, and how much confidence should be attached to that answer?
+
+This change of direction is important. Pricing is a forward approximation problem: the parameters and contract descriptors are known, and the network returns an implied volatility. Calibration is an inverse problem: the surface is observed, while the parameter vector
 \[
 \theta=(\rho,\kappa,\gamma,\bar v,v_0)
 \]
-from an implied-volatility surface. The chapter is primarily based on the neural calibration framework of Liu et al. \cite{liu}. In that approach, calibration is not performed by repeatedly calling the full Heston pricing engine. Instead, a trained neural pricer is kept fixed and used as a fast forward map inside an inverse optimization loop.
+must be inferred. The same ANN pricer is therefore used in a different role. It is no longer the object being trained, but a fixed computational instrument inside an optimization loop.
 
-The role of this chapter is therefore methodological. The contribution is not a new calibration architecture in isolation, but a reproducible implementation and adaptation of the Liu et al. workflow within the present thesis pipeline, with explicit diagnostics for residual fit, parameter recovery, regularization, and local identifiability. The quantitative benchmark results are reported later in Chapter~\ref{ch:performance_benchmarks}; here we define the calibration problem and explain the design choices that make the benchmark interpretable.
+The calibration strategy follows the neural calibration framework of Liu et al. \cite{liu}. The inherited principle is to avoid repeated calls to a full Heston pricing engine during calibration. Instead, a trained ANN forward surrogate is frozen and used to evaluate candidate Heston parameters quickly in implied-volatility space. The implementation in this thesis keeps this principle, but treats the output of the calibration stage as something that must be inspected rather than merely reported. Residual maps, regularization checks, and local curvature diagnostics are therefore part of the method, not only of the final benchmark.
 
-To make the dependence on \cite{liu} explicit, the main inherited ideas are:
-\begin{itemize}
-    \item using an ANN pricing surrogate to accelerate repeated Heston evaluations during calibration;
-    \item formulating calibration in implied-volatility space;
-    \item treating the calibrated Heston vector \((\rho,\kappa,\gamma,\bar v,v_0)\) as the inverse-problem output;
-    \item solving the inverse problem with a global optimizer rather than training a separate inverse network in this implementation.
-\end{itemize}
-The additions in this thesis are the integration with the reproducible COS/Brent data pipeline, the connection with the downstream PINN stage, and the local smoothness/curvature diagnostics used to interpret identifiability around the calibrated optimum.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Role of Calibration in the Pipeline}
-
-The supervised ANN pricer of Chapter~\ref{ch:ann_surrogate} approximates the forward map
-\[
-f_{NN}:(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\mapsto \sigma_{\mathrm{IV}},
-\]
-where \(\sigma_{\mathrm{IV}}\) denotes implied volatility. Calibration uses the same map in the inverse direction: given a set of observed implied volatilities over moneyness and maturity, it searches for the Heston parameters that reproduce those observations as closely as possible. This forward-surrogate-in-the-loop view is the central CaNN idea adopted from Liu et al. \cite{liu}.
-
-This stage is the bridge between the synthetic pricing surrogate and the downstream PINN analysis. Once the calibrated vector \(\theta^\star\) is obtained, it defines the market state consumed by later pricing and Greek-computation experiments. In particular, Chapter~\ref{ch:pinn_greeks} uses the calibrated structural parameters \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) and the calibrated initial variance \(v_0^\star\) to evaluate the PINN at the corresponding market configuration.
+The narrative of this chapter is consequently diagnostic. First, the inverse problem is defined in the same variables used by the ANN pricer. Second, the numerical calibration loop is described. Third, the chapter explains how the resulting optimum is audited: does it fit the surface, is the solution locally stable, and which parameters are strongly or weakly identified by the available quotes? The detailed benchmark numbers are reported in Chapter~\ref{ch:performance_benchmarks}; here the focus is the calibration mechanism and the evidence required to interpret it.
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: CaNN workflow graph}\\
-        Market IV quotes \(\rightarrow\) quote grid \((m,\tau,r,\sigma_{\mathrm{IV}},w)\) \(\rightarrow\)
-        candidate Heston parameters \(\theta\) \(\rightarrow\) frozen ANN pricer \(\rightarrow\)
-        predicted IV surface \(\rightarrow\) weighted calibration objective \(\rightarrow\)
-        Differential Evolution \(\rightarrow\) calibrated vector \(\theta^\star\) \(\rightarrow\)
-        PINN/pricing/Greeks stage.
-    }}
-    \caption{Conceptual graph of the ANN-accelerated calibration workflow. This figure should later be replaced by a clean pipeline diagram.}
-    \label{fig:cann_workflow_placeholder}
+    \includegraphics[width=0.98\textwidth]{figures/cann/cann_workflow_diagram.png}
+    \caption{ANN-accelerated inverse calibration workflow. Market implied-volatility quotes are compared with ANN-implied surfaces generated from candidate Heston vectors, and Differential Evolution searches for the vector that minimizes the weighted residual objective.}
+    \label{fig:cann_workflow}
 \end{figure}
 
-The term CaNN is kept as a convenient shorthand for the calibration stage of \cite{liu}. In the present implementation, however, the calibrated parameters are not produced by training a separate supervised inverse network. The central object is a fixed forward ANN pricer embedded in a numerical optimizer.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{From Forward Pricing to Inverse Calibration}
+
+The ANN surrogate trained in Chapter~\ref{ch:ann_surrogate} approximates the forward map
+\[
+f_{NN}:(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\mapsto \sigma_{\mathrm{IV}},
+\]
+where \(m=S_0/K\), \(\tau=T-t\), and \(\sigma_{\mathrm{IV}}\) is the implied volatility returned by the numerical Heston-COS/Brent pipeline during training.
+
+Calibration uses this map as an inner evaluator. For each candidate \(\theta\), the quote grid is completed with the repeated Heston parameters, passed through the frozen ANN, and compared with the observed implied-volatility surface. The optimizer never sees the true parameter vector in the synthetic experiment. It only sees the quote table, the admissible bounds, and the residual objective.
+
+This distinction makes the stage more than a speed-up device. A small residual means that the candidate vector reproduces the quoted surface well on the available grid. It does not automatically mean that each component of \(\theta\) has been uniquely recovered. Heston parameters can compensate for one another over a finite set of maturities and strikes, especially when the quote surface is smooth and sparse. For that reason, calibration quality is evaluated at two levels throughout the thesis: fit quality in implied-volatility space and parameter identifiability around the selected optimum.
+
+The output of this chapter is also the input to the later PINN workflow. Once the calibrated vector
+\[
+\theta^\star=(\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star,v_0^\star)
+\]
+has been obtained, the structural parameters \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) define the Heston operator used by the downstream pricing model, while \(v_0^\star\) fixes the current variance state at market evaluation time.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Inverse Calibration Problem}
+\section{Calibration Surface and Quote Encoding}
 
-Following the notation and calibration logic of \cite{liu}, let the calibration surface contain \(N_q\) market quotes
+The calibration surface is represented as a finite quote table
 \[
 \mathcal{Q}=\{(m_j,\tau_j,r_j,\sigma^{\mathrm{mkt}}_j,w_j)\}_{j=1}^{N_q},
 \]
-where \(m_j=S_0/K_j\) is moneyness, \(\tau_j\) is time to maturity, \(r_j\) is the risk-free rate, \(\sigma^{\mathrm{mkt}}_j\) is the observed implied volatility, and \(w_j\geq 0\) is an optional quote weight.
+where \(w_j\geq 0\) is an optional quote weight. This representation is intentionally close to the input format used by the ANN pricer. The model does not require the quote grid to be rectangular, although the benchmark experiment uses a complete grid to make the residual and curvature diagnostics easier to read.
 
-For a candidate Heston vector \(\theta\), the ANN pricer predicts the implied-volatility surface
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Quote-table representation used in calibration.}\label{tab:cann_quote_columns}}
+    {\begin{tabular}{|P{3.0cm}|P{8.7cm}|}
+        \hline
+        \textbf{Column} & \textbf{Meaning} \\
+        \hline
+        \texttt{moneyness} & \(m=S_0/K\), with the same convention as the ANN pricer. \\
+        \hline
+        \texttt{tau} & Time to maturity \(\tau=T-t\). \\
+        \hline
+        \texttt{r} & Risk-free rate associated with the quote. \\
+        \hline
+        \texttt{iv\_market} & Observed or synthetic market implied volatility. \\
+        \hline
+        \texttt{weight} & Quote weight used in the calibration objective; unit weights are used if absent. \\
+        \hline
+        \multicolumn{2}{l}{Source: Own calibration pipeline.}
+    \end{tabular}}
+\end{table}
+
+The benchmark quote universe contains \(35\) contracts arranged over five moneyness nodes and seven maturities. Figure~\ref{fig:cann_quote_surface} shows the surface used as calibration input. The figure is useful because it fixes the information content of the inverse problem: only this discrete surface is available to the optimizer.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\textwidth]{figures/cann/cann_quote_surface.png}
+    \caption{Implied-volatility surface used as calibration input in the Liu-style synthetic experiment. Markers show the \(35\) observed quote locations.}
+    \label{fig:cann_quote_surface}
+\end{figure}
+
+For a fixed candidate \(\theta\), the implementation constructs the ANN input matrix
+\[
+X(\theta)=
+\begin{bmatrix}
+\rho & \kappa & \gamma & \bar v & v_0 & m_1 & \tau_1 & r_1\\
+\rho & \kappa & \gamma & \bar v & v_0 & m_2 & \tau_2 & r_2\\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots\\
+\rho & \kappa & \gamma & \bar v & v_0 & m_{N_q} & \tau_{N_q} & r_{N_q}
+\end{bmatrix}.
+\]
+The Heston parameters are constant across rows, while the contract descriptors vary by quote. This construction keeps calibration aligned with the supervised pricer: no new feature convention is introduced at the inverse stage.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Objective Function and Bounds}
+
+For each quote \(j\), the ANN prediction under candidate \(\theta\) is
 \[
 \hat\sigma_j(\theta)
 =f_{NN}(\rho,\kappa,\gamma,\bar v,v_0,m_j,\tau_j,r_j),
-\qquad j=1,\dots,N_q.
+\qquad j=1,\dots,N_q,
 \]
-The calibration residual at quote \(j\) is
+and the residual is
 \[
 e_j(\theta)=\hat\sigma_j(\theta)-\sigma^{\mathrm{mkt}}_j.
 \]
+Calibration is performed in implied-volatility space. This is consistent with Liu et al. \cite{liu}, with the ANN training target, and with the market convention used to compare smiles across strikes and maturities. It also avoids raw price scale effects that would otherwise mix moneyness, discounting, maturity, and payoff magnitude.
 
-The objective minimized in calibration is the weighted implied-volatility mismatch, optionally augmented with a regularization term:
+The objective minimized in the calibration loop is
 \begin{equation}
 \label{eq:cann_objective}
 J(\theta)
@@ -75,7 +114,7 @@ J(\theta)
 \sum_{j=1}^{N_q} w_j e_j(\theta)^2
 +\lambda R(\theta).
 \end{equation}
-In the implementation, the optimizer may use the unnormalized weighted sum instead of the normalized weighted mean; this changes the objective by a positive constant factor when \(\lambda=0\), and therefore does not change the minimizer. Reported benchmark metrics use the normalized weighted-MSE convention.
+The implementation can evaluate the unnormalized weighted sum inside the optimizer; when \(\lambda=0\), this differs only by a positive constant factor and therefore has the same minimizer. Reported metrics in Chapter~\ref{ch:performance_benchmarks} use the normalized weighted-MSE convention.
 
 The calibrated vector is
 \begin{equation}
@@ -84,10 +123,7 @@ The calibrated vector is
 =
 \arg\min_{\theta\in\mathcal{B}}J(\theta),
 \end{equation}
-where \(\mathcal{B}\) denotes the admissible parameter box. In the reported experiments, the order of the calibrated parameters is
-\[
-(\rho,\kappa,\gamma,\bar v,v_0).
-\]
+where \(\mathcal{B}\) is the admissible Heston parameter box. The bounds used in this stage are shown in Table~\ref{tab:cann_parameter_bounds}.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
@@ -110,102 +146,34 @@ where \(\mathcal{B}\) denotes the admissible parameter box. In the reported expe
     \end{tabular}}
 \end{table}
 
-The bounds serve two purposes. First, they encode the parameter region in which the Heston model is considered admissible for the experiments. Second, they keep calibration inside the interpolation domain of the ANN pricer, limiting extrapolation risk during the inverse search.
+The bounds have a methodological role. They define the region in which the Heston parameters are considered admissible for this thesis, and they restrict the optimizer to the interpolation regime of the ANN pricer. Without this restriction, the calibration loop could exploit extrapolation artifacts of the surrogate rather than fitting the Heston model in a meaningful domain.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Input Representation: Implied-Volatility Surfaces}
+\section{Batched Calibration Architecture}
 
-Calibration is performed in implied-volatility space rather than in price space, as in Liu et al. \cite{liu}. This choice is consistent with the training target of the ANN pricer and with the market convention of comparing option surfaces across strikes and maturities. It also reduces scale effects: raw option prices vary strongly with moneyness, maturity, discounting, and payoff level, while implied volatility provides a more homogeneous representation of the smile surface.
+The calibration architecture is a composition of three elements: a frozen ANN pricer, a quote encoder, and a global optimizer. This differs from training a direct inverse network from surfaces to parameters. A direct inverse network would be extremely fast once trained, but it would require a separate supervised dataset of volatility surfaces and known parameter vectors. In the present thesis, the inverse problem is solved explicitly for the observed quote set, which makes the objective, residuals, and optimizer diagnostics directly inspectable.
 
-Each calibration input is represented as a table of quotes. At minimum, the table contains the columns shown in Table~\ref{tab:cann_quote_columns}.
-
-\begin{table}[H]
-    \ttabbox[\FBwidth]
-    {\caption{Quote-table representation used in calibration.}\label{tab:cann_quote_columns}}
-    {\begin{tabular}{|P{3.0cm}|P{8.7cm}|}
-        \hline
-        \textbf{Column} & \textbf{Meaning} \\
-        \hline
-        \texttt{moneyness} & \(m=S_0/K\), using the same convention as the ANN pricer. \\
-        \hline
-        \texttt{tau} & Time to maturity \(\tau=T-t\). \\
-        \hline
-        \texttt{r} & Risk-free rate associated with the quote. \\
-        \hline
-        \texttt{iv\_market} & Observed or synthetic market implied volatility. \\
-        \hline
-        \texttt{weight} & Optional quote weight used in the objective. If absent, unit weights are used. \\
-        \hline
-        \multicolumn{2}{l}{Source: Own calibration pipeline.}
-    \end{tabular}}
-\end{table}
-
-For a fixed candidate \(\theta\), the calibration pipeline constructs the ANN feature matrix
+For a population of \(S\) candidate vectors,
 \[
-X(\theta)=
-\begin{bmatrix}
-\rho & \kappa & \gamma & \bar v & v_0 & m_1 & \tau_1 & r_1\\
-\rho & \kappa & \gamma & \bar v & v_0 & m_2 & \tau_2 & r_2\\
-\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots\\
-\rho & \kappa & \gamma & \bar v & v_0 & m_{N_q} & \tau_{N_q} & r_{N_q}
-\end{bmatrix}.
+\Theta_{\mathrm{pop}}=\{\theta^{(1)},\dots,\theta^{(S)}\},
 \]
-The Heston parameters are repeated across all quotes, while \((m_j,\tau_j,r_j)\) vary by contract. A single batched ANN forward pass then produces the full predicted surface for that candidate.
+the implementation evaluates all candidates in vectorized form. The feature matrix contains \(S\times N_q\) rows, the ANN returns \(S\times N_q\) implied-volatility predictions, and the predictions are reshaped into \(S\) surfaces before applying Equation~\eqref{eq:cann_objective}. Figure~\ref{fig:cann_vectorized_evaluation} summarizes this data flow.
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: quote surface representation}\\
-        Suggested plot: observed IV surface over the \((m,\tau)\) grid, with moneyness on the horizontal axis, maturity on the vertical axis, and color indicating \(\sigma_{\mathrm{IV}}^{\mathrm{mkt}}\).\\
-        Candidate source: \texttt{data/market/market\_quotes\_liu\_35.csv}.
-    }}
-    \caption{Placeholder for the implied-volatility surface used as calibration input.}
-    \label{fig:cann_quote_surface_placeholder}
+    \includegraphics[width=0.92\textwidth]{figures/cann/cann_vectorized_evaluation.png}
+    \caption{Vectorized population evaluation used inside the calibration loop. Candidate parameters are crossed with the quote grid, scored as implied-volatility surfaces, and returned to the optimizer as one objective value per candidate.}
+    \label{fig:cann_vectorized_evaluation}
 \end{figure}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Architecture of the Calibration Stage}
-
-The calibration architecture follows the Liu et al. principle of separating the expensive forward pricing approximation from the inverse optimization task \cite{liu}. In this implementation it is a composition of three components:
-\begin{enumerate}
-    \item a frozen ANN pricer trained in Chapter~\ref{ch:ann_surrogate},
-    \item a quote-table encoder that builds ANN inputs for each candidate parameter vector,
-    \item a global optimizer that updates candidate parameter vectors to reduce the calibration objective.
-\end{enumerate}
-
-This is different from training a direct inverse map from a volatility surface to Heston parameters. Direct inverse networks can be extremely fast at inference time, but they require a dedicated supervised dataset of surfaces and known parameters. In line with the optimization-based calibration route in \cite{liu}, the calibration stage in this thesis solves the inverse problem explicitly for the observed quote set. This makes the objective value, residual map, and optimizer diagnostics directly inspectable.
-
-For a population of \(S\) candidate vectors, the implementation vectorizes the evaluation. If
-\[
-\Theta_{\mathrm{pop}}=
-\{\theta^{(1)},\dots,\theta^{(S)}\},
-\]
-then the feature matrix contains \(S\times N_q\) rows. The ANN returns \(S\times N_q\) predicted volatilities, which are reshaped into \(S\) surfaces and scored by Equation~\eqref{eq:cann_objective}. This vectorized design is essential because Differential Evolution evaluates many candidates per iteration.
-
-\begin{figure}[H]
-    \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: vectorized CaNN evaluation diagram}\\
-        Candidate population \((5\times S)\) plus quote grid \((N_q)\) \(\rightarrow\)
-        batched ANN input \((S N_q\times 8)\) \(\rightarrow\)
-        predicted surfaces \((S\times N_q)\) \(\rightarrow\)
-        objective values \((S)\).\\
-        This should be a graph-style figure, not a numerical plot.
-    }}
-    \caption{Placeholder for the batched evaluation architecture used by the CaNN stage.}
-    \label{fig:cann_vectorized_placeholder}
-\end{figure}
+This batching step is not a cosmetic implementation detail. Differential Evolution evaluates many candidates per iteration, and the ANN acceleration is only fully exploited when those evaluations are aggregated into large forward passes. The speed gain is therefore produced by two layers working together: the neural surrogate replaces the numerical Heston solver, and vectorized inference replaces repeated scalar evaluations.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Differential Evolution Optimization}
+\section{Differential Evolution Search}
 
-The inverse calibration surface can be non-convex, especially when several parameter combinations generate similar implied-volatility smiles. For this reason, the optimizer used in the baseline calibration is Differential Evolution (DE), a population-based global optimization method for continuous variables \cite{storn1997de}. This choice follows the calibration philosophy in \cite{liu}: the ANN makes objective evaluations cheap enough that a global population search becomes practical.
+The inverse residual surface is not assumed to be convex. Several Heston parameter combinations can generate similar implied-volatility smiles over a finite grid, and local methods may depend heavily on the starting point. The baseline optimizer is therefore Differential Evolution (DE), a population-based global optimization method for continuous variables \cite{storn1997de}.
 
-DE maintains a population of candidate parameter vectors inside the admissible bounds. At each iteration, new trial vectors are generated through mutation and crossover operations. A trial vector replaces an existing candidate if it improves the objective. This selection rule gradually moves the population toward lower-residual regions without requiring gradients of the objective.
-
-The main DE controls used in the implementation are summarized in Table~\ref{tab:cann_de_controls}.
+DE maintains a population of candidate vectors inside the admissible bounds. At each iteration, mutation and crossover generate trial vectors. A trial replaces an existing candidate when it improves the objective. The procedure does not require gradients of \(J\), which is useful because the calibrated objective includes a neural surrogate, quote weights, bounds, and optional regularization.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
@@ -230,161 +198,89 @@ The main DE controls used in the implementation are summarized in Table~\ref{tab
     \end{tabular}}
 \end{table}
 
-The main advantage of DE in this setting is robustness: it does not depend on a single initial point and can explore several basins of attraction. The cost is that it requires many objective evaluations. This cost would be prohibitive with a full numerical Heston solver in the inner loop, but it is manageable when each surface evaluation is reduced to a batched ANN inference call.
-
-\begin{figure}[H]
-    \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: optimization trace}\\
-        Suggested plot: best objective value versus DE iteration, optionally with median population objective.\\
-        Useful to show convergence speed and whether the population stagnates before polish.
-    }}
-    \caption{Placeholder for the Differential Evolution convergence trace.}
-    \label{fig:cann_de_trace_placeholder}
-\end{figure}
+The advantage of DE is robustness to initialization and multimodality. The cost is the number of objective evaluations. This cost would be prohibitive with a full COS/Brent valuation loop inside each objective call, but it becomes manageable when surface evaluation is reduced to batched ANN inference.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Synthetic Calibration Experiment}
+\section{Regularization as a Stability Check}
 
-The benchmarked calibration experiment uses a synthetic quote set designed to reproduce the Liu-style calibration setting under a controlled ground truth \cite{liu}. The quote universe contains \(35\) contracts arranged as a complete \(5\times 7\) grid in moneyness and maturity. The interest rate is constant across quotes in the reference run.
-
-The synthetic setting has two advantages. First, the true parameter vector is known, so calibration can be evaluated both at the surface-fit level and at the parameter-recovery level. Second, the quote set remains reproducible, which allows regularization, optimizer settings, and curvature diagnostics to be compared under identical inputs.
-
-\begin{figure}[H]
-    \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: synthetic quote grid}\\
-        Suggested plot: grid of the \(35\) calibration quotes in \((m,\tau)\), possibly overlaid on the observed IV heatmap.\\
-        Candidate source: \texttt{data/market/market\_quotes\_liu\_35.csv}.
-    }}
-    \caption{Placeholder for the synthetic calibration quote universe.}
-    \label{fig:cann_quote_grid_placeholder}
-\end{figure}
-
-The ground-truth vector is used only for evaluation. It is not passed to the optimizer. During calibration, the optimizer only sees the quote table and the admissible parameter bounds. This distinction is important: surface fit measures whether the model can reproduce the observed implied-volatility quotes, while parameter recovery measures whether the inverse problem identifies the original generating parameters.
-
-The two diagnostics are related but not equivalent. A very small residual does not guarantee exact recovery of every Heston parameter, because different parameter combinations may induce very similar volatility surfaces over a finite set of strikes and maturities. This is one reason why the curvature analysis in Section~\ref{sec:cann_smoothness_hessian} is included.
-
-\begin{figure}[H]
-    \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: residual heatmap after calibration}\\
-        Candidate existing plot: \texttt{figures/cann/cann\_residual\_heatmap\_m\_tau\_no\_reg\_smooth.png}.\\
-        Purpose: show where the calibrated ANN-implied surface overfits or underfits the quote grid.
-    }}
-    \caption{Placeholder for the signed residual heatmap \( \hat\sigma_{\mathrm{IV}}-\sigma_{\mathrm{IV}}^{\mathrm{mkt}}\).}
-    \label{fig:cann_residual_placeholder}
-\end{figure}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Regularization and Generalization}
-
-The optional regularization term \(R(\theta)\) in Equation~\eqref{eq:cann_objective} is included to control the inverse problem when the quote set is sparse or the residual surface contains nearly flat directions. The implementation supports no regularization, \(L^1\), \(L^2\), and squared-\(L^2\) penalties:
+The optional regularization term \(R(\theta)\) in Equation~\eqref{eq:cann_objective} is included to control the inverse problem when the quote set is sparse, noisy, or nearly flat in some parameter directions. The implementation supports no regularization, \(L^1\), \(L^2\), and squared-\(L^2\) penalties:
 \[
 R_{L^1}(\theta)=\|\theta\|_1,\qquad
 R_{L^2}(\theta)=\|\theta\|_2,\qquad
 R_{L^2\text{-sq}}(\theta)=\|\theta\|_2^2.
 \]
 
-In the reported synthetic experiment, the no-regularization run is used as the reference because it gives the best residual fit and the \(L^2\) variant produces only a marginal change in the objective. Nevertheless, keeping the regularization interface is useful for future market-data experiments, where noisy quotes, bid--ask effects, or incomplete surfaces may make unconstrained calibration less stable.
-
-Generalization in this chapter has a specific meaning. The calibration optimizer is not learning a new model; it is searching through the input space of the already trained ANN pricer. Therefore, the main generalization risk is inherited from the forward surrogate. If the optimizer moves into regions poorly represented during ANN training, the calibration objective may become an artifact of extrapolation rather than a meaningful Heston fit. The parameter bounds in Table~\ref{tab:cann_parameter_bounds} and the quote-domain controls are used to keep calibration within the region where the ANN benchmark in Chapter~\ref{ch:performance_benchmarks} supports reliable interpolation.
+In the synthetic experiment used for the benchmark, the no-regularization run is retained as the reference. Figure~\ref{fig:cann_regularization_rmse} shows that adding a small \(L^2\) penalty changes the residual RMSE only marginally for the selected quote set. This does not make regularization irrelevant. Rather, it indicates that this controlled surface is already sufficiently informative for the reference calibration, while the same interface remains useful for future market-data experiments with bid--ask noise, missing maturities, or uneven liquidity.
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: no-regularization vs regularization comparison}\\
-        Suggested plot: residual RMSE or weighted MSE for \(\lambda=0\) and selected \(L^2\) values; optionally include parameter-error bars.\\
-        Candidate existing artifacts: \texttt{outputs/calibration/Liu\_like\_v01/Calibration\_no\_reg} and \texttt{outputs/calibration/Liu\_like\_v01/Calibration\_l2\_reg}.
-    }}
-    \caption{Placeholder for the regularization mini-study in the CaNN calibration.}
-    \label{fig:cann_regularization_placeholder}
+    \includegraphics[width=0.72\textwidth]{figures/cann/cann_regularization_rmse.png}
+    \caption{Residual RMSE comparison between the no-regularization reference calibration and a small \(L^2\)-regularized variant. The difference is negligible for the controlled synthetic quote set.}
+    \label{fig:cann_regularization_rmse}
 \end{figure}
 
+Regularization is therefore treated here as a stability probe. If a small penalty moved the optimum substantially while leaving the residual almost unchanged, that would be evidence of weak parameter identification. In the selected run, the main identifiability evidence instead comes from the local curvature analysis described next.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Smoothness, Hessian Diagnostics, and Identifiability}
+\section{Residuals, Curvature, and Identifiability}
 \label{sec:cann_smoothness_hessian}
 
-A calibration result should not be assessed only by its final residual. It is also important to understand the local geometry of the objective around the selected optimum. This is especially relevant in Heston calibration, where some parameters may be weakly identified by a finite implied-volatility surface.
+A calibrated vector should not be judged only by its final objective value. The residual surface tells whether the quotes are reproduced; the local geometry of the objective tells how informative those quotes are about the individual Heston parameters.
 
-Let
+Figure~\ref{fig:cann_residual_method} shows the signed residual map for the selected no-regularization calibration. The residuals remain centered around zero and are small in implied-volatility units. This supports the surface-fit part of the calibration claim, but it does not settle parameter identifiability.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.86\textwidth]{figures/cann/cann_residual_heatmap_m_tau_no_reg_smooth.png}
+    \caption{Signed implied-volatility residual map for the selected CaNN calibration, defined as \(\mathrm{IV}_{\mathrm{pred}}-\mathrm{IV}_{\mathrm{market}}\). The smoothing is visual only; the calibration is performed on the original quote grid.}
+    \label{fig:cann_residual_method}
+\end{figure}
+
+To study local identifiability, let
 \[
 e(\theta)=
 \begin{bmatrix}
 e_1(\theta) & \cdots & e_{N_q}(\theta)
 \end{bmatrix}^{\top}
 \]
-be the residual vector. Ignoring the normalization constant and regularization for readability, the data term can be written as
+be the residual vector. Ignoring normalization and regularization for readability, the data term can be written as
 \[
 J_{\mathrm{data}}(\theta)=e(\theta)^{\top}W e(\theta),
 \]
-where \(W=\mathrm{diag}(w_1,\dots,w_{N_q})\). The gradient and Hessian of this objective encode first- and second-order sensitivity of the fit with respect to Heston parameters.
-
-Near a low-residual optimum, the Hessian is closely related to the Gauss--Newton matrix
+where \(W=\mathrm{diag}(w_1,\dots,w_{N_q})\). Around a low-residual optimum, the Hessian is closely related to the Gauss--Newton matrix
 \[
 H(\theta^\star)\approx 2 J_e(\theta^\star)^{\top}WJ_e(\theta^\star),
 \]
-where \(J_e\) is the Jacobian of residuals with respect to the calibrated parameters. This approximation is useful for interpretation: large eigenvalues correspond to directions in parameter space where the implied-volatility surface changes strongly, while small eigenvalues indicate flatter directions where different parameter values may produce similar quotes.
+where \(J_e\) is the Jacobian of quote residuals with respect to the calibrated parameters.
 
-In this thesis, curvature diagnostics are used for three purposes:
-\begin{itemize}
-    \item to check near-stationarity through \(\|\nabla J(\theta^\star)\|_2\);
-    \item to detect anisotropy through the Hessian eigenvalue spread and condition number;
-    \item to identify cross-parameter couplings through the off-diagonal Hessian entries.
-\end{itemize}
-
-These diagnostics should be read locally. A positive semidefinite Hessian around \(\theta^\star\) supports the interpretation of a locally stable basin, but it does not prove that the global inverse problem is unique. Similarly, a high condition number means that the calibration surface contains stiff and flat directions at the same time; it explains why residuals can be small even when some parameters are harder to recover accurately.
+This approximation gives the diagnostic its interpretation. Large curvature indicates directions in parameter space where the implied-volatility surface reacts strongly. Small curvature indicates flatter directions, where different parameter values can generate similar quote fits. Cross-terms reveal parameter couplings, which are especially relevant in the Heston model because variance level, variance-of-variance, and mean reversion can partially compensate for each other over limited grids.
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: Jacobian and Hessian diagnostics}\\
-        Candidate existing plots: \texttt{figures/cann/jacobian\_theta\_star\_no\_reg.png} and
-        \texttt{figures/cann/hessian\_theta\_star\_no\_reg.png}.\\
-        Suggested final layout: two panels, with the Jacobian vector on the left and the Hessian heatmap on the right.
-    }}
-    \caption{Placeholder for local first- and second-order diagnostics at the calibrated solution.}
-    \label{fig:cann_curvature_placeholder}
+    \includegraphics[width=0.72\textwidth]{figures/cann/jacobian_theta_star_no_reg.png}
+    \caption{Objective-gradient components at \(\theta^\star\) for the selected no-regularization calibration. Near-zero components support first-order stationarity of the selected solution.}
+    \label{fig:cann_jacobian_method}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: objective geometry / identifiability plot}\\
-        Suggested plot: two-dimensional objective slices around \(\theta^\star\), for example \((\bar v,v_0)\), \((\gamma,v_0)\), and \((\rho,\gamma)\).\\
-        Purpose: visually explain stiff directions, flat valleys, and parameter coupling.
-    }}
-    \caption{Placeholder for objective-surface slices around the calibrated optimum.}
-    \label{fig:cann_objective_slices_placeholder}
+    \includegraphics[width=0.78\textwidth]{figures/cann/hessian_theta_star_no_reg.png}
+    \caption{Hessian matrix at \(\theta^\star\) for the selected no-regularization calibration. The variance block around \((\bar v,v_0)\) is locally stiffer than the remaining directions, indicating uneven parameter identifiability.}
+    \label{fig:cann_hessian_method}
 \end{figure}
 
-The key implication is that calibration quality must be interpreted at two levels. The residual map measures how well the observed surface is reproduced. The Hessian and Jacobian diagnostics measure how informative that surface is about the individual model parameters. This distinction is crucial for the rest of the thesis: the downstream PINN only needs a market-consistent parameter vector, but parameter-level conclusions require additional identifiability evidence.
+The resulting reading is deliberately cautious. A small residual map supports the claim that the calibrated vector is market-consistent on the quote grid. A positive local curvature profile supports the claim that the selected solution lies in a stable basin. However, neither observation proves global uniqueness of the Heston inverse problem. The parameter-level conclusions in Chapter~\ref{ch:performance_benchmarks} must therefore be read together with these diagnostics: \((\bar v,v_0)\) are locally more tightly identified in the selected experiment than parameters such as \(\rho\) and \(\gamma\).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Connection with the Downstream PINN Stage}
+\section{Interface with the PINN Stage}
 
-The calibrated vector \(\theta^\star\) is the output of the CaNN stage. It is passed forward as the market state for later experiments:
-\[
-\theta^\star=(\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star,v_0^\star).
-\]
-In the PINN formulation of Chapter~\ref{ch:pinn_greeks}, \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) define the Heston PDE operator, while \(v_0^\star\) is used as the current variance state at inference time. This separation matters because the PINN is trained over a variance-state coordinate \(v\), whereas calibration estimates the current initial variance \(v_0\).
-
-Consequently, the CaNN stage is not an isolated side experiment. It supplies the parameter bridge between market-implied-volatility fitting and model-consistent price/Greek evaluation. The reliability of the downstream analysis therefore depends on both components: the ANN surrogate must be accurate in the calibration domain, and the calibration objective must produce a stable, interpretable \(\theta^\star\).
+The final role of the CaNN stage is to pass a market state to the pricing and Greeks analysis developed later in the thesis. This interface requires a small but important distinction. In calibration, \(v_0^\star\) is one of the inferred Heston parameters. In the PINN formulation, the network is trained over a generic variance state \(v\), while the calibrated value \(v_0^\star\) is inserted only when evaluating the trained model at the current market configuration.
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: CaNN to PINN interface}\\
-        CaNN output \(\theta^\star\) split into PDE parameters \((\rho^\star,\kappa^\star,\gamma^\star,\bar v^\star)\) and variance state \(v_0^\star\); then fed into the PINN input convention \((\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\).\\
-        This figure should make explicit that \(v\) is a PINN state variable, while \(v_0^\star\) is fixed only at market evaluation.
-    }}
-    \caption{Placeholder for the interface between calibration and the PINN pricing/Greeks stage.}
-    \label{fig:cann_to_pinn_placeholder}
+    \includegraphics[width=0.88\textwidth]{figures/cann/cann_to_pinn_interface.png}
+    \caption{Interface between the calibrated Heston vector and the downstream PINN input convention. Structural parameters define the PDE operator, while \(v_0^\star\) is used as the variance-state coordinate at market evaluation.}
+    \label{fig:cann_to_pinn_interface}
 \end{figure}
+
+This closes the methodological loop. The ANN pricer makes calibration computationally feasible; the optimizer converts a quote surface into a Heston vector; the diagnostics determine how that vector should be interpreted; and the calibrated state becomes the input configuration for the PINN-based valuation and Greek computation that follows.

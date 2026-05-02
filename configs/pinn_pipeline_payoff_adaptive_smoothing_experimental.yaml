@@ -1,0 +1,39 @@
+meta:
+  experiment_name: "payoff_adaptive_smoothing_experimental"
+  seed: 42
+  description: "EXPERIMENTAL payoff-aware PINN with tau/variance-adaptive payoff smoothing."
+
+inputs:
+  cann:
+    calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_l2_reg"
+    summary_file: "summary.yaml"
+    quotes_file: "quotes_comparison.parquet"
+    parameter_key: "theta_star"
+    columns:
+      moneyness: "moneyness"
+      tau: "tau"
+      r: "r"
+      iv_market: "iv_market"
+      iv_pred: "iv_pred"
+
+  pricing_context:
+    target_name: "price_market"
+    spot: null
+    strike_column: null
+
+model:
+  architecture_config: "configs/pinn_model_architecture_payoff_adaptive_smoothing_experimental.yaml"
+
+training:
+  training_config: "configs/pinn_training_payoff_adaptive_smoothing_experimental.yaml"
+
+pipeline:
+  stages:
+    prepare_dataset: false
+    train: true
+    evaluate: false
+
+outputs:
+  root_dir: "outputs/pinn"
+  run_name: "payoff_adaptive_smoothing_experimental"
+  dump_plan_filename: "pipeline_plan.yaml"

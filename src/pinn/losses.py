@@ -12,10 +12,23 @@ class PINNLossTerms:
     term: float
     low: float
     no_arbitrage: float
+    dpde: float = 0.0
+    greek_delta: float = 0.0
+    greek_gamma: float = 0.0
+    greek_vega: float = 0.0
 
     @property
     def total(self) -> float:
-        return self.pde + self.term + self.low + self.no_arbitrage
+        return (
+            self.pde
+            + self.dpde
+            + self.term
+            + self.low
+            + self.no_arbitrage
+            + self.greek_delta
+            + self.greek_gamma
+            + self.greek_vega
+        )
 
 
 def _apply_input_affine(
@@ -106,6 +119,33 @@ def compute_heston_pde_residual(
     return residual
 
 
+def compute_heston_pde_derivative_residual(
+    *,
+    model: nn.Module,
+    x_interior: torch.Tensor,
+    input_affine: dict[str, torch.Tensor] | None = None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Return PDE residual and first derivatives of the residual with respect to
+    log-moneyness x=log(m) and variance v.
+
+    The model and PDE still receive raw financial coordinates. The x derivative
+    is obtained by chain rule from the raw moneyness derivative:
+      dN/dx = m * dN/dm.
+    """
+
+    residual = compute_heston_pde_residual(
+        model=model,
+        x_interior=x_interior,
+        input_affine=input_affine,
+    )
+    grad_residual = _gradient(y=residual, x=x_interior)
+    m = x_interior[:, 1:2]
+    d_residual_dx = m * grad_residual[:, 1:2]
+    d_residual_dv = grad_residual[:, 2:3]
+    return residual, d_residual_dx, d_residual_dv
+
+
 def compute_weighted_pinn_loss(
     *,
     model: nn.Module,
@@ -157,14 +197,92 @@ def compute_weighted_pinn_loss(
         _get_weight(loss_config, "boundary", 1.0),
     )
     w_no_arb = _get_weight(loss_config, "no_arbitrage", 0.0)
+    w_dpde = _get_weight(
+        loss_config,
+        "dpde",
+        _get_weight(loss_config, "derivative_pde", 0.0),
+    )
+    w_greek_delta = _get_weight(
+        loss_config,
+        "greek_delta",
+        _get_weight(loss_config, "delta_consistency", 0.0),
+    )
+    w_greek_gamma = _get_weight(
+        loss_config,
+        "greek_gamma",
+        _get_weight(loss_config, "gamma_consistency", 0.0),
+    )
+    w_greek_vega = _get_weight(
+        loss_config,
+        "greek_vega",
+        _get_weight(loss_config, "vega_consistency", 0.0),
+    )
 
     no_arb_term = torch.zeros_like(l_pde)
-    total = w_pde * l_pde + w_term * l_term + w_low * l_low + w_no_arb * no_arb_term
+    if w_dpde > 0.0:
+        grad_residual = _gradient(y=residual, x=x_interior)
+        m_interior = x_interior[:, 1:2]
+        d_residual_dx = m_interior * grad_residual[:, 1:2]
+        d_residual_dv = grad_residual[:, 2:3]
+        l_dpde = torch.mean(d_residual_dx**2 + d_residual_dv**2)
+    else:
+        l_dpde = torch.zeros_like(l_pde)
+
+    needs_greek_heads = any(
+        weight > 0.0 for weight in (w_greek_delta, w_greek_gamma, w_greek_vega)
+    )
+    if needs_greek_heads:
+        forward_all = getattr(model, "forward_all", None)
+        if not callable(forward_all):
+            raise ValueError(
+                "Greek-consistency weights require a model with forward_all(), "
+                "for example greek_consistency.enabled=true."
+            )
+        x_net_for_heads = _apply_input_affine(x=x_interior, input_affine=input_affine)
+        outputs = forward_all(x_net_for_heads)
+        if outputs.ndim != 2 or outputs.shape[1] < 4:
+            raise ValueError(
+                "Greek-consistency model must return at least four heads: "
+                "[price, delta, gamma, vega]."
+            )
+        price_head = outputs[:, 0:1]
+        delta_head = outputs[:, 1:2]
+        gamma_head = outputs[:, 2:3]
+        vega_head = outputs[:, 3:4]
+
+        grad_price = _gradient(y=price_head, x=x_interior)
+        price_m = grad_price[:, 1:2]
+        price_v = grad_price[:, 2:3]
+        grad_delta_head = _gradient(y=delta_head, x=x_interior)
+        delta_head_m = grad_delta_head[:, 1:2]
+
+        l_greek_delta = torch.mean((delta_head - price_m) ** 2)
+        l_greek_gamma = torch.mean((gamma_head - delta_head_m) ** 2)
+        l_greek_vega = torch.mean((vega_head - price_v) ** 2)
+    else:
+        l_greek_delta = torch.zeros_like(l_pde)
+        l_greek_gamma = torch.zeros_like(l_pde)
+        l_greek_vega = torch.zeros_like(l_pde)
+
+    total = (
+        w_pde * l_pde
+        + w_dpde * l_dpde
+        + w_term * l_term
+        + w_low * l_low
+        + w_no_arb * no_arb_term
+        + w_greek_delta * l_greek_delta
+        + w_greek_gamma * l_greek_gamma
+        + w_greek_vega * l_greek_vega
+    )
 
     terms = PINNLossTerms(
         pde=float((w_pde * l_pde).detach().item()),
+        dpde=float((w_dpde * l_dpde).detach().item()),
         term=float((w_term * l_term).detach().item()),
         low=float((w_low * l_low).detach().item()),
         no_arbitrage=float((w_no_arb * no_arb_term).detach().item()),
+        greek_delta=float((w_greek_delta * l_greek_delta).detach().item()),
+        greek_gamma=float((w_greek_gamma * l_greek_gamma).detach().item()),
+        greek_vega=float((w_greek_vega * l_greek_vega).detach().item()),
     )
     return total, terms

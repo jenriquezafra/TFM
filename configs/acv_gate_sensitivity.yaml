@@ -1,0 +1,68 @@
+global:
+  device: "auto"
+  dtype: "float64"
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+  chunk_size_pde: 128
+
+baseline:
+  run_dir: "PINN_mix_scaled_param"
+  checkpoint_name: "model_best.pt"
+  architecture_config: null
+  feature_order: null
+
+acv:
+  base_config: "configs/acv_hard_patch_control_variate.yaml"
+
+grid:
+  tau_min: 1.0e-4
+  tau_max: 5.0e-2
+  tau_points: 56
+  log_moneyness_min: -0.08
+  log_moneyness_max: 0.08
+  x_points: 81
+  fixed_values:
+    tau: 1.0
+    moneyness: 1.0
+    v: 0.04
+    rho: -0.7
+    kappa: 2.0
+    gamma: 0.3
+    bar_v: 0.04
+    r: 0.01
+
+regions:
+  hard_x_abs: 0.03
+  patch_x_abs: 0.06
+  ultra_short_tau: 1.0e-3
+  near_zero_tau: 5.0e-3
+  hard_tau: 5.0e-2
+
+sweep:
+  x_center: [0.04, 0.05, 0.06, 0.08]
+  tau_center: [0.05, 0.08, 0.10]
+  delta_x: [0.01]
+  delta_tau: [0.015]
+
+acceptance:
+  hard_gamma_rmse_max: 1.5
+  hard_gamma_p99_max: 3.0
+  hard_delta_rmse_max: 0.03
+  full_price_rmse_max: 0.0047
+  full_gamma_rmse_max: 0.535
+  hard_pde_rmse_max: 0.05
+
+diagnostics:
+  option_type: "put"
+  compute_pde_residual: true
+
+cf_integration:
+  u_min: 1.0e-6
+  # Wider integration for tau close to 1e-4.
+  u_max: 600.0
+  n_u: 2400
+
+outputs:
+  output_dir: "outputs/pinn/acv_hard_patch_control_variate/gate_sensitivity"
+  best_run_name: "acv_hard_patch_control_variate_best_gate"

@@ -1,0 +1,143 @@
+meta:
+  experiment_id: "acv_hard_patch_stencil_experimental"
+  seed: 43
+  device: "auto"
+  dtype: "float64"
+  description: >
+    Experimental ACV-HardPatch continuation with hard price labels and
+    price-stencil curvature supervision. Warm-starts from the Stage 2 no-label
+    ACV checkpoint.
+
+baseline:
+  run_dir: "PINN_mix_scaled_param"
+  checkpoint_name: "model_best.pt"
+  architecture_config: null
+  feature_order: null
+
+model:
+  residual:
+    hidden_dims: [128, 128, 128, 128]
+    activation: "tanh"
+    fourier_frequencies: 6
+    final_init_scale: 0.0
+
+patch:
+  gate:
+    x_center: 0.06
+    tau_center: 0.08
+    delta_x: 0.01
+    delta_tau: 0.015
+  scales:
+    q_epsilon: 1.0e-10
+    bs_epsilon: 1.0e-12
+    tau_epsilon: 1.0e-8
+    terminal_tau: 0.0
+    z_clip: 50.0
+
+sampling:
+  tau_min: 1.0e-4
+  domain:
+    tau: [0.0, 3.0]
+    moneyness: [0.01, 2.0]
+    v: [0.01, 0.5]
+    r: [0.0, 0.05]
+    heston_params:
+      rho: [-0.9, 0.0]
+      kappa: [0.0, 3.0]
+      gamma: [0.01, 0.8]
+      bar_v: [0.01, 0.5]
+  hard_region:
+    x_abs: 0.03
+    tau_max: 0.05
+  patch_region:
+    x_abs: 0.06
+    tau_max: 0.08
+    buffer_x_abs: 0.08
+    buffer_tau_max: 0.10
+  z_sampling:
+    z_min: -4.0
+    z_max: 4.0
+  pde_mix:
+    hard_core: 0.35
+    z_layer: 0.20
+    buffer: 0.30
+    global: 0.15
+
+price_labels:
+  enabled: true
+  n_points: 2048
+  sampling_block: "patch"
+  cf_integration:
+    u_min: 1.0e-6
+    u_max: 200.0
+    n_u: 1200
+
+stencil_labels:
+  enabled: true
+  n_points: 1024
+  sampling_block: "hard_core"
+  h_min: 5.0e-4
+  h_max: 5.0e-3
+  cf_integration:
+    u_min: 1.0e-6
+    u_max: 200.0
+    n_u: 1200
+
+training:
+  initial_checkpoint: "outputs/pinn/acv_hard_patch_experimental/checkpoints/model_best_stage2_pde_terminal_interface.pt"
+  initial_checkpoint_strict: true
+  batch_size: 256
+  learn_rate: 5.0e-5
+  weight_decay: 0.0
+  grad_clip_norm: 10.0
+  log_every: 25
+  stages:
+    - name: "stage1_distill_to_baseline"
+      enabled: false
+      steps: 0
+      weights:
+        distill: 1.0
+
+    - name: "stage2_pde_terminal_interface"
+      enabled: false
+      steps: 0
+      weights:
+        pde: 1.0
+
+    - name: "stage3_hard_price_labels"
+      enabled: false
+      steps: 0
+      weights:
+        price: 1.0
+
+    - name: "stage4_price_stencil"
+      enabled: true
+      steps: 3000
+      batch_size: 256
+      learn_rate: 5.0e-5
+      weights:
+        pde: 0.15
+        terminal: 10.0
+        interface: 30.0
+        global_replay: 3.0
+        price: 0.5
+        stencil: 0.25
+      pde:
+        target: "final"
+        scale_epsilon: 1.0e-8
+        huber_beta: 1.0
+      interface:
+        lambda_x: 0.2
+        lambda_v: 0.2
+      price_labels:
+        batch_size: 256
+        alpha: 0.5
+        floor: 1.0e-4
+      stencil_labels:
+        batch_size: 64
+        mode: "curvature"
+        epsilon: 1.0e-12
+
+outputs:
+  root_dir: "outputs/pinn"
+  run_name: "acv_hard_patch_stencil_experimental"

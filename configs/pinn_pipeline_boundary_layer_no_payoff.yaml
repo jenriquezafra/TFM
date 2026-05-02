@@ -1,0 +1,39 @@
+meta:
+  experiment_name: "boundary_layer_pinn_no_payoff"
+  seed: 42
+  description: "PINN with short-maturity ATM boundary-layer coordinates and no payoff ansatz."
+
+inputs:
+  cann:
+    calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_l2_reg"
+    summary_file: "summary.yaml"
+    quotes_file: "quotes_comparison.parquet"
+    parameter_key: "theta_star"
+    columns:
+      moneyness: "moneyness"
+      tau: "tau"
+      r: "r"
+      iv_market: "iv_market"
+      iv_pred: "iv_pred"
+
+  pricing_context:
+    target_name: "price_market"
+    spot: null
+    strike_column: null
+
+model:
+  architecture_config: "configs/pinn_model_architecture_boundary_layer_no_payoff.yaml"
+
+training:
+  training_config: "configs/pinn_training_boundary_layer_no_payoff.yaml"
+
+pipeline:
+  stages:
+    prepare_dataset: false
+    train: true
+    evaluate: false
+
+outputs:
+  root_dir: "outputs/pinn"
+  run_name: "boundary_layer_pinn_no_payoff"
+  dump_plan_filename: "pipeline_plan.yaml"

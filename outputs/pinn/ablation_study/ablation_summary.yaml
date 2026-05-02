@@ -1,0 +1,44 @@
+runs:
+- key: baseline
+  label: Baseline PINN
+  run_dir: outputs/pinn/PINN_mix_scaled_param
+  diagnostics: greeks/baseline_diagnostics
+- key: payoff_aware
+  label: Payoff-aware PINN
+  run_dir: outputs/pinn/payoff_aware_pinn
+  diagnostics: greeks/payoff_aware_diagnostics
+- key: payoff_boundary_layer
+  label: Payoff-aware + boundary-layer
+  run_dir: outputs/pinn/payoff_aware_boundary_layer_pinn
+  diagnostics: greeks/payoff_boundary_layer_diagnostics
+- key: boundary_no_payoff
+  label: Boundary-layer no-payoff
+  run_dir: outputs/pinn/boundary_layer_pinn_no_payoff
+  diagnostics: greeks/boundary_layer_no_payoff_diagnostics
+- key: adaptive_collocation
+  label: Adaptive collocation
+  run_dir: outputs/pinn/adaptive_collocation
+  diagnostics: greeks/adaptive_collocation_diagnostics
+- key: derivative_consistency
+  label: Derivative-consistency
+  run_dir: outputs/pinn/derivative_consistency
+  diagnostics: greeks/derivative_consistency_diagnostics
+- key: acv_control_variate_best_gate
+  label: ACV control variate
+  run_dir: outputs/pinn/acv_hard_patch_control_variate_best_gate_tau_floor_5e4
+  diagnostics: diagnostics
+  metrics_format: acv_yaml
+  points_format: acv_surface
+  points_file: surface_diagnostics.csv
+  train_summary: metrics/train_summary.yaml
+outputs:
+  comparison_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_study/tables/ablation_comparison.csv
+  comparison_markdown: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_study/tables/ablation_comparison.md
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_study/figures
+best_by_metric:
+  price_rmse: Derivative-consistency
+  delta_rmse: ACV control variate
+  gamma_rmse: ACV control variate
+  hard_delta_rmse: ACV control variate
+  hard_gamma_rmse: ACV control variate
+  hard_p99_gamma_error: ACV control variate

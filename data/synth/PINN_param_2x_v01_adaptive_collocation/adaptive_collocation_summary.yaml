@@ -1,0 +1,30 @@
+manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01_adaptive_collocation/collocation_sets_manifest.yaml
+interior_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01_adaptive_collocation/interior.parquet
+selected_adaptive_points_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01_adaptive_collocation/selected_adaptive_points.parquet
+base_collocation_manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01/collocation_sets_manifest.yaml
+base_train_summary: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/boundary_layer_pinn_no_payoff/train/metrics/train_summary.yaml
+base_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/boundary_layer_pinn_no_payoff/train/checkpoints/model_best.pt
+device: mps
+n_candidates: 120000
+n_uniform: 24000
+n_adaptive: 16000
+candidate_counts:
+  uniform: 60000
+  hard: 24000
+  short: 18000
+  atm: 18000
+selected_counts:
+  hard: 7273
+  short: 4364
+  atm: 4363
+abs_residual_summary:
+  candidate_mean: 0.6494923233985901
+  candidate_p50: 0.0031941449269652367
+  candidate_p90: 0.1187196597456932
+  candidate_p99: 4.642455101013184
+  selected_min: 0.004417859483510256
+  selected_mean: 4.766513347625732
+  selected_max: 9938.048828125
+figures:
+  candidate_pde_residual_map: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01_adaptive_collocation/figures/candidate_pde_residual_map.png
+  candidate_pde_residual_map_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/PINN_param_2x_v01_adaptive_collocation/figures/candidate_pde_residual_map_log.png

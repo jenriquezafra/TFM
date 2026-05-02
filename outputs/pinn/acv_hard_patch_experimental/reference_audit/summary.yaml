@@ -1,0 +1,29 @@
+config_path: configs/hard_gamma_reference_audit.yaml
+n_points: 128
+h_x_values:
+- 0.0005
+- 0.001
+- 0.002
+- 0.005
+detail_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_experimental/reference_audit/hard_gamma_reference_audit.csv
+by_h_x:
+  0.0005:
+    rmse: 0.010663282791531779
+    mae: 0.004956959374732223
+    p99_abs_error: 0.033456596767558335
+    max_abs_error: 0.052475515890321844
+  0.001:
+    rmse: 0.0426143114640573
+    mae: 0.01981039441576457
+    p99_abs_error: 0.13370531150830076
+    max_abs_error: 0.20970530197487136
+  0.002:
+    rmse: 0.16983773670382257
+    mae: 0.07896319553175363
+    p99_abs_error: 0.532888914064265
+    max_abs_error: 0.8356810504806091
+  0.005:
+    rmse: 1.0348282565446478
+    mae: 0.4815360751620199
+    p99_abs_error: 3.247372546462281
+    max_abs_error: 5.087858309378653
