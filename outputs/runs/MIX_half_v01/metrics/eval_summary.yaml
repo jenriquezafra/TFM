@@ -1,32 +1,17 @@
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_half_v01
+checkpoint_name: model_best.pt
+device: mps
+data_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/1M_Feller
+splits:
+- train
+- val
+- test
+target_col: iv_brent
+batch_size: 32768
 normalization:
   enabled: false
   normalize_target: false
-  stats_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-12_19:01:32/metrics/normalization_stats.yaml
-global:
-  train:
-    n_samples: 800000
-    mse: 4.217477187808638e-07
-    rmse: 0.0006494210643187237
-    mae: 0.00048270296888898044
-    abs_err_p50: 0.0003776787026500139
-    abs_err_p90: 0.0010205968540974496
-    abs_err_p99: 0.001926423284480858
-  val:
-    n_samples: 100000
-    mse: 4.548723248478233e-06
-    rmse: 0.0021327736045999427
-    mae: 0.0005134223315141181
-    abs_err_p50: 0.0003821394505860165
-    abs_err_p90: 0.001035797680569073
-    abs_err_p99: 0.0020009966676510192
-  test:
-    n_samples: 100000
-    mse: 9.413355405393843e-06
-    rmse: 0.003068119196738263
-    mae: 0.0005237730461590464
-    abs_err_p50: 0.00037854937856465765
-    abs_err_p90: 0.0010306255562980927
-    abs_err_p99: 0.0020498720003067367
+  stats_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_half_v01/metrics/normalization_stats.yaml
 bins:
   moneyness:
   - 0.6
@@ -43,8 +28,34 @@ bins:
   - 1.0
   - 2.0
   - 3.0
+global:
+  train:
+    n_samples: 800000
+    mse: 4.217477187808638e-07
+    rmse: 0.0006494210643187237
+    mape_pct: 0.8322269293866933
+    abs_err_p50: 0.0003776787026500139
+    abs_err_p90: 0.0010205968540974496
+    abs_err_p99: 0.001926423284480858
+  val:
+    n_samples: 100000
+    mse: 4.548723248478233e-06
+    rmse: 0.0021327736045999427
+    mape_pct: 17.355969203143008
+    abs_err_p50: 0.0003821394505860165
+    abs_err_p90: 0.001035797680569073
+    abs_err_p99: 0.0020009966676510192
+  test:
+    n_samples: 100000
+    mse: 9.413355405393843e-06
+    rmse: 0.003068119196738263
+    mape_pct: 27.17071662806524
+    abs_err_p50: 0.00037854937856465765
+    abs_err_p90: 0.0010306255562980927
+    abs_err_p99: 0.0020498720003067367
 artifacts:
-  global_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-12_19:01:32/metrics/eval_global.parquet
-  global_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-12_19:01:32/metrics/eval_global.csv
-  region_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-12_19:01:32/metrics/eval_by_region.parquet
-  region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/2026-03-12_19:01:32/metrics/eval_by_region.csv
+  eval_global_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_half_v01/metrics/eval_global.parquet
+  eval_global_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_half_v01/metrics/eval_global.csv
+  eval_region_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_half_v01/metrics/eval_by_region.parquet
+  eval_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_half_v01/metrics/eval_by_region.csv
+  eval_summary_yaml: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/MIX_half_v01/metrics/eval_summary.yaml

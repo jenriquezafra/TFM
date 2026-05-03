@@ -34,7 +34,7 @@ PARAM_LABELS = {
     "gamma": r"$\gamma$",
     "bar_v": r"$\bar{v}$",
     "v0": r"$v_0$",
-    "moneyness": r"$S_0/K$",
+    "moneyness": r"$m$",
     "tau": r"$\tau$",
     "r": r"$r$",
 }

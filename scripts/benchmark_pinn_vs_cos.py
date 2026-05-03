@@ -435,17 +435,11 @@ def _compute_metrics(
     mse = float(np.mean(err**2))
     denom = np.maximum(np.abs(y_ref), float(mape_floor))
     rel_abs = abs_err / denom
-    smape = 2.0 * abs_err / np.maximum(np.abs(y_ref) + np.abs(y_pred), float(mape_floor))
-
-    ss_res = float(np.sum(err**2))
-    ss_tot = float(np.sum((y_ref - np.mean(y_ref)) ** 2))
-    r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0.0 else float("nan")
 
     return {
         "n_points": int(y_ref.size),
         "mse": mse,
         "rmse": float(np.sqrt(mse)),
-        "mae": float(np.mean(abs_err)),
         "max_abs_error": float(np.max(abs_err)),
         "median_abs_error": float(np.median(abs_err)),
         "p90_abs_error": float(np.percentile(abs_err, 90.0)),
@@ -453,20 +447,22 @@ def _compute_metrics(
         "p99_abs_error": float(np.percentile(abs_err, 99.0)),
         "mean_error_bias": float(np.mean(err)),
         "mape_pct": float(100.0 * np.mean(rel_abs)),
-        "smape_pct": float(100.0 * np.mean(smape)),
-        "r2": r2,
     }
 
 
 def _save_scatter_plot(*, y_ref: np.ndarray, y_pred: np.ndarray, out_path: Path) -> None:
+    title_size = 16
+    label_size = 13
+    tick_size = 11
     lo = float(np.nanmin([np.min(y_ref), np.min(y_pred)]))
     hi = float(np.nanmax([np.max(y_ref), np.max(y_pred)]))
     fig, ax = plt.subplots(figsize=(6.0, 6.0))
     ax.scatter(y_ref, y_pred, s=8, alpha=0.35, edgecolors="none")
     ax.plot([lo, hi], [lo, hi], linestyle="--", linewidth=1.2, color="black")
-    ax.set_xlabel("COS price")
-    ax.set_ylabel("PINN price")
-    ax.set_title("PINN vs COS (price parity)")
+    ax.set_xlabel(r"$V_{\mathrm{COS}}$", fontsize=label_size)
+    ax.set_ylabel(r"$V_{\mathrm{PINN}}$", fontsize=label_size)
+    ax.set_title("PINN-COS price parity", fontsize=title_size)
+    ax.tick_params(axis="both", labelsize=tick_size)
     ax.grid(True, alpha=0.25)
     plt.tight_layout()
     fig.savefig(out_path, dpi=300)
@@ -474,14 +470,18 @@ def _save_scatter_plot(*, y_ref: np.ndarray, y_pred: np.ndarray, out_path: Path)
 
 
 def _save_error_distribution_plot(*, abs_err: np.ndarray, out_path: Path) -> None:
+    title_size = 16
+    label_size = 13
+    tick_size = 11
     vals = np.sort(abs_err)
     cdf = np.linspace(0.0, 1.0, vals.size, endpoint=False)
     fig, ax = plt.subplots(figsize=(7.0, 4.5))
     ax.plot(vals, cdf, linewidth=1.5)
     ax.set_xscale("log")
-    ax.set_xlabel("|PINN - COS|")
-    ax.set_ylabel("CDF")
-    ax.set_title("Absolute Error Distribution")
+    ax.set_xlabel(r"$|e|$", fontsize=label_size)
+    ax.set_ylabel("CDF", fontsize=label_size)
+    ax.set_title("Absolute-error distribution", fontsize=title_size)
+    ax.tick_params(axis="both", labelsize=tick_size)
     ax.grid(True, which="major", alpha=0.3)
     ax.grid(True, which="minor", alpha=0.2)
     plt.tight_layout()
@@ -531,6 +531,9 @@ def _save_heatmap_plot(
     cmap: str,
     log_scale: bool = False,
 ) -> None:
+    title_size = 16
+    label_size = 13
+    tick_size = 11
     fig, ax = plt.subplots(figsize=(8.4, 5.2))
     cmap_obj = plt.get_cmap(cmap).copy()
     cmap_obj.set_bad(color="#f2f2f2")
@@ -556,10 +559,12 @@ def _save_heatmap_plot(
         norm=norm,
     )
     cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label(cbar_label)
-    ax.set_xlabel("moneyness")
-    ax.set_ylabel("tau")
-    ax.set_title(title)
+    cbar.set_label(cbar_label, fontsize=label_size)
+    cbar.ax.tick_params(labelsize=tick_size)
+    ax.set_xlabel(r"$m$", fontsize=label_size)
+    ax.set_ylabel(r"$\tau$", fontsize=label_size)
+    ax.set_title(title, fontsize=title_size)
+    ax.tick_params(axis="both", labelsize=tick_size)
     plt.tight_layout()
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
@@ -854,7 +859,7 @@ def main() -> None:
         m_edges=m_edges,
         out_path=fig_dir / "abs_error_map_m_tau.png",
         title="PINN vs COS | Mean Absolute Error by Zone",
-        cbar_label="mean |PINN - COS| (log scale)",
+        cbar_label=r"mean $|e|$ (log scale)",
         cmap="magma",
         log_scale=True,
     )
@@ -871,7 +876,7 @@ def main() -> None:
         m_edges=m_edges,
         out_path=fig_dir / "rel_abs_error_map_m_tau.png",
         title="PINN vs COS | Mean Relative Absolute Error by Zone",
-        cbar_label="mean |PINN - COS| / max(|COS|, floor) (log scale)",
+        cbar_label=r"mean $|e|_{\mathrm{rel}}$ (log scale)",
         cmap="magma",
         log_scale=True,
     )
@@ -895,7 +900,7 @@ def main() -> None:
         f"COS failed: {int(cos_stats.get('failed', 0))}"
     )
     print(
-        f"MAE={metrics['mae']:.3e} | RMSE={metrics['rmse']:.3e} | "
+        f"MSE={metrics['mse']:.3e} | RMSE={metrics['rmse']:.3e} | "
         f"MAPE={metrics['mape_pct']:.3f}% | MaxAE={metrics['max_abs_error']:.3e}"
     )
     print(

@@ -1,32 +1,17 @@
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01
+checkpoint_name: model_best.pt
+device: mps
+data_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/1M_Feller
+splits:
+- train
+- val
+- test
+target_col: iv_brent
+batch_size: 32768
 normalization:
   enabled: false
   normalize_target: false
   stats_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/normalization_stats.yaml
-global:
-  train:
-    n_samples: 800000
-    mse: 6.986570457059519e-08
-    rmse: 0.0002643212147569604
-    mae: 0.0001209314169622521
-    abs_err_p50: 7.953638070856694e-05
-    abs_err_p90: 0.00024965966277236683
-    abs_err_p99: 0.0006962162645829397
-  val:
-    n_samples: 100000
-    mse: 4.0033902738092115e-06
-    rmse: 0.002000847388935301
-    mae: 0.00014864975550626223
-    abs_err_p50: 7.943883694791487e-05
-    abs_err_p90: 0.00024979674334494885
-    abs_err_p99: 0.0007075558311151792
-  test:
-    n_samples: 100000
-    mse: 3.467980508935976e-06
-    rmse: 0.0018622514623261746
-    mae: 0.00014484926541140909
-    abs_err_p50: 7.910028242824607e-05
-    abs_err_p90: 0.0002504563328621146
-    abs_err_p99: 0.0007207879709719926
 bins:
   moneyness:
   - 0.6
@@ -43,8 +28,34 @@ bins:
   - 1.0
   - 2.0
   - 3.0
+global:
+  train:
+    n_samples: 800000
+    mse: 6.986570457059519e-08
+    rmse: 0.0002643212147569604
+    mape_pct: 2.2101105543380632
+    abs_err_p50: 7.953638070856694e-05
+    abs_err_p90: 0.00024965966277236683
+    abs_err_p99: 0.0006962162645829397
+  val:
+    n_samples: 100000
+    mse: 4.0033902738092115e-06
+    rmse: 0.002000847388935301
+    mape_pct: 18.12079060823026
+    abs_err_p50: 7.943883694791487e-05
+    abs_err_p90: 0.00024979674334494885
+    abs_err_p99: 0.0007075558311151792
+  test:
+    n_samples: 100000
+    mse: 3.467980508935976e-06
+    rmse: 0.0018622514623261746
+    mape_pct: 15.875773482110567
+    abs_err_p50: 7.910028242824607e-05
+    abs_err_p90: 0.0002504563328621146
+    abs_err_p99: 0.0007207879709719926
 artifacts:
-  global_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_global.parquet
-  global_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_global.csv
-  region_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_by_region.parquet
-  region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_by_region.csv
+  eval_global_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_global.parquet
+  eval_global_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_global.csv
+  eval_region_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_by_region.parquet
+  eval_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_by_region.csv
+  eval_summary_yaml: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/Liu_like_tanh_1M_v01/metrics/eval_summary.yaml

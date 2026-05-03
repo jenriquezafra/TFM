@@ -23,6 +23,18 @@ from src.calibration.model_inference import FEATURE_ORDER, load_model_from_run, 
 DEFAULT_TAU_BINS = [0.05, 0.25, 0.5, 1.0, 2.0, 3.0]
 DEFAULT_MONEYNESS_BINS = [0.6, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4]
 DEFAULT_SPLITS = ("train", "val", "test")
+FEATURE_LABELS = {
+    "moneyness": r"$m$",
+    "tau": r"$\tau$",
+}
+METRIC_LABELS = {
+    "mse": "MSE",
+    "rmse": "RMSE",
+    "mape_pct": "MAPE (%)",
+}
+PLOT_TITLE_SIZE = 15
+PLOT_LABEL_SIZE = 13
+PLOT_TICK_SIZE = 11
 
 
 def _load_yaml_dict(path: Path) -> dict[str, Any]:
@@ -125,15 +137,22 @@ def _resolve_feature_columns(
     return features
 
 
-def _build_global_metrics(*, split: str, residual: np.ndarray) -> dict[str, Any]:
+def _build_global_metrics(
+    *,
+    split: str,
+    residual: np.ndarray,
+    y_true: np.ndarray,
+    mape_floor: float,
+) -> dict[str, Any]:
     abs_err = np.abs(residual)
     mse = float(np.mean(residual**2))
+    denom = np.maximum(np.abs(y_true), float(mape_floor))
     return {
         "split": split,
         "n_samples": int(residual.size),
         "mse": mse,
         "rmse": float(np.sqrt(mse)),
-        "mae": float(np.mean(abs_err)),
+        "mape_pct": float(100.0 * np.mean(abs_err / denom)),
         "abs_err_p50": float(np.quantile(abs_err, 0.50)),
         "abs_err_p90": float(np.quantile(abs_err, 0.90)),
         "abs_err_p99": float(np.quantile(abs_err, 0.99)),
@@ -146,7 +165,9 @@ def _build_bin_metrics(
     feature_name: str,
     feature_values: np.ndarray,
     residual: np.ndarray,
+    y_true: np.ndarray,
     bin_edges: np.ndarray,
+    mape_floor: float,
 ) -> list[dict[str, Any]]:
     idx = np.digitize(feature_values, bin_edges[1:-1], right=False)
     rows: list[dict[str, Any]] = []
@@ -155,6 +176,8 @@ def _build_bin_metrics(
         if not np.any(mask):
             continue
         err = residual[mask]
+        abs_err = np.abs(err)
+        denom = np.maximum(np.abs(y_true[mask]), float(mape_floor))
         mse = float(np.mean(err**2))
         rows.append(
             {
@@ -166,7 +189,7 @@ def _build_bin_metrics(
                 "share_pct": float(100.0 * mask.mean()),
                 "mse": mse,
                 "rmse": float(np.sqrt(mse)),
-                "mae": float(np.mean(np.abs(err))),
+                "mape_pct": float(100.0 * np.mean(abs_err / denom)),
             }
         )
     return rows
@@ -179,11 +202,13 @@ def _plot_global_metric(*, global_df: pd.DataFrame, metric: str, out_path: Path)
     values = global_df[metric].to_numpy(dtype=np.float64)
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.bar(splits, values, color="#2f6db5")
-    ax.set_xlabel("split")
-    ax.set_ylabel(metric)
+    metric_label = METRIC_LABELS.get(metric, metric)
+    ax.set_xlabel("split", fontsize=PLOT_LABEL_SIZE)
+    ax.set_ylabel(metric_label, fontsize=PLOT_LABEL_SIZE)
     if np.all(values > 0.0):
         ax.set_yscale("log")
-    ax.set_title(f"Global {metric} by split")
+    ax.set_title(f"Global {metric_label} by split", fontsize=PLOT_TITLE_SIZE)
+    ax.tick_params(axis="both", labelsize=PLOT_TICK_SIZE)
     ax.grid(True, axis="y", which="major")
     ax.grid(True, axis="y", which="minor", alpha=0.3)
     fig.tight_layout()
@@ -208,8 +233,10 @@ def _plot_region_metric(
 
     for ax, feature in zip(axes, feature_order):
         feature_df = bins_df[bins_df["feature"] == feature]
+        feature_label = FEATURE_LABELS.get(feature, feature)
+        metric_label = METRIC_LABELS.get(metric, metric)
         if feature_df.empty:
-            ax.text(0.5, 0.5, f"No data for {feature}", ha="center", va="center")
+            ax.text(0.5, 0.5, f"No data for {feature_label}", ha="center", va="center")
             ax.set_axis_off()
             continue
 
@@ -225,14 +252,15 @@ def _plot_region_metric(
             y_val = split_df[metric].to_numpy(dtype=np.float64)
             ax.plot(x_center, y_val, marker="o", linewidth=1.3, label=split)
 
-        ax.set_xlabel(feature)
-        ax.set_ylabel(metric)
+        ax.set_xlabel(feature_label, fontsize=PLOT_LABEL_SIZE)
+        ax.set_ylabel(metric_label, fontsize=PLOT_LABEL_SIZE)
         if np.all(feature_df[metric].to_numpy(dtype=np.float64) > 0.0):
             ax.set_yscale("log")
         ax.grid(True, which="major")
         ax.grid(True, which="minor", alpha=0.3)
-        ax.set_title(f"{metric} by {feature} bins")
-        ax.legend()
+        ax.set_title(f"{metric_label} by {feature_label} bins", fontsize=PLOT_TITLE_SIZE)
+        ax.tick_params(axis="both", labelsize=PLOT_TICK_SIZE)
+        ax.legend(fontsize=PLOT_TICK_SIZE)
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=220)
@@ -264,6 +292,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-col", default="iv_brent")
     parser.add_argument("--splits", default="train,val,test")
     parser.add_argument("--batch-size", type=int, default=8192)
+    parser.add_argument("--mape-floor", type=float, default=1.0e-4)
     parser.add_argument(
         "--tau-bins",
         default=None,
@@ -336,7 +365,14 @@ def main() -> None:
             normalization_stats=normalization_stats,
         )
         residual = y_pred - y_true
-        global_rows.append(_build_global_metrics(split=split, residual=residual))
+        global_rows.append(
+            _build_global_metrics(
+                split=split,
+                residual=residual,
+                y_true=y_true,
+                mape_floor=float(args.mape_floor),
+            )
+        )
 
         if "moneyness" in split_df.columns:
             bin_rows.extend(
@@ -345,7 +381,9 @@ def main() -> None:
                     feature_name="moneyness",
                     feature_values=split_df["moneyness"].to_numpy(dtype=np.float64),
                     residual=residual,
+                    y_true=y_true,
                     bin_edges=moneyness_bins,
+                    mape_floor=float(args.mape_floor),
                 )
             )
         if "tau" in split_df.columns:
@@ -355,7 +393,9 @@ def main() -> None:
                     feature_name="tau",
                     feature_values=split_df["tau"].to_numpy(dtype=np.float64),
                     residual=residual,
+                    y_true=y_true,
                     bin_edges=tau_bins,
+                    mape_floor=float(args.mape_floor),
                 )
             )
 
@@ -396,7 +436,7 @@ def main() -> None:
                 "n_samples": int(row["n_samples"]),
                 "mse": float(row["mse"]),
                 "rmse": float(row["rmse"]),
-                "mae": float(row["mae"]),
+                "mape_pct": float(row["mape_pct"]),
                 "abs_err_p50": float(row["abs_err_p50"]),
                 "abs_err_p90": float(row["abs_err_p90"]),
                 "abs_err_p99": float(row["abs_err_p99"]),
@@ -420,7 +460,7 @@ def main() -> None:
     for row in global_rows:
         print(
             f"[{row['split']}] "
-            f"mse={row['mse']:.8e} rmse={row['rmse']:.8e} mae={row['mae']:.8e}"
+            f"mse={row['mse']:.8e} rmse={row['rmse']:.8e} mape={row['mape_pct']:.4f}%"
         )
     print(f"Saved: {global_parquet}")
     if not bins_df.empty:
@@ -435,8 +475,8 @@ def main() -> None:
         )
         _plot_global_metric(
             global_df=global_df,
-            metric="mae",
-            out_path=figures_dir / "eval_global_mae.png",
+            metric="mape_pct",
+            out_path=figures_dir / "eval_global_mape.png",
         )
         _plot_region_metric(
             bins_df=bins_df,
@@ -446,8 +486,8 @@ def main() -> None:
         )
         _plot_region_metric(
             bins_df=bins_df,
-            metric="mae",
-            out_path=figures_dir / "eval_region_mae.png",
+            metric="mape_pct",
+            out_path=figures_dir / "eval_region_mape.png",
             split_order=split_names,
         )
         print(f"Saved plots to: {figures_dir}")

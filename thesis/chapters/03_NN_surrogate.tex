@@ -209,27 +209,28 @@ Let $\{(\mathbf{x}_i,\sigma_i)\}_{i=1}^{B}$ denote a mini-batch, where $\sigma_i
 \mathcal{L}_{\text{MSE}}(\mathbf{w})=\frac{1}{B}\sum_{i=1}^{B}\left(\hat{\sigma}_i-\sigma_i\right)^2.
 \]
 
-MSE is preferred because it is smooth, differentiable everywhere, and strongly penalizes large deviations, which is desirable when the ANN is later used in calibration loops sensitive to local pricing errors. Although MAE and RMSE are available in the implementation, MSE is used as the main training criterion in the reported baseline.
+MSE is preferred because it is smooth, differentiable everywhere, and strongly penalizes large deviations, which is desirable when the ANN is later used in calibration loops sensitive to local pricing errors. RMSE and MAPE are then used as reporting metrics, following the convention fixed in Chapter~\ref{ch:performance_benchmarks}.
 
 \subsection{Optimizer And Hyperparameters}
 \todos{PUEDE IR CAMBIANDO: se pretende mejorar las runs}
 
-Several optimizer configurations were tested (Adam, mixed schedules, and \texttt{mix\_half}). For model selection, we prioritize out-of-sample absolute-error behaviour (MAE and quantile stability), since these metrics better reflect the typical pointwise error level used later in calibration and sensitivity tasks.
+Several optimizer configurations were tested (Adam, mixed schedules, and \texttt{mix\_half}). For model selection, we prioritize out-of-sample MSE/RMSE and MAPE, since this keeps the training objective and the reporting convention aligned with the benchmark chapter.
 
-Under this criterion, the selected reference ANN is \texttt{Liu\_like\_v01} (Adam), while \texttt{MIX\_half\_v01} is the second-best candidate. Although \texttt{MIX\_half\_v01} achieves a slightly lower validation MSE, \texttt{Liu\_like\_v01} provides lower validation and test MAE, together with better high-quantile absolute errors.
+Under this criterion, the selected reference ANN is \texttt{Liu\_like\_v01} (Adam), while \texttt{MIX\_half\_v01} is the second-best candidate. The two runs have similar validation MSE, but the selected run gives a lower test MSE and lower test MAPE.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
     {\caption{Reference and runner-up runs used in optimizer selection}\label{tab:ann_optimizer_selection}}
-    {\begin{tabular}{|P{3.8cm}|P{3.1cm}|P{2.0cm}|P{2.0cm}|}
+    {\scriptsize
+    \begin{tabular}{|P{2.0cm}|P{2.0cm}|P{1.45cm}|P{1.45cm}|P{1.45cm}|P{1.45cm}|}
         \hline
-        \textbf{Run} & \textbf{Optimizer mode} & \textbf{Val MAE} & \textbf{Test MAE} \\
+        \textbf{Run} & \textbf{Optimizer mode} & \textbf{Val MSE} & \textbf{Test MSE} & \textbf{Val MAPE} & \textbf{Test MAPE} \\
         \hline
-        \texttt{Liu\_like\_v01} & Adam & $4.1132\times 10^{-4}$ & $4.2925\times 10^{-4}$ \\
+        Liu v01 & Adam & $4.65\times 10^{-6}$ & $9.18\times 10^{-6}$ & 13.21\% & 18.33\% \\
         \hline
-        \texttt{MIX\_half\_v01} & Adam $\rightarrow$ L-BFGS & $5.1342\times 10^{-4}$ & $5.2377\times 10^{-4}$ \\
+        MIX half v01 & Adam $\rightarrow$ L-BFGS & $4.55\times 10^{-6}$ & $9.41\times 10^{-6}$ & 17.36\% & 27.17\% \\
         \hline
-        \multicolumn{4}{l}{Source: Own elaboration from \texttt{outputs/runs/*/metrics/eval\_global.csv}}
+        \multicolumn{6}{l}{Source: Own elaboration from \texttt{outputs/runs/*/metrics/eval\_global.csv} and ANN prediction outputs}
     \end{tabular}}
 \end{table}
 

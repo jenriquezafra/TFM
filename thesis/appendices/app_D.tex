@@ -1,0 +1,16 @@
+\chapter{PINN Pricing Benchmark Setup}
+\label{app:pinn_pricing_benchmark_setup}
+
+The pricing benchmark compares a baseline parametric PINN against the COS/Heston reference under a common evaluation protocol and shared numerical conventions.
+
+The evaluated model is the baseline parametric PINN without Sobolev terms. Inputs follow the 8-dimensional convention
+\[
+\left[\tau, m, v, \rho, \kappa, \gamma, \bar v, r\right],
+\]
+with affine standardization fitted on training statistics. Concretely, each feature \(x_j\) is transformed as
+\[
+\tilde{x}_j=\frac{x_j-\mu_j^{\mathrm{train}}}{\sigma_j^{\mathrm{train}}},
+\]
+where \(\mu_j^{\mathrm{train}}\) and \(\sigma_j^{\mathrm{train}}\) are computed only on the training split and then reused unchanged in validation, test, and benchmark evaluation. This keeps features on comparable scales and stabilizes training and gradient computation, which is especially important in PINN settings; it also avoids data leakage from evaluation sets.
+
+The evaluation sample contains \(1.0\times10^4\) candidates, with \(9.996\times10^3\) valid comparisons after numerical filtering. COS pricing is computed with \(N=1500\), \(L=50\), and fallback \(L=80\), under European put convention (\(K=1\)) and no-arbitrage tolerance \(10^{-8}\). All reported metrics are computed in double precision on CPU.

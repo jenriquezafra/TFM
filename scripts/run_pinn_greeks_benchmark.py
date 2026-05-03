@@ -29,6 +29,20 @@ from src.greeks.pinn_adapter import DEFAULT_PINN_FEATURE_ORDER, load_pinn_price_
 
 
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "pinn_greeks_benchmark.yaml"
+GREEK_LABELS = {
+    "delta": "DELTA",
+    "gamma": "GAMMA",
+    "vega": "VEGA",
+    "theta": "THETA",
+    "rho": "RHO",
+}
+FEATURE_LABELS = {
+    "moneyness": r"$m$",
+    "tau": r"$\tau$",
+}
+TITLE_SIZE = 16
+LABEL_SIZE = 13
+TICK_SIZE = 11
 DEFAULT_FIXED_VALUES = {
     "tau": 1.0,
     "moneyness": 1.0,
@@ -39,6 +53,14 @@ DEFAULT_FIXED_VALUES = {
     "bar_v": 0.04,
     "r": 0.01,
 }
+
+
+def _greek_label(name: str) -> str:
+    return GREEK_LABELS.get(name, name)
+
+
+def _feature_label(name: str) -> str:
+    return FEATURE_LABELS.get(name, name)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -320,9 +342,10 @@ def _save_error_hist(*, error: np.ndarray, out_path: Path, greek: str) -> None:
     fig, ax = plt.subplots(figsize=(7.0, 4.5))
     ax.hist(error, bins=80, alpha=0.85, color="#2F5D8A")
     ax.axvline(0.0, linestyle="--", color="black", linewidth=1.0)
-    ax.set_xlabel("PINN - benchmark")
-    ax.set_ylabel("count")
-    ax.set_title(f"{greek}: error histogram")
+    ax.set_xlabel(r"$e$", fontsize=LABEL_SIZE)
+    ax.set_ylabel("count", fontsize=LABEL_SIZE)
+    ax.set_title(f"{_greek_label(greek)}: error histogram", fontsize=TITLE_SIZE)
+    ax.tick_params(axis="both", labelsize=TICK_SIZE)
     ax.grid(True, alpha=0.25)
     plt.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -370,10 +393,12 @@ def _save_heatmap(
         interpolation="nearest",
     )
     cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label(cbar_label)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    ax.set_title(title)
+    cbar.set_label(cbar_label, fontsize=LABEL_SIZE)
+    cbar.ax.tick_params(labelsize=TICK_SIZE)
+    ax.set_xlabel(_feature_label(x_label), fontsize=LABEL_SIZE)
+    ax.set_ylabel(_feature_label(y_label), fontsize=LABEL_SIZE)
+    ax.set_title(title, fontsize=TITLE_SIZE)
+    ax.tick_params(axis="both", labelsize=TICK_SIZE)
     plt.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=240)
@@ -624,8 +649,8 @@ def main() -> None:
             x_label=x_axis_label,
             y_label=y_axis_label,
             out_path=fig_dir / f"abs_error_map_{greek_name}.png",
-            title=f"{greek_name}: mean absolute error by zone",
-            cbar_label="mean |PINN - benchmark|",
+            title=f"{_greek_label(greek_name)}: mean absolute error by zone",
+            cbar_label=r"mean $|e|$",
             log_scale=False,
         )
         mean_rel_abs, x_edges2, y_edges2 = _build_error_heatmap(
@@ -641,8 +666,8 @@ def main() -> None:
             x_label=x_axis_label,
             y_label=y_axis_label,
             out_path=fig_dir / f"rel_abs_error_map_{greek_name}.png",
-            title=f"{greek_name}: mean relative absolute error by zone",
-            cbar_label="mean |PINN - benchmark| / max(|benchmark|, floor) (log scale)",
+            title=f"{_greek_label(greek_name)}: mean relative absolute error by zone",
+            cbar_label=r"mean $|e|_{\mathrm{rel}}$ (log scale)",
             log_scale=True,
         )
 
@@ -725,7 +750,7 @@ def main() -> None:
         print(
             f"{row['greek']}: "
             f"MSE={row['mse']:.3e} | RMSE={row['rmse']:.3e} | "
-            f"R2={row['r2']:.6f} | MAPE={row['mape_pct']:.3f}%"
+            f"MAPE={row['mape_pct']:.3f}%"
         )
 
 

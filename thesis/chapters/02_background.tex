@@ -344,12 +344,19 @@ Stopping is based on standard price and parameter tolerances:
 \end{equation}
 Here, $\sigma_n$ is the volatility iterate at step $n$, $\varepsilon_{\text{price}}$ and $\varepsilon_\sigma$ are stopping tolerances, and $n_{\max}$ is the maximum number of iterations. If convergence is not reached, or if the target price violates arbitrage bounds, the point is flagged as invalid for IV reporting. In edge cases near the IV floor, the pricing stage may be recomputed with a wider COS truncation interval before retrying inversion.
 
-In the results chapters, IV errors are the primary evaluation metrics:
+In the results chapters, IV errors are reported with a unified metric set:
 \begin{equation}
-    \mathrm{MAE}_{IV}=\frac{1}{N}\sum_{i=1}^{N}\left|\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right|,
-    \qquad
-    \mathrm{RMSE}_{IV}=\sqrt{\frac{1}{N}\sum_{i=1}^{N}\left(\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right)^2 }.
+    \begin{aligned}
+    \mathrm{MSE}_{IV}
+        &=\frac{1}{N}\sum_{i=1}^{N}\left(\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right)^2,\\
+    \mathrm{RMSE}_{IV}
+        &=\sqrt{\mathrm{MSE}_{IV}},\\
+    \mathrm{MAPE}_{IV}
+        &=100\,\frac{1}{N}\sum_{i=1}^{N}
+        \frac{\left|\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right|}
+        {\max\left(\left|\sigma_i^{\mathrm{ref}}\right|,\varepsilon_{\mathrm{MAPE}}\right)}.
+    \end{aligned}
 \end{equation}
-Here, $\mathrm{MAE}_{IV}$ and $\mathrm{RMSE}_{IV}$ are the mean absolute error and root mean squared error in IV units, $\hat\sigma_i$ is the model-implied volatility prediction, $\sigma_i^{\mathrm{ref}}$ is the reference implied volatility, and $N$ is the number of evaluation points in the metric. To capture tail behavior, quantiles of absolute IV error are also reported (e.g., $q_{95}$ and $q_{99}$), together with stratified summaries by moneyness and maturity buckets.
+Here, $\mathrm{MSE}_{IV}$ and $\mathrm{RMSE}_{IV}$ measure squared and root-squared error in IV units, while $\mathrm{MAPE}_{IV}$ gives a scale-relative percentage error with denominator floor $\varepsilon_{\mathrm{MAPE}}$ to avoid unstable ratios near zero. The same convention is reused for price and Greek benchmarks by replacing $\sigma$ with the corresponding target variable. Tail quantiles may be used as auxiliary diagnostics, but not as primary benchmark metrics.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
