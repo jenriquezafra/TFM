@@ -185,6 +185,68 @@ Weights are initialized with Xavier uniform initialization and biases are initia
     \end{tabular}}
 \end{table}
 
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        >=Latex,
+        neuron/.style={circle,draw=black,minimum size=6.5mm,inner sep=0pt,line width=0.35pt},
+        input neuron/.style={neuron,fill=black},
+        trainable neuron/.style={neuron,fill=white},
+        connection/.style={->,line width=0.25pt,shorten >=1.1pt,shorten <=1.1pt},
+        layer label/.style={font=\small\bfseries},
+        legend text/.style={font=\scriptsize},
+        transform shape
+    ]
+        \draw[rounded corners=4pt,line width=0.35pt] (-1.15,-2.65) rectangle (10.35,2.35);
+
+        \node[layer label] at (0,2.05) {Input layer};
+        \node[layer label] at (4.95,2.05) {Hidden layers};
+        \node[layer label] at (9.25,2.05) {Output layer};
+
+        \node[input neuron,label=left:{\scriptsize$\rho$}] (I1) at (0,1.55) {};
+        \node[input neuron,label=left:{\scriptsize$\kappa$}] (I2) at (0,1.10) {};
+        \node[input neuron,label=left:{\scriptsize$\gamma$}] (I3) at (0,0.65) {};
+        \node[input neuron,label=left:{\scriptsize$\bar v$}] (I4) at (0,0.20) {};
+        \node[input neuron,label=left:{\scriptsize$v_0$}] (I5) at (0,-0.25) {};
+        \node[input neuron,label=left:{\scriptsize$m$}] (I6) at (0,-0.70) {};
+        \node[input neuron,label=left:{\scriptsize$\tau$}] (I7) at (0,-1.15) {};
+        \node[input neuron,label=left:{\scriptsize$r$}] (I8) at (0,-1.60) {};
+
+        \foreach \layer/\xpos in {1/2.10,2/4.00,3/5.90,4/7.80} {
+            \foreach \nodeidx/\ypos in {1/1.20,2/0.45,3/-0.45,4/-1.20} {
+                \node[trainable neuron] (H\layer\nodeidx) at (\xpos,\ypos) {};
+            }
+            \node[font=\small] at (\xpos,0) {$\vdots$};
+            \node[font=\scriptsize] at (\xpos,-1.75) {200 ReLU units};
+        }
+
+        \node[trainable neuron,label=right:{\scriptsize$\hat\sigma_{\mathrm{imp}}$}] (O1) at (9.25,0) {};
+
+        \foreach \i in {1,...,8} {
+            \foreach \j in {1,...,4} {
+                \draw[connection] (I\i) -- (H1\j);
+            }
+        }
+        \foreach \layer/\next in {1/2,2/3,3/4} {
+            \foreach \i in {1,...,4} {
+                \foreach \j in {1,...,4} {
+                    \draw[connection] (H\layer\i) -- (H\next\j);
+                }
+            }
+        }
+        \foreach \i in {1,...,4} {
+            \draw[connection] (H4\i) -- (O1);
+        }
+
+        \node[input neuron] at (2.15,-2.25) {};
+        \node[legend text,anchor=west] at (2.45,-2.25) {Fixed input feature};
+        \node[trainable neuron] at (5.75,-2.25) {};
+        \node[legend text,anchor=west] at (6.05,-2.25) {Trainable affine layer};
+    \end{tikzpicture}
+    \caption{Fully connected ANN pricer used in the forward Heston implied-volatility surrogate. The eight fixed inputs are mapped through four hidden layers of width \(200\), and the final linear layer returns the predicted implied volatility.}
+    \label{fig:ann_architecture_tikz}
+\end{figure}
+
 
 
 
