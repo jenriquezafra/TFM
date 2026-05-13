@@ -73,16 +73,7 @@ The most stable behavior is observed in the interior of each plane, where isocli
 
 Regional diagnostics identify where approximation error concentrates. On the test split, the largest MSE values are concentrated at low moneyness and short maturity: the bin \(m\in[0.6,0.8]\) accounts for roughly one quarter of test points, while \(\tau\in[0.05,0.25]\) accounts for roughly \(6.8\%\). Interior and longer-horizon bins show a clear error drop, so the pattern is structural rather than driven by isolated rare points.
 
-Figure~\ref{fig:region_error_mse_ann} makes the same pattern explicit with two panels: left panel (MSE by moneyness bins) and right panel (MSE by maturity bins). In both validation and test curves, the first bin is clearly the most difficult, while errors drop sharply and remain much lower in interior bins. This is consistent with boundary/extrapolation effects and with the smoother behavior observed around central bins.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{figures/nn/eval_region_mse.png}
-    \caption{Regional ANN MSE by moneyness bins (left) and maturity bins (right). Curves correspond to train, validation, and test.}
-    \label{fig:region_error_mse_ann}
-\end{figure}
-
-\todos{MEJORAR ESTA FIGURA}
+The same pattern appears in the regional MSE curves by moneyness and maturity bins. In both validation and test curves, the first bin is clearly the most difficult, while errors drop sharply and remain much lower in interior bins. This is consistent with boundary/extrapolation effects and with the smoother behavior observed around central bins.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -136,16 +127,7 @@ To characterize residual magnitudes directly in IV units, Table~\ref{tab:cann_re
 
 Residual concentration is mild. As an auxiliary tail diagnostic, the largest local deviations appear around intermediate-to-high moneyness and medium maturities, but their scale remains below \(5\times10^{-4}\) in absolute IV units.
 
-Figure~\ref{fig:cann_residual_heatmap_m_tau} shows the signed residual map over \((m,\tau)\) for the reference no-regularization solution. The color pattern is balanced around zero (no strong systematic bias), with localized positive and negative pockets whose magnitude remains in the same \(10^{-4}\) scale reported in Table~\ref{tab:cann_residual_distribution}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.92\textwidth]{figures/cann/cann_residual_heatmap_m_tau_no_reg_smooth.png}
-    \caption{Signed residual heatmap over \((m,\tau)\) for the CaNN reference calibration (no regularization). Residual defined as \(\mathrm{IV}_{\mathrm{pred}}-\mathrm{IV}_{\mathrm{market}}\). Rendering is visually smoothed for readability; values come from the original quote grid.}
-    \label{fig:cann_residual_heatmap_m_tau}
-\end{figure}
-
-\todos{MEJORAR ESTA FIGURA}
+The signed residuals over the \((m,\tau)\) quote grid are balanced around zero for the reference no-regularization solution, with no strong systematic bias. Localized positive and negative deviations remain in the same \(10^{-4}\) scale reported in Table~\ref{tab:cann_residual_distribution}.
 
 
 \subsection{Parameter Recovery Profile}
@@ -219,29 +201,10 @@ To characterize local identifiability around the calibrated optimum, Jacobian an
 
 The selected solution satisfies near-stationarity (\(\|\nabla J(\theta^\star)\|_2 \ll 10^{-4}\)). The Hessian is symmetric, and the reported extreme eigenvalues are both non-negative in this run, consistent with a locally convex basin around the selected optimum. At the same time, \(\kappa_{\mathrm{abs}}(H)\approx 8\times10^4\) indicates pronounced anisotropy (flat and stiff directions coexist). The strongest cross-parameter coupling appears between \(\bar v\) and \(v_0\) (off-diagonal entry \(\approx 18.69\)), followed by \((\gamma,v_0)\) and \((\gamma,\bar v)\), which is coherent with the observed recovery pattern.
 
-Figure~\ref{fig:cann_jacobian_theta_star} shows the Jacobian components at \(\theta^\star\) for the no-regularization reference run. All components remain close to zero (between \(10^{-8}\) and \(10^{-6}\)), reinforcing first-order convergence. The largest entries are associated with \(\bar v\) and \(v_0\), but their magnitude is still very small, so there is no dominant residual slope left at the optimum.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.92\textwidth]{figures/cann/jacobian_theta_star_no_reg.png}
-    \caption{Jacobian components at \(\theta^\star\) for the CaNN reference calibration (no regularization).}
-    \label{fig:cann_jacobian_theta_star}
-\end{figure}
-
-\todos{MEJORAR ESTA FIGURA}
+The Jacobian components at \(\theta^\star\) for the no-regularization reference run remain close to zero (between \(10^{-8}\) and \(10^{-6}\)), reinforcing first-order convergence. The largest entries are associated with \(\bar v\) and \(v_0\), but their magnitude is still very small, so there is no dominant residual slope left at the optimum.
 
 
-Figure~\ref{fig:cann_hessian_theta_star} is the key second-order diagnostic. The heatmap makes explicit a block structure centered on \((\bar v,v_0)\): both diagonal entries are the largest (high local curvature), and their off-diagonal term is also large, which indicates strong local coupling between long-run variance and initial variance. By contrast, the \(\kappa\)-related diagonal curvature is much smaller, so perturbations in that direction are less strongly penalized around \(\theta^\star\). This mixed pattern (stiff variance block plus flatter directions in other coordinates) explains why fit residuals can be very small while some parameters, especially \(\rho\) and \(\gamma\), remain harder to pin down with the same precision as \((\bar v,v_0)\).
-\todos{Comentario visual: conservar esta figura como diagnóstico principal de curvatura local en CaNN.}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.92\textwidth]{figures/cann/hessian_theta_star_no_reg.png}
-    \caption{Hessian matrix at \(\theta^\star\) for the CaNN reference calibration (no regularization).}
-    \label{fig:cann_hessian_theta_star}
-\end{figure}
-
-\todos{MEJORAR ESTA FIGURA}
+The Hessian is the key second-order diagnostic. It has a block structure centered on \((\bar v,v_0)\): both diagonal entries are the largest (high local curvature), and their off-diagonal term is also large, which indicates strong local coupling between long-run variance and initial variance. By contrast, the \(\kappa\)-related diagonal curvature is much smaller, so perturbations in that direction are less strongly penalized around \(\theta^\star\). This mixed pattern (stiff variance block plus flatter directions in other coordinates) explains why fit residuals can be very small while some parameters, especially \(\rho\) and \(\gamma\), remain harder to pin down with the same precision as \((\bar v,v_0)\).
 
 The results above define the selected CaNN benchmark used in the rest of this chapter.
 
@@ -401,14 +364,7 @@ The same effect appears in Figure~\ref{fig:sobolev_error_histograms}: Sobolev tr
 \todos{MEJORAR ESTA FIGURA}
 
 
-Figure~\ref{fig:greeks_loss_sobolev} shows the two-phase optimization schedule used in this ablation: epochs \(0\) to \(4000\) are trained without Sobolev terms, and Sobolev augmentation is activated from epoch \(4000\) onward. Together, the five diagnostics indicate that Sobolev augmentation improves local derivative fidelity, not just aggregate scalar scores, while keeping the runtime overhead limited.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_loss_curve.png}
-    \caption{Training loss trajectory with phase switch at epoch 4000 (without Sobolev before 4000, with Sobolev from 4000 onward).}
-    \label{fig:greeks_loss_sobolev}
-\end{figure}
+The two-phase optimization schedule used in this ablation trains epochs \(0\) to \(4000\) without Sobolev terms, then activates Sobolev augmentation from epoch \(4000\) onward. Together, the diagnostics indicate that Sobolev augmentation improves local derivative fidelity, not just aggregate scalar scores, while keeping the runtime overhead limited.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Cross-Model Computational Comparison}

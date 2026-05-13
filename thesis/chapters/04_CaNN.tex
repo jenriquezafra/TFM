@@ -313,14 +313,7 @@ Regularization is therefore treated here as a stability probe. If a small penalt
 
 A calibrated vector should not be judged only by its final objective value. The residual surface tells whether the quotes are reproduced; the local geometry of the objective tells how informative those quotes are about the individual Heston parameters.
 
-Figure~\ref{fig:cann_residual_method} shows the signed residual map for the selected no-regularization calibration. The residuals remain centered around zero and are small in implied-volatility units. This supports the surface-fit part of the calibration claim, but it does not settle parameter identifiability.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.86\textwidth]{figures/cann/cann_residual_heatmap_m_tau_no_reg_smooth.png}
-    \caption{Signed implied-volatility residual map for the selected CaNN calibration, defined as \(\mathrm{IV}_{\mathrm{pred}}-\mathrm{IV}_{\mathrm{market}}\). The smoothing is visual only; the calibration is performed on the original quote grid.}
-    \label{fig:cann_residual_method}
-\end{figure}
+The selected no-regularization calibration is first evaluated through signed quote residuals, defined as \(\mathrm{IV}_{\mathrm{pred}}-\mathrm{IV}_{\mathrm{market}}\). The residuals remain centered around zero and are small in implied-volatility units. This supports the surface-fit part of the calibration claim, but it does not settle parameter identifiability.
 
 To study local identifiability, let
 \[
@@ -339,34 +332,13 @@ H(\theta^\star)\approx 2 J_e(\theta^\star)^{\top}WJ_e(\theta^\star),
 \]
 where \(H(\theta^\star)=\nabla_\theta^2J_{\mathrm{data}}(\theta^\star)\) is the local second-derivative matrix and \(J_e(\theta^\star)\in\mathbb{R}^{N_q\times5}\) is the Jacobian of quote residuals with respect to the five calibrated parameters. Its \((j,k)\) entry is \(\partial e_j/\partial\theta_k\), so it measures how the residual at quote \(j\) reacts to a local perturbation of parameter \(k\).
 
-This approximation gives the diagnostic its interpretation. Large curvature indicates directions in parameter space where the implied-volatility surface reacts strongly. Small curvature indicates flatter directions, where different parameter values can generate similar quote fits. Cross-terms reveal parameter couplings, which are especially relevant in the Heston model because variance level, variance-of-variance, and mean reversion can partially compensate for each other over limited grids.
+This approximation gives the diagnostic its interpretation. Large curvature indicates directions in parameter space where the implied-volatility surface reacts strongly. Small curvature indicates flatter directions, where different parameter values can generate similar quote fits. Cross-terms reveal parameter couplings, which are especially relevant in the Heston model because variance level, variance-of-variance, and mean reversion can partially compensate for each other over limited grids. The corresponding first-order check gives near-zero objective-gradient components at \(\theta^\star\), while the Hessian audit shows that the variance block around \((\bar v,v_0)\) is locally stiffer than the remaining directions.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.72\textwidth]{figures/cann/jacobian_theta_star_no_reg.png}
-    \caption{Objective-gradient components at \(\theta^\star\) for the selected no-regularization calibration. Near-zero components support first-order stationarity of the selected solution.}
-    \label{fig:cann_jacobian_method}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.78\textwidth]{figures/cann/hessian_theta_star_no_reg.png}
-    \caption{Hessian matrix at \(\theta^\star\) for the selected no-regularization calibration. The variance block around \((\bar v,v_0)\) is locally stiffer than the remaining directions, indicating uneven parameter identifiability.}
-    \label{fig:cann_hessian_method}
-\end{figure}
-
-The resulting reading is deliberately cautious. A small residual map supports the claim that the calibrated vector is market-consistent on the quote grid. A positive local curvature profile supports the claim that the selected solution lies in a stable basin. However, neither observation proves global uniqueness of the Heston inverse problem. The parameter-level conclusions in Chapter~\ref{ch:performance_benchmarks} must therefore be read together with these diagnostics: \((\bar v,v_0)\) are locally more tightly identified in the selected experiment than parameters such as \(\rho\) and \(\gamma\).
+The resulting reading is deliberately cautious. Small quote-level residuals support the claim that the calibrated vector is market-consistent on the quote grid. A positive local curvature profile supports the claim that the selected solution lies in a stable basin. However, neither observation proves global uniqueness of the Heston inverse problem. The parameter-level conclusions in Chapter~\ref{ch:performance_benchmarks} must therefore be read together with these diagnostics: \((\bar v,v_0)\) are locally more tightly identified in the selected experiment than parameters such as \(\rho\) and \(\gamma\).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Interface with the PINN Stage}
 
 The final role of the CaNN stage is to pass a market state to the pricing and Greeks analysis developed later in the thesis. This interface requires a small but important distinction. In calibration, \(v_0^\star\) is one of the inferred Heston parameters. In the PINN formulation, the network is trained over a generic variance state \(v\), while the calibrated value \(v_0^\star\) is inserted only when evaluating the trained model at the current market configuration.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.88\textwidth]{figures/cann/cann_to_pinn_interface.png}
-    \caption{Interface between the calibrated Heston vector and the downstream PINN input convention. Structural parameters define the PDE operator, while \(v_0^\star\) is used as the variance-state coordinate at market evaluation.}
-    \label{fig:cann_to_pinn_interface}
-\end{figure}
-
-This closes the methodological loop. The ANN pricer makes calibration computationally feasible; the optimizer converts a quote surface into a Heston vector; the diagnostics determine how that vector should be interpreted; and the calibrated state becomes the input configuration for the PINN-based valuation and Greek computation that follows.
+Operationally, the structural parameters define the PDE operator, while \(v_0^\star\) is used as the variance-state coordinate at market evaluation. This closes the methodological loop. The ANN pricer makes calibration computationally feasible; the optimizer converts a quote surface into a Heston vector; the diagnostics determine how that vector should be interpreted; and the calibrated state becomes the input configuration for the PINN-based valuation and Greek computation that follows.
