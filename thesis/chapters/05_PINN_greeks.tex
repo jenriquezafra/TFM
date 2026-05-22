@@ -28,15 +28,7 @@ The network is trained on collocation points sampled in the interior and on the 
 
 At a high level, the proposed workflow is the following. First, a parametric PINN is defined to approximate the price surface over a range of maturities, moneyness levels, variance states, and Heston parameters. Second, the PINN is trained by minimizing the residual of the Heston pricing PDE together with terminal and boundary mismatches. Third, once the network is trained, the price of a contract for a calibrated market configuration is obtained by evaluating the network at the corresponding $(\tau,m,v_0^*,\Theta^*,r)$. This preserves the link with the calibration pipeline while replacing label-based supervision with model-consistent unsupervised training. In this sense, the CaNN stage remains essential: it provides the market-specific parameter tuple that is consumed by the parametric PINN at inference time, without requiring a retraining of the pricing network for each new calibration.
 
-\begin{itemize}
-    \item hablar muy bien de los inputs (heston params optimizados y tal)
-    \item hablar sobre el output, que es V para vanilla option
-    \item hablar sobre greeks por autodiff ?
-    \item hablar de nuevo un poco sobre el pipeline 
-\end{itemize}
-
 \subsection{PINN Theoretical Framework}
-\todos{no estoy seguro de donde poner esto, o si quitarlo incluso}
 
 A PINN can be viewed as a parametric approximation of the solution of a differential equation. In the present setting, the network $u_\phi$ is required to satisfy the Heston pricing PDE in the interior of the domain and to match the contractual conditions at expiry and on selected boundaries. If $\mathcal{N}$ denotes the Heston differential operator, the target problem can be summarized abstractly as
 \[
@@ -59,12 +51,6 @@ Training then consists of minimizing a composite loss built from three sources o
 This decomposition is standard in the PINN literature and matches the structure adopted in \cite{hainaut2024pinn}.
 
 An essential ingredient of this approach is automatic differentiation. Since the Heston PDE contains first- and second-order derivatives with respect to the state variables, the network output must remain differentiable with respect to its inputs. The required quantities are obtained by differentiating the computational graph of the network rather than by using finite-difference approximations. This is particularly convenient in the present case because the same differentiable surrogate can later be reused for the computation of Greeks.
-
-\begin{itemize}
-    \item función aproximadora
-    \item idea de residuo de la PDE
-    \item concepto de la loss en una PINN
-\end{itemize}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Heston Pricing PDE}
 
@@ -115,12 +101,6 @@ For a general strike $K$, this condition would read $u(\tau,0,v)=Ke^{-r\tau}$. I
 
 The far-field behavior as $m\to\infty$ for a put, namely $u(\tau,m,v)\to 0$, can also be incorporated if needed. However, to keep the initial implementation simple, the first version of the model will explicitly enforce only the terminal condition and the lower boundary, while controlling the remaining behavior through the bounded sampling domain in $(\tau,m,v)$ and the interior residual. This choice is consistent with the objective of building a minimal but coherent unsupervised PINN before adding more elaborate constraints.
 
-\begin{itemize}
-    \item presentar la PDE de heston y hablar sobre ella
-    \item definir la terminal condition payoff (depende de put/call !)
-    \item hablar de las boundary conditions y cuales imponemos
-\end{itemize}
-
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -135,10 +115,10 @@ u_\phi:\mathbb{R}^8\to\mathbb{R},
 x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\mapsto u_\phi(x),
 \]
 where the scalar output is the option price. This architecture is appropriate for the present setting because all inputs are continuous tabular variables and no spatial or sequential inductive bias is required.
-\todos{citar referencia general sobre MLPs para PINNs}
+This is also the standard architectural choice in many PINN implementations, where a smooth MLP acts as the differentiable trial function for the PDE solution \cite{hainaut2024pinn,urban_2025}.
 
 Compared with Chapter~\ref{ch:ann_surrogate}, where the ANN surrogate learned implied volatility from supervised labels, the role of the network here is to represent a differentiable pricing function that is constrained by the Heston PDE and boundary conditions. The model class is therefore selected not only for approximation capacity, but also for stable first- and second-order automatic differentiation.
-\todos{citar referencia sobre el papel de la diferenciabilidad en PINNs}
+This differentiability requirement is central when PDE residuals or derivative losses are part of the objective, as in gradient-enhanced and Sobolev-style PINN variants \cite{yu2022gpinn,czarnecki2017sobolev}.
 
 \subsection{Architecture Details}
 
@@ -155,7 +135,41 @@ u_\phi=W^{(5)}h^{(4)}+b^{(5)},
 with $\varphi=\tanh$.
 
 Weights are initialized with Xavier uniform initialization and biases are initialized to zero. In the baseline setup, dropout is disabled and no batch-normalization layers are included.
-\todos{FIGURE: diagrama de arquitectura PINN (8-256-256-256-256-1, activaciones \texttt{tanh}, salida lineal)}
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.96\textwidth}{!}{
+    \begin{tikzpicture}[
+        >=Latex,
+        block/.style={draw,rounded corners=2pt,align=center,minimum height=1.05cm,inner sep=4pt,line width=0.4pt,font=\small},
+        inputblock/.style={block,fill=gray!10,minimum width=2.6cm},
+        hiddenblock/.style={block,fill=blue!6,minimum width=2.55cm},
+        outputblock/.style={block,fill=green!8,minimum width=2.1cm},
+        lossblock/.style={block,fill=orange!10,minimum width=4.2cm},
+        arrow/.style={->,line width=0.55pt,shorten >=2pt,shorten <=2pt}
+    ]
+        \node[inputblock] (inputs) {Inputs\\[-1mm]\(\tau,m,v,\rho,\kappa,\gamma,\bar v,r\)};
+        \node[hiddenblock,right=0.75cm of inputs] (h1) {Hidden 1\\256 \texttt{tanh}};
+        \node[hiddenblock,right=0.55cm of h1] (h2) {Hidden 2\\256 \texttt{tanh}};
+        \node[hiddenblock,right=0.55cm of h2] (h3) {Hidden 3\\256 \texttt{tanh}};
+        \node[hiddenblock,right=0.55cm of h3] (h4) {Hidden 4\\256 \texttt{tanh}};
+        \node[outputblock,right=0.75cm of h4] (output) {Linear output\\\(u_\phi\)};
+
+        \draw[arrow] (inputs) -- (h1);
+        \draw[arrow] (h1) -- (h2);
+        \draw[arrow] (h2) -- (h3);
+        \draw[arrow] (h3) -- (h4);
+        \draw[arrow] (h4) -- (output);
+
+        \node[lossblock,below=1.25cm of h2] (ad) {Autodiff derivatives\\\(u_\tau,u_m,u_{mm},u_v,u_{vv},u_{mv}\)};
+        \node[lossblock,below=1.25cm of h4] (loss) {Training objective\\\(\mathcal{L}_{\mathrm{PDE}}+\mathcal{L}_{\mathrm{term}}+\mathcal{L}_{\mathrm{bc}}\)};
+
+        \draw[arrow,dashed] (output.south) |- (ad.east);
+        \draw[arrow,dashed] (ad) -- (loss);
+    \end{tikzpicture}}
+    \caption{PINN architecture used for Heston pricing. The network maps the eight state and parameter inputs to a scalar option price; automatic differentiation of the same graph provides the derivatives required by the PDE residual and by Greek computation.}
+    \label{fig:pinn_architecture_tikz}
+\end{figure}
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
@@ -195,18 +209,16 @@ The model receives the following ordered input vector:
 x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r),
 \]
 where \((\tau,m,v)\) are state variables, \(r\) is the risk-free rate, and \((\rho,\kappa,\gamma,\bar v)\) are the structural Heston parameters that define the PDE operator.
-\todos{TABLE: resumen de inputs del PINN (variable, significado financiero, rol en PDE, rango de entrenamiento)}
 
 The network output is a scalar price \(u_\phi(x)\), corresponding to the normalized-strike vanilla contract considered in this chapter (\(K=1\)). This output choice is consistent with the PDE-constrained formulation: the PINN directly approximates the pricing function rather than an implied-volatility transformation.
-\todos{FIGURE: esquema de entradas/salida y conexión CaNN $\rightarrow$ PINN en inferencia}
+At inference time, the CaNN calibration block supplies the market-specific values of \((\rho,\kappa,\gamma,\bar v,v_0)\); the PINN then evaluates the contract by fixing \(v=v_0\) and varying the contract coordinates \((\tau,m)\) and the market rate \(r\).
 
 In the current experimental setup, collocation generation is run in a fixed-parameter regime for \((\rho,\kappa,\gamma,\bar v)\), while \((\tau,m,v,r)\) vary across points. This means the model remains formally 8-dimensional, but some coordinates may be constant in a given run due to calibration-conditioned sampling.
-\todos{aclarar si este apartado se mantiene como baseline fixed-theta o si se añade variante fully parametric}
+This is the baseline fixed-\(\Theta\) benchmark used in the reported experiments; the same input convention leaves the fully parametric variant available as a direct extension.
 
 \subsubsection*{Input Scaling}
 
-Although the pricing problem is formulated in physical variables, the optimization is performed with an affine rescaling of the network inputs. The motivation is numerical: \((\tau,m,v)\) and the Heston-related coordinates do not share comparable magnitudes, which can deteriorate conditioning and gradient balance. Following practical PINN recommendations, centering and scaling are used as a stabilization device.
-\todos{citar referencia sobre scaling en PINNs}
+Although the pricing problem is formulated in physical variables, the optimization is performed with an affine rescaling of the network inputs. The motivation is numerical: \((\tau,m,v)\) and the Heston-related coordinates do not share comparable magnitudes, which can deteriorate conditioning and gradient balance. Following practical PINN recommendations, centering and scaling are used as a stabilization device; this is consistent with the broader observation that conditioning and gradient-scale imbalance strongly affect PINN training dynamics \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
 
 In the implemented pipeline, the transformation is applied componentwise to the full PINN input vector through
 \[
@@ -225,7 +237,6 @@ a_d=-\frac{\mu_d}{\sigma_d},\qquad b_d=\frac{1}{\sigma_d}.
 To avoid numerical issues on nearly constant coordinates, the implementation uses a small threshold $\varepsilon=10^{-8}$: if $\sigma_d\le\varepsilon$, that coordinate is left unscaled ($a_d=0,\ b_d=1$).
 
 The PDE residual is still defined in physical variables and differentiated by automatic differentiation. In code, the network is evaluated at \(\tilde x\), while derivatives are taken with respect to the original coordinates \(x\); the chain rule is therefore handled by the computational graph. Consequently, input scaling changes the numerical conditioning of training, but not the financial meaning of the PDE constraint.
-\todos{FIGURE: comparación visual antes/después del escalado en los inputs principales}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

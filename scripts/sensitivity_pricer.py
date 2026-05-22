@@ -381,15 +381,15 @@ class SensitivityPricer2D:
         if scale == "log":
             positive = finite[finite > 0.0]
             if positive.size == 0:
-                return Normalize(vmin=err_lo, vmax=err_hi), "gray_r"
+                return Normalize(vmin=err_lo, vmax=err_hi), "Greys"
             vmin = float(np.min(positive))
             vmax = float(np.max(positive))
             if np.isclose(vmin, vmax):
                 eps = max(1.0e-12, vmin * 1.0e-3)
-                return Normalize(vmin=vmin - eps, vmax=vmax + eps), "gray_r"
-            return LogNorm(vmin=vmin, vmax=vmax, clip=True), "gray_r"
+                return Normalize(vmin=vmin - eps, vmax=vmax + eps), "Greys"
+            return LogNorm(vmin=vmin, vmax=vmax, clip=True), "Greys"
 
-        return Normalize(vmin=err_lo, vmax=err_hi), "gray_r"
+        return Normalize(vmin=err_lo, vmax=err_hi), "Greys"
 
     def _plot_grid_3x2(
         self,

@@ -140,17 +140,17 @@ Once $\mathbf{w}$ is fixed after training, inference is deterministic: for the s
 The FCNN acts as a surrogate only at inference time. Target labels are still generated with the numerical pipeline (Heston COS pricing followed by implied-volatility inversion), so the network learns to emulate that reference solver on the sampled domain.
 
 \subsection{Architecture Details}
-The architecture used in this chapter is
+The selected architecture used in the final pipeline is
 \[
 8 \rightarrow 200 \rightarrow 200 \rightarrow 200 \rightarrow 200 \rightarrow 1,
 \]
-with ReLU activation in hidden layers and linear activation in the output layer. In compact form,
+with \texttt{tanh} activation in hidden layers and linear activation in the output layer. In compact form,
 \[
 h^{(1)}=\phi(W^{(1)}x+b^{(1)}),\quad \dots,\quad
 h^{(4)}=\phi(W^{(4)}h^{(3)}+b^{(4)}),\quad
 \hat y=W^{(5)}h^{(4)}+b^{(5)},
 \]
-where $\phi(\cdot)=\max(0,\cdot)$.
+where $\phi(\cdot)=\tanh(\cdot)$.
 
 Weights are initialized with Xavier uniform initialization and biases are initialized to zero. In the baseline setup, dropout is disabled ($p=0$) and no batch normalization layers are used. This configuration follows a controlled, reproducible design intended to isolate the impact of optimization and data quality choices.
 
@@ -167,7 +167,7 @@ Weights are initialized with Xavier uniform initialization and biases are initia
         \hline
         Hidden width & 200 neurons per layer \\
         \hline
-        Hidden activation & ReLU \\
+        Hidden activation & \texttt{tanh} \\
         \hline
         Output dimension & 1  \\
         \hline
@@ -181,7 +181,7 @@ Weights are initialized with Xavier uniform initialization and biases are initia
         \hline
         Batch normalization & Disabled \\
         \hline
-        \multicolumn{2}{l}{Source: Based on \cite{liu}}
+        \multicolumn{2}{l}{Source: Based on \cite{liu}, with selected \texttt{tanh} activation}
     \end{tabular}}
 \end{table}
 
@@ -217,7 +217,7 @@ Weights are initialized with Xavier uniform initialization and biases are initia
                 \node[trainable neuron] (H\layer\nodeidx) at (\xpos,\ypos) {};
             }
             \node[font=\small] at (\xpos,0) {$\vdots$};
-            \node[font=\scriptsize] at (\xpos,-1.75) {200 ReLU units};
+                \node[font=\scriptsize] at (\xpos,-1.75) {200 \texttt{tanh} units};
         }
 
         \node[trainable neuron,label=right:{\scriptsize$\hat\sigma_{\mathrm{imp}}$}] (O1) at (9.25,0) {};
@@ -243,7 +243,7 @@ Weights are initialized with Xavier uniform initialization and biases are initia
         \node[trainable neuron] at (5.75,-2.25) {};
         \node[legend text,anchor=west] at (6.05,-2.25) {Trainable affine layer};
     \end{tikzpicture}
-    \caption{Fully connected ANN pricer used in the forward Heston implied-volatility surrogate. The eight fixed inputs are mapped through four hidden layers of width \(200\), and the final linear layer returns the predicted implied volatility.}
+    \caption{Fully connected ANN pricer used in the forward Heston implied-volatility surrogate. The eight fixed inputs are mapped through four \texttt{tanh} hidden layers of width \(200\), and the final linear layer returns the predicted implied volatility.}
     \label{fig:ann_architecture_tikz}
 \end{figure}
 
@@ -274,38 +274,40 @@ Let $\{(\mathbf{x}_i,\sigma_i)\}_{i=1}^{B}$ denote a mini-batch, where $\sigma_i
 MSE is preferred because it is smooth, differentiable everywhere, and strongly penalizes large deviations, which is desirable when the ANN is later used in calibration loops sensitive to local pricing errors. RMSE and MAPE are then used as reporting metrics, following the convention fixed in Chapter~\ref{ch:performance_benchmarks}.
 
 \subsection{Optimizer And Hyperparameters}
-\todos{PUEDE IR CAMBIANDO: se pretende mejorar las runs}
+Several optimizer and activation configurations were tested (Adam, mixed schedules, and \texttt{mix\_half}). For model selection, we prioritize out-of-sample MSE/RMSE and MAPE, since this keeps the training objective and the reporting convention aligned with the benchmark chapter.
 
-Several optimizer configurations were tested (Adam, mixed schedules, and \texttt{mix\_half}). For model selection, we prioritize out-of-sample MSE/RMSE and MAPE, since this keeps the training objective and the reporting convention aligned with the benchmark chapter.
-
-Under this criterion, the selected reference ANN is \texttt{Liu\_like\_v01} (Adam), while \texttt{MIX\_half\_v01} is the second-best candidate. The two runs have similar validation MSE, but the selected run gives a lower test MSE and lower test MAPE.
+Under this criterion, the selected reference ANN is \texttt{Liu\_like\_tanh\_1M\_v01} (Adam). It preserves the Liu-style width and depth, but uses \texttt{tanh} hidden activations. This run gives the lowest validation and test MSE among the retained candidates, improves the test RMSE relative to the earlier ReLU reference, and is the ANN used in the final CaNN pipeline.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
     {\caption{Reference and runner-up runs used in optimizer selection}\label{tab:ann_optimizer_selection}}
     {\scriptsize
-    \begin{tabular}{|P{2.0cm}|P{2.0cm}|P{1.45cm}|P{1.45cm}|P{1.45cm}|P{1.45cm}|}
+    \begin{tabular}{|P{2.25cm}|P{1.35cm}|P{1.55cm}|P{1.45cm}|P{1.45cm}|P{1.45cm}|P{1.35cm}|}
         \hline
-        \textbf{Run} & \textbf{Optimizer mode} & \textbf{Val MSE} & \textbf{Test MSE} & \textbf{Val MAPE} & \textbf{Test MAPE} \\
+        \textbf{Run} & \textbf{Activation} & \textbf{Optimizer} & \textbf{Val MSE} & \textbf{Test MSE} & \textbf{Test RMSE} & \textbf{Test MAPE} \\
         \hline
-        Liu v01 & Adam & $4.65\times 10^{-6}$ & $9.18\times 10^{-6}$ & 13.21\% & 18.33\% \\
+        Liu tanh 1M v01 & \texttt{tanh} & Adam & $4.00\times 10^{-6}$ & $3.47\times 10^{-6}$ & $1.86\times 10^{-3}$ & 15.88\% \\
         \hline
-        MIX half v01 & Adam $\rightarrow$ L-BFGS & $4.55\times 10^{-6}$ & $9.41\times 10^{-6}$ & 17.36\% & 27.17\% \\
+        Liu ReLU v01 & ReLU & Adam & $4.65\times 10^{-6}$ & $9.18\times 10^{-6}$ & $3.03\times 10^{-3}$ & 18.33\% \\
         \hline
-        \multicolumn{6}{l}{Source: Own elaboration from \texttt{outputs/runs/*/metrics/eval\_global.csv} and ANN prediction outputs}
+        MIX half v01 & ReLU & Adam $\rightarrow$ L-BFGS & $4.55\times 10^{-6}$ & $9.41\times 10^{-6}$ & $3.07\times 10^{-3}$ & 27.17\% \\
+        \hline
+        \multicolumn{7}{l}{Source: Own elaboration from \texttt{outputs/runs/*/metrics/eval\_summary.yaml}}
     \end{tabular}}
 \end{table}
 
-The hyperparameters of the selected reference run (\texttt{Liu\_like\_v01}) are summarized in Table~\ref{tab:ann_selected_hyperparameters}.
+The hyperparameters of the selected reference run (\texttt{Liu\_like\_tanh\_1M\_v01}) are summarized in Table~\ref{tab:ann_selected_hyperparameters}.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Training hyperparameters of the selected run (\texttt{Liu\_like\_v01})}\label{tab:ann_selected_hyperparameters}}
+    {\caption{Training hyperparameters of the selected run (\texttt{Liu\_like\_tanh\_1M\_v01})}\label{tab:ann_selected_hyperparameters}}
     {\begin{tabular}{|P{5.0cm}|P{6.8cm}|}
         \hline
         \textbf{Hyperparameter} & \textbf{Value} \\
         \hline
         Training mode & Adam \\
+        \hline
+        Hidden activation & \texttt{tanh} \\
         \hline
         Seed (data-loader generator) & 42 \\
         \hline
@@ -330,9 +332,7 @@ The hyperparameters of the selected reference run (\texttt{Liu\_like\_v01}) are 
 \end{table}
 
 \subsection{Regularization And Callbacks}
-\todos{PUEDE IR CAMBIANDO: se pretende mejorar las runs}
-
-Regularization in the baseline is intentionally light: dropout is disabled ($p=0$), batch normalization is disabled, and Adam weight decay is set to zero. In addition, feature/target normalization is turned off in the Liu-style reference setup. This design keeps the training protocol close to the reference architecture and isolates the effect of optimizer scheduling and data quality controls.
+Regularization in the selected run is intentionally light: dropout is disabled ($p=0$), batch normalization is disabled, and Adam weight decay is set to zero. In addition, feature/target normalization is turned off in the Liu-style reference setup. This design keeps the training protocol close to the reference architecture and isolates the effect of the selected hidden activation, optimizer scheduling, and data quality controls.
 
 Callback management includes: (i) checkpointing of both \textit{best} and \textit{last} models, (ii) StepLR scheduling for Adam, and (iii) an early-stopping module available in the pipeline but disabled in the baseline experiments. When enabled, early stopping supports both standard validation loss and trimmed validation loss monitors.
 

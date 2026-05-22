@@ -21,9 +21,9 @@ GREEK_LABELS = {
     "theta": "THETA",
     "rho": "RHO",
 }
-TITLE_SIZE = 17
-LABEL_SIZE = 14
-TICK_SIZE = 12
+TITLE_SIZE = 20
+LABEL_SIZE = 17
+TICK_SIZE = 15
 
 
 def _resolve(path: Path) -> Path:
@@ -56,6 +56,27 @@ def _style_axis(ax) -> None:
     ax.grid(True, alpha=0.22)
 
 
+def _five_panel_axes(fig: plt.Figure, *, right: float = 0.98) -> list[plt.Axes]:
+    grid = fig.add_gridspec(
+        2,
+        6,
+        left=0.06,
+        right=right,
+        bottom=0.08,
+        top=0.92,
+        wspace=0.56,
+        hspace=0.52,
+    )
+    positions = [
+        (0, slice(0, 2)),
+        (0, slice(2, 4)),
+        (0, slice(4, 6)),
+        (1, slice(1, 3)),
+        (1, slice(3, 5)),
+    ]
+    return [fig.add_subplot(grid[row, cols]) for row, cols in positions]
+
+
 def _save_map_composite(*, df: pd.DataFrame, value_prefix: str, out_path: Path) -> None:
     grids = [_grid(df, f"{value_prefix}_{greek}") for greek in GREEKS]
     matrices = [matrix for matrix, _, _ in grids]
@@ -63,10 +84,10 @@ def _save_map_composite(*, df: pd.DataFrame, value_prefix: str, out_path: Path) 
     cmap = plt.get_cmap("magma").copy()
     cmap.set_bad(color="#f2f2f2")
 
-    fig, axes = plt.subplots(2, 3, figsize=(14.2, 8.0), constrained_layout=True)
-    flat_axes = axes.reshape(-1)
+    fig = plt.figure(figsize=(15.8, 9.2))
+    axes = _five_panel_axes(fig, right=0.88)
     image = None
-    for ax, greek, (matrix, tau, m) in zip(flat_axes, GREEKS, grids):
+    for ax, greek, (matrix, tau, m) in zip(axes, GREEKS, grids):
         plot_matrix = matrix
         if norm is not None:
             plot_matrix = np.where(np.isfinite(matrix), np.maximum(matrix, norm.vmin), np.nan)
@@ -84,20 +105,19 @@ def _save_map_composite(*, df: pd.DataFrame, value_prefix: str, out_path: Path) 
         ax.set_ylabel(r"$m$", fontsize=LABEL_SIZE)
         _style_axis(ax)
 
-    flat_axes[-1].axis("off")
     if image is not None:
-        cbar = fig.colorbar(image, ax=flat_axes[:-1], fraction=0.035, pad=0.02)
+        cbar = fig.colorbar(image, ax=axes, fraction=0.035, pad=0.02)
         cbar.ax.tick_params(labelsize=TICK_SIZE)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    fig.savefig(out_path, dpi=350, bbox_inches="tight")
     plt.close(fig)
 
 
 def _save_hist_composite(*, df: pd.DataFrame, out_path: Path) -> None:
-    fig, axes = plt.subplots(2, 3, figsize=(14.2, 8.0), constrained_layout=True)
-    flat_axes = axes.reshape(-1)
-    for ax, greek in zip(flat_axes, GREEKS):
+    fig = plt.figure(figsize=(15.8, 9.2))
+    axes = _five_panel_axes(fig)
+    for ax, greek in zip(axes, GREEKS):
         values = df[f"error_{greek}"].to_numpy(dtype=np.float64)
         values = values[np.isfinite(values)]
         lo, hi = np.nanpercentile(values, [0.2, 99.8])
@@ -110,9 +130,8 @@ def _save_hist_composite(*, df: pd.DataFrame, out_path: Path) -> None:
         ax.set_ylabel("density", fontsize=LABEL_SIZE)
         _style_axis(ax)
 
-    flat_axes[-1].axis("off")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    fig.savefig(out_path, dpi=350, bbox_inches="tight")
     plt.close(fig)
 
 

@@ -1,20 +1,57 @@
 \chapter{Analysis of the COS Method Error}
 \label{app:cos_error}
 
-\todos{no se si dejarlo como apéndice o meterlo en alguna seccion}\\
+This appendix complements the Fourier-COS presentation in Section~\ref{sec:fourier_cos_method}. The main chapter introduces the pricing formula and the numerical role of the truncation interval; here the same objects are used to make explicit how the error is controlled in the implementation.
 
-For the COS method, we have three sources of error: 
-\begin{itemize}
-    \item The integration range truncation error, $\varepsilon_1$.
-    \item The series truncation error on $[a,b]$, $\varepsilon_2$.
-    \item The error related to approximating $\bar A_k(x)$ by $\bar F_k(x)$, $\varepsilon_3$ \todos{(poner ref a alguna ecuacion)}.
-\end{itemize}
-It is important to note that there is no error in the payoff coefficient $H_k$ for plain vanilla European options.\\
+\section{Error Decomposition}
 
-If the integration range $[a,b]$ is chosen sufficiently large, the overall error is dominated by $\varepsilon_2$ \todos{(TODO: argumentarlo)}. Also, $\varepsilon_2$ converges exponentially if $f_X(x) \in C^\infty[a,b]$ \todos{(TODO: justificarlo tamb)}. Otherwise, converges only algebraically.\\
-
-To choose an optimal integration range we will use the expression \todos{(TODO: ref a Oorsterlee)}
+The COS approximation starts from the pricing integral in Equation~\eqref{eq:cos_pricing_integral} and replaces the transition density by the truncated cosine expansion in Equations~\eqref{eq:cos_density_expansion}--\eqref{eq:cos_density_coefficients}. In the notation of Fang and Oosterlee \cite{fang_oosterlee_2009}, the numerical error can be separated into three components:
 \begin{equation}
-    [a,b]=\left[ (x+\zeta_1)-L\sqrt{\zeta_2 +\sqrt{\zeta_4}},\ (x+\zeta_1)+L\sqrt{\zeta_2+\sqrt{\zeta_4}} \right],
+    \varepsilon_{\mathrm{COS}}
+    =
+    \varepsilon_{1}
+    +
+    \varepsilon_{2}
+    +
+    \varepsilon_{3},
 \end{equation}
-where $L\in[6,12]$ is a parameter that depends on the tolerance we want to have, and $\zeta_i$ are the cumulants, computed using the expression \eqref{eq:cumulants}.
+where \(\varepsilon_{1}\) is the error introduced by truncating the integration domain from \(\mathbb{R}\) to \([a,b]\), \(\varepsilon_{2}\) is the finite-series error after keeping only \(N\) cosine terms, and \(\varepsilon_{3}\) is the coefficient approximation error that arises when the exact Fourier-cosine coefficients of the density are replaced by the characteristic-function-based coefficients in Equation~\eqref{eq:cos_density_coefficients}.
+
+This decomposition is the detailed version of the shorter bound used in Chapter~\ref{ch:background},
+\[
+    |V-V_N^{\mathrm{COS}}|
+    \le
+    \varepsilon_{\mathrm{trunc}}([a,b])+\varepsilon_N,
+\]
+reported in Equation~\eqref{eq:cos_error_split}. In the implementation, \(\varepsilon_{\mathrm{trunc}}\) absorbs the integration-domain effect, while \(\varepsilon_N\) represents the finite cosine-series remainder. The third term is not treated as a separate tuning parameter because the coefficients are computed directly from the Heston characteristic function on the same frequency grid.
+
+For plain-vanilla European options there is no numerical quadrature error in the payoff coefficient itself. The payoff coefficients \(H_k\) in Equation~\eqref{eq:cos_payoff_coefficients} admit closed-form expressions, and the Heston-specific coefficient \(U_k\) used in Section~\ref{sec:fourier_cos_method} is built from the analytical \(\chi_k\) and \(\psi_k\) integrals. The numerical sensitivity of the COS block therefore comes mainly from the choice of \([a,b]\), the number of terms \(N\), and the stability of the characteristic-function evaluation.
+
+\section{Truncation Interval}
+
+The truncation interval is selected using cumulants of the log-price state. Let \(c_1,c_2,c_4\) denote the first, second, and fourth cumulants of the conditional log-state at maturity. These cumulants are obtained from the characteristic function through Equation~\eqref{eq:cumulants}. Following the cumulant rule in \cite[Sec.~5]{fang_oosterlee_2009}, the interval is
+\begin{equation}
+    [a,b]
+    =
+    \left[
+    c_1-L\sqrt{c_2+\sqrt{c_4}},
+    \;
+    c_1+L\sqrt{c_2+\sqrt{c_4}}
+    \right],
+    \label{eq:app_cos_interval}
+\end{equation}
+which is the same construction stated in Equation~\eqref{eq:cos_cumulant_interval}. The scalar \(L\) controls the width of the retained domain: increasing \(L\) reduces probability-mass truncation error, but also stretches the interval and can require a larger \(N\) to preserve the same resolution of the cosine expansion.
+
+In this thesis the reference numerical configuration uses \(N=1500\) and \(L=50\), with a fallback \(L=80\) in low-IV or otherwise unstable inversion cases. This is intentionally more conservative than the small-\(L\) values often used in simple textbook examples, because the synthetic dataset and benchmark routines cover wide Heston parameter ranges, short maturities, and low-price regions where implied-volatility inversion is fragile. The same reference settings are summarized in the benchmark protocol in Section~\ref{sec:benchmark_protocol} and in the PINN pricing setup of Appendix~\ref{app:pinn_pricing_benchmark_setup}.
+
+\section{Convergence Reading}
+
+For smooth densities and smooth payoff projections over the chosen interval, the finite-series component \(\varepsilon_2\) decreases rapidly with \(N\), which is the practical reason for using a spectral method. In the COS method this fast convergence is tied to the regularity of the density on \([a,b]\) and to the availability of the characteristic function \cite{fang_oosterlee_2009}. If the interval is too narrow, however, the apparent convergence in \(N\) can be misleading because \(\varepsilon_1\) remains large. If the interval is excessively wide, the density is represented over a larger domain than necessary and more cosine terms may be needed.
+
+The numerical strategy used in the project therefore treats \(L\) and \(N\) jointly. The pair \((L,N)\) is not selected from a single theoretical tolerance formula; instead, it is fixed conservatively and checked through the validation protocol described in Chapter~\ref{ch:performance_benchmarks}: COS convergence with respect to \((N,L)\), put-call parity control, and Black--Scholes consistency in near-constant-variance regimes. Those tests are used as guardrails before the COS outputs are used as labels for the ANN, as references for PINN pricing, or as inputs to implied-volatility inversion.
+
+\section{Practical Role in the Pipeline}
+
+The purpose of this appendix is not to introduce a new pricing method, but to document why the COS reference can be treated as the numerical baseline of the thesis. The ANN surrogate in Chapter~\ref{ch:ann_surrogate} learns implied-volatility labels produced by COS pricing followed by Brent inversion; the CaNN calibration workflow in Chapter~\ref{ch:cann} relies on the same IV convention; and the PINN pricing benchmark in Section~\ref{sec:pinn_pricing_performance} compares learned prices against the Heston-COS reference.
+
+This means that the COS error controls the quality of several downstream comparisons. A biased or unstable COS reference would contaminate the supervised labels, calibration residuals, and pricing benchmarks. For this reason, the implementation favors conservative \((L,N)\) settings and explicit retry logic near difficult inversion regions, rather than using the smallest configuration that works on average.

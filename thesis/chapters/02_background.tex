@@ -182,30 +182,36 @@ The Fourier-COS method approximates transition densities and option values by a 
 
 Let $x=X(t_0)$ and $y=X(T)$, and consider a truncation interval $[a,b]$ that concentrates most of the probability mass of $X(T)\mid X(t_0)=x$. On this interval, the conditional density is approximated by
 \begin{equation}
+    \label{eq:cos_density_expansion}
     \hat f_X(y)=\sum_{k=0}^{N-1}\!'\ \bar F_k\cos\left(\pi k\frac{y-a}{b-a}\right),
 \end{equation}
 where $\hat f_X$ is the truncated cosine approximation of the density, $N$ is the number of cosine terms, $k$ indexes the expansion terms, $\sum'$ indicates that the $k=0$ term is weighted by $1/2$, and the cosine coefficients are obtained from the characteristic function:
 \begin{equation}
+    \label{eq:cos_density_coefficients}
     \bar F_k:=\frac{2}{b-a}\Re\!\left[\phi_X\!\left(\frac{\pi k}{b-a}\right)\exp\!\left(-\frac{i\pi ak}{b-a}\right)\right].
 \end{equation}
 The operator $\Re[\cdot]$ denotes the real part.
 
 Starting from
 \begin{equation}
+    \label{eq:cos_pricing_integral}
     V(t_0,x)=e^{-r\tau}\int_{\mathbb R}V(T,y)f_X(T,y;t_0,x)\,dy,
 \end{equation}
 the COS discretization yields
 \begin{equation}
+    \label{eq:cos_price_approximation}
     V(t_0,x)\approx e^{-r\tau}\sum_{k=0}^{N-1}\!'\ \Re\!\left[\phi_X\!\left(\frac{\pi k}{b-a}\right)\exp\!\left(-\frac{i\pi ak}{b-a}\right)\right]H_k,
 \end{equation}
 where the payoff coefficients are
 \begin{equation}
+    \label{eq:cos_payoff_coefficients}
     H_k:=\frac{2}{b-a}\int_a^b V(T,y)\cos\left(\frac{y-a}{b-a}\pi k\right)\,dy.
 \end{equation}
 For plain-vanilla options, $H_k$ has closed-form expressions, so the numerical effort is concentrated in evaluating the characteristic function on a fixed frequency grid \cite[Sec.~3]{fang_oosterlee_2009}.
 
 The choice of $[a,b]$ controls truncation error. Following the cumulant-based rule in \cite[Sec.~5]{fang_oosterlee_2009}, we use
 \begin{equation}
+    \label{eq:cos_cumulant_interval}
     [a,b]=\left[c_1-L\sqrt{c_2+\sqrt{c_4}},\;c_1+L\sqrt{c_2+\sqrt{c_4}}\right],
 \end{equation}
 with $c_1,c_2,c_4$ the first, second, and fourth cumulants of $X(T)$ and $L>0$ a scaling parameter. This connects directly with the cumulant machinery introduced in Section~\ref{sec:stochastic_calculus_background}.
@@ -213,6 +219,7 @@ In the numerical experiments of this thesis, the integration interval is selecte
 
 From a numerical viewpoint, it is useful to separate two error sources:
 \begin{equation}
+    \label{eq:cos_error_split}
     \left|V-V_N^{\mathrm{COS}}\right|
     \le
     \underbrace{\varepsilon_{\mathrm{trunc}}([a,b])}_{\text{domain truncation}}

@@ -2,17 +2,51 @@
 \label{ch:conclusions}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Market Data}
+\section{Main Conclusions}
+
+This thesis has developed and benchmarked an end-to-end computational workflow for Heston-based derivative analytics. The workflow starts from controlled data generation and numerical reference pricing, builds a supervised ANN implied-volatility surrogate, uses that surrogate inside a neural calibration loop, and then evaluates PINN-based pricing and Greek computation against semi-analytical references. The main outcome is not a single model, but an executable and auditable pipeline in which each stage can be tested independently and then connected to the next one.
+
+The first conclusion is that the supervised ANN surrogate remains a useful acceleration layer for calibration. The ANN benchmark shows that the implied-volatility map can be approximated with errors in the \(10^{-3}\) IV range on held-out data, while preserving very fast inference. This makes it suitable as a forward evaluator inside repeated inverse-problem calls, provided that the input remains inside the interpolation region and that boundary/extrapolation zones are treated with caution.
+
+The strongest calibration result is obtained with the Liu-like tanh ANN used in the final CaNN benchmark. On the replicated \(35\)-quote Liu grid, the selected run reaches weighted MSE \(7.43\times10^{-10}\) and residual RMSE \(2.73\times10^{-5}\) in IV units. More importantly, all reported Heston parameter errors improve relative to the Liu et al. reference values under the same synthetic-truth comparison reported in Chapter~\ref{ch:performance_benchmarks}. This is the clearest positive empirical result of the thesis: the calibration component does not merely reproduce the reference neural-calibration framework, but improves its parameter recovery in the benchmarked setting.
+
+The second conclusion is that PINNs are effective as fast differentiable pricing surfaces, but their accuracy profile is more delicate than the ANN calibration component. The baseline PINN pricing benchmark reaches RMSE \(5.62\times10^{-3}\) against COS while giving a throughput several thousand times higher than the reference COS loop in repeated evaluation mode. However, the spatial diagnostics show that relative errors concentrate in low-price regions and near short maturities. This confirms that the PINN should be read as a fast differentiable approximation with identifiable failure modes, not as a universal replacement for the numerical solver.
+
+The third conclusion concerns Greeks. Automatic differentiation makes Greeks available directly from the learned price surface, but accurate prices alone are not enough to guarantee accurate derivatives, especially for curvature quantities such as Gamma. Two strategies improved this part of the pipeline. Sobolev augmentation substantially reduced global Greek errors by adding derivative information during training. In parallel, the ACV control-variate diagnostic gave the strongest hard-region Delta and Gamma results without adding supervised Greek training to the residual patch. In the hard short-maturity ATM region, Gamma RMSE was reduced from \(4.992\) to \(6.446\times10^{-1}\), and the hard \(p_{99}\) Gamma error from \(17.643\) to \(1.612\).
+
+Taken together, these results support a practical division of roles. The ANN/CaNN block is the most mature part of the workflow and gives a strong calibration result. The PINN block is valuable as a differentiable pricing and sensitivity engine, but its derivative quality requires additional structure, either through Sobolev-style derivative supervision or through analytic control variates tailored to the singular region.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Exotic Derivatives}
+\section{Contributions}
+
+The first contribution is a reproducible benchmark pipeline. All stages of the study are organized around explicit configurations, fixed data splits, numerical reference settings, and stored diagnostics. This matters because model comparisons in derivative pricing can be misleading if solver tolerances, data filters, or evaluation grids change silently between experiments.
+
+The second contribution is the improved neural calibration result. The final tanh CaNN run preserves the basic Liu-style calibration idea, but obtains a stronger inverse fit on the benchmark quote set. The improvement appears both in quote-level IV residuals and in parameter recovery, which is the relevant quantity for a calibration workflow.
+
+The third contribution is the PINN Greek analysis. The thesis does not stop at price RMSE; it evaluates first- and second-order sensitivities against semi-analytical Heston references and identifies where derivative errors concentrate. This is important because a pricing surrogate that is visually accurate can still be unusable for risk management if its local slopes and curvatures are unstable.
+
+The fourth contribution is the hard-region ablation. The experiments show that several seemingly natural modifications, such as payoff-aware parametrizations or adaptive collocation, can improve one metric while degrading another. The accepted ACV control-variate result is therefore not just another model variant: it is the outcome of a targeted ablation process focused on the region where the payoff kink makes Gamma hardest to approximate.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Greeks And Hedging}
-As a direct continuation of the Greek-focused PINN work, a relevant future direction is to test residual-gradient regularization in the spirit of gPINNs, i.e., adding a penalty on spatial gradients of the PDE residual. This term was not included in the benchmarked implementation of the present thesis and is therefore left for future experiments under controlled ablation settings.
+\section{Limitations}
+
+The main limitation is that the benchmark remains synthetic and Heston-specific. This is appropriate for controlled methodological evaluation, but it does not prove robustness on noisy market surfaces, sparse quotes, bid-ask spreads, dividends, or changing interest-rate conventions. The calibration result should therefore be read as a strong controlled benchmark, not as a final production calibration study.
+
+A second limitation is the dependence on vanilla European structure. The COS reference, the semi-analytical Greek engine, and the ACV correction are all built around a setting where strong analytical information is available. This is useful for validation, but portability to exotic derivatives or path-dependent contracts would require replacing parts of the reference and diagnostic stack.
+
+A third limitation is the payoff kink itself. The ACV result reduces the short-maturity ATM Greek error substantially, but it does not remove the mathematical difficulty created by the non-smooth terminal payoff. In particular, the extremely short-maturity bucket \(\tau<5\times10^{-4}\) still requires careful validation of the reference Gamma before making stronger claims about that layer.
+
+Finally, the thesis evaluates computational speed as a research benchmark rather than as a production latency target. The code is executable and scalable in structure, but it has not been optimized as a low-latency service or validated under portfolio-scale operational constraints.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Model Extension}
+\section{Future Work}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Machine Learning Improvements}
+The first future direction is market-data validation. The CaNN result should be tested on real implied-volatility surfaces with realistic quote filtering, liquidity weights, and bid-ask uncertainty. This would show whether the improved synthetic calibration transfers to market conditions and whether the parameter recovery remains stable when the truth is no longer known.
+
+The second direction is a hedging-oriented evaluation of Greeks. The present thesis verifies Greeks pointwise against reference values, which is the necessary first step. A natural continuation is to connect the Greek engine to a simple hedging backtest or risk-reporting workflow, measuring whether improved Delta and Gamma translate into more stable hedge rebalancing and P\&L attribution.
+
+The third direction is model and payoff extension. The executable structure of the pipeline makes it possible to test alternative stochastic-volatility models, local-volatility variants, or other payoff classes. For exotic derivatives, the main challenge will be to replace vanilla-specific analytical references with suitable numerical or simulation-based validation tools.
+
+The fourth direction is further machine-learning improvement. Promising candidates include better loss balancing for PINNs, residual-gradient penalties in the spirit of gPINNs, adaptive sampling with stricter price-preservation criteria, and architectures designed specifically for stable second derivatives. The ablation results in this thesis suggest that such improvements should be accepted only if they improve hard-region Greek accuracy without degrading global pricing quality.
+
+Overall, the thesis demonstrates that neural methods can be useful in derivative analytics when they are embedded in a disciplined numerical benchmark. The strongest evidence is the improved CaNN calibration result and the hard-region Greek improvement obtained with the ACV control variate. The remaining work is to move from controlled Heston benchmarks to noisier market and portfolio settings while preserving the same level of diagnostic discipline.
