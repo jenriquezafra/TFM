@@ -1,0 +1,67 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage[babel,english=american]{csquotes}
+\usepackage[backend=biber,style=ieee,isbn=false,sortcites,maxbibnames=6,minbibnames=1]{biblatex}
+
+\definecolor{azulUC3M}{RGB}{0,0,102}
+\definecolor{gray45}{gray}{.45}
+\definecolor{gray95}{gray}{.95}
+
+\setbeamercolor{structure}{fg=azulUC3M}
+\setbeamercolor{title}{fg=azulUC3M}
+\setbeamercolor{frametitle}{fg=azulUC3M}
+\setbeamercolor{section in toc}{fg=azulUC3M}
+\setbeamercolor{block title}{bg=azulUC3M,fg=white}
+\setbeamercolor{block body}{bg=gray95,fg=black}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\graphicspath{{figures/}{../figures/}}
+\addbibresource{../references.bib}
+
+\title[TFM Defense]{Computational algorithms for pricing financial derivatives under local volatility models}
+\subtitle{Master Thesis Defense}
+\author[J. E. Zafra Mena]{Jose Enrique Zafra Mena}
+\institute[UC3M]{Master Degree in Applied and Computational Mathematics\\Universidad Carlos III de Madrid}
+\date{Madrid, 2026}
+
+\AtBeginSection[]
+{
+  \begin{frame}{Roadmap}
+    \tableofcontents[currentsection]
+  \end{frame}
+}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+  \vfill
+  \centering
+  \includegraphics[width=0.42\linewidth]{logo_UC3M.png}
+\end{frame}
+
+\begin{frame}{Roadmap}
+  \tableofcontents
+\end{frame}
+
+\input{sections/01_context}
+\input{sections/02_methodology}
+\input{sections/03_results}
+\input{sections/04_conclusions}
+
+\begin{frame}[allowframebreaks]{References}
+  \printbibliography
+\end{frame}
+
+\end{document}
