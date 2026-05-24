@@ -1,42 +1,83 @@
 \chapter{Introduction}
 \label{ch:introduction}
 
-\section{Main Objectives}
-This thesis focuses on the Heston stochastic-volatility framework and aims to evaluate computational methods under a consistent speed-accuracy trade-off perspective. The first objective is to build a reproducible end-to-end pipeline covering data preparation, reference numerical pricing, calibration, surrogate/PINN training, and benchmark execution. This objective is methodological: the full workflow must be easy to rerun and auditable at each stage.
-\todos{add final references to scripts and modules once the pipeline layout is done. if needed, consolidate these references in an appendix table}
+\section{Motivation}
 
-The second objective is comparative. The thesis develops and evaluates surrogate approaches, including supervised neural surrogates and PINN-based formulations, against numerical references under common experimental conditions. The purpose is to determine where learned approximators provide practical acceleration without losing control of model-consistent behavior.
+Modern derivative engines must do more than price options: they must calibrate models repeatedly and produce stable sensitivities for risk management. In the Heston stochastic-volatility model \cite{heston}, semi-analytical and Fourier-based methods provide a strong numerical foundation because the characteristic function is available. In particular, the Fourier-COS method gives accurate and efficient reference prices when the truncation and expansion settings are controlled \cite{fang_oosterlee_2009}.
 
-The third objective is empirical evaluation through quantitative metrics. Performance is assessed using pricing error, Greek error, computational cost, and numerical stability across the parameter regions and contract settings covered by the experiments. The goal is to characterize not only average accuracy, but also robustness and failure modes.
+The practical difficulty is that these routines are rarely called only once. Calibration requires repeated evaluations of the pricing map, large benchmark datasets require many reference valuations, and Greek analysis requires stable local derivatives. This repeated-evaluation setting makes neural approximators attractive, but speed alone is not sufficient in a financial workflow. A learned component is useful only if its errors are measurable, its failure regions are visible, and its outputs remain compatible with the downstream task.
 
-The fourth objective is to establish realistic operational boundaries. The thesis explicitly separates components that are sufficiently mature for applied use from those that remain exploratory, especially in relation to portability, maintenance cost, and reliability under distribution shifts.
+This thesis studies neural methods from that perspective. The question is not whether neural networks can be fast, but whether they can be made reliable inside a benchmarked derivative workflow. The objective is therefore to identify where neural components can accelerate Heston pricing, calibration, and Greek computation while remaining anchored to explicit numerical references and clearly stated limitations.
+
+\section{Problem Setting}
+
+The thesis focuses on European vanilla options under the Heston model. This setting is narrow enough to admit reliable reference methods, but rich enough to expose the main difficulties of neural derivative analytics: nonlinear parameter effects, repeated inverse problems, low-price regions, short maturities, and non-smooth payoff behavior.
+
+The main methodological risk is that average pricing accuracy can hide downstream failures. A surrogate with small mean pricing error may still distort calibration if its residuals are structured across moneyness or maturity. A differentiable pricing network may produce plausible prices while giving unstable Delta or Gamma. These issues are especially relevant near the short-maturity at-the-money region, where the payoff kink creates a structural challenge for second-order sensitivities.
+
+For this reason, the thesis treats benchmarking as part of the method rather than as an afterthought. Numerical prices, implied-volatility labels, calibrated parameters, PINN prices, and Greeks are all evaluated under explicit reference conventions. This makes it possible to separate acceleration from reliability, and to distinguish useful neural components from model variants that only improve a single metric in isolation.
+
+\section{Methodological Approach}
+
+The workflow combines a numerical reference lane with a neural approximation lane. The reference lane produces controlled Heston-COS prices, implied-volatility labels, and semi-analytical Greek benchmarks. The neural lane uses COS/IV labels for the ANN surrogate, embeds the surrogate in a CaNN calibration loop, and evaluates PINN pricing and Greek components against the reference objects. The base PINN is trained through the PDE formulation; reference Greeks enter only through benchmark diagnostics and the Sobolev-enhanced variant.
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.92\textwidth}{
-        \centering
-        \textbf{Placeholder: High-level pipeline diagram}\\
-        Market data and synthetic data preparation $\rightarrow$ Heston reference solvers (COS/PDE + IV inversion) $\rightarrow$ calibration and learned surrogates (ANN/PINN) $\rightarrow$ pricing and Greeks benchmarks.
-    }}
-    \caption{High-level pipeline of the thesis (placeholder).}
+    \resizebox{0.98\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\small,
+        box/.style={draw, rounded corners=2pt, align=center, minimum height=0.9cm, text width=2.65cm, inner sep=4pt},
+        refbox/.style={box, fill=blue!7},
+        nnbox/.style={box, fill=green!8},
+        outbox/.style={box, fill=gray!10},
+        arrow/.style={-{Latex[length=2.5mm]}, thick},
+        evalarrow/.style={-{Latex[length=2.5mm]}, thick, dashed},
+        node distance=1.05cm and 1.05cm
+    ]
+        \node[refbox] (setup) {Heston setup\\synthetic contracts};
+        \node[refbox, right=of setup] (cos) {COS pricing\\IV inversion};
+
+        \node[nnbox, below=1.0cm of cos] (ann) {ANN IV\\surrogate};
+        \node[nnbox, right=of ann] (cann) {CaNN\\calibration};
+        \node[nnbox, right=of cann] (pinn) {PINN pricing\\surface};
+        \node[nnbox, right=of pinn, yshift=0.55cm] (sobolev) {Sobolev\\training};
+        \node[nnbox, right=of pinn, yshift=-0.55cm] (acv) {ACV\\control variate};
+        \node[outbox, right=of sobolev, yshift=-0.55cm] (greeks) {Greek\\diagnostics};
+        \node[refbox, above=1.0cm of greeks] (refs) {Reference\\Greeks};
+
+        \node[align=right, text width=2.4cm, left=0.55cm of setup] (reflabel) {Numerical\\reference};
+        \node[align=right, text width=2.4cm, left=0.55cm of ann] (nnlabel) {Neural\\workflow};
+
+        \draw[arrow] (setup) -- (cos);
+        \draw[arrow] (cos) -- (refs);
+        \draw[arrow] (cos) -- (ann);
+        \draw[arrow] (ann) -- (cann);
+        \draw[arrow] (cann) -- (pinn);
+        \draw[arrow] (pinn.east) -- (sobolev.west);
+        \draw[arrow] (pinn.east) -- (acv.west);
+        \draw[arrow] (sobolev.east) -- (greeks.north west);
+        \draw[arrow] (acv.east) -- (greeks.south west);
+        \draw[evalarrow] (refs.south) -- (greeks.north);
+        \draw[evalarrow] (refs.west) -- (sobolev.north);
+    \end{tikzpicture}}
+    \caption{High-level structure of the benchmarked Heston workflow. Solid arrows show the main computational flow; dashed arrows show reference Greeks used to compute diagnostic errors and to define Sobolev Greek targets.}
     \label{fig:intro_pipeline}
 \end{figure}
 
-Latency is treated as an informative benchmark dimension rather than as a production service-level target. Reported timings are interpreted in the context of the current research implementation, without hardware-specific optimization as a primary objective.
+This organization is important for the interpretation of the results. The ANN is judged not only as a fast function approximator, but also as the forward engine used by the calibration routine. The PINN is judged not only by price RMSE, but also by spatial error structure and derivative quality. The Greek analysis is treated as a separate problem because automatic differentiation through a learned price surface does not by itself guarantee reliable sensitivities.
 
-\section{Key Contributions}
-This thesis makes four main contributions. First, it delivers a reproducible computational framework for Heston-based market calibration, reference pricing, surrogate training, and benchmarking under a unified experimental protocol. This framework is designed to make method comparisons auditable and repeatable.
+\section{Main Contributions}
 
-Second, it provides an empirical comparison between numerical references and neural surrogates, including supervised ANN models and PINN-based formulations, under shared evaluation conditions. The comparison is used to characterize practical speed-accuracy trade-offs and to identify parameter regions where each approach remains reliable.
+The first contribution is a reproducible benchmark pipeline for Heston derivative analytics. The pipeline connects data generation, COS reference pricing, implied-volatility inversion, ANN training, CaNN calibration, PINN pricing, and Greek diagnostics under common conventions.
 
-Third, it develops a PINN-based workflow for fast Greek computation in the vanilla European Heston setting, using automatic differentiation on a differentiable pricing surrogate and validating the resulting sensitivities against reference numerical estimates.
+The second contribution is the improved neural calibration result. Building on the Liu-style calibration framework \cite{liu}, the final \texttt{tanh} ANN/CaNN configuration improves the controlled Liu et al. benchmark in the reported calibration setting, especially in parameter recovery.
 
-Fourth, it documents the operational limits of the proposed methodology through an explicit robustness and validity analysis, including data-domain coverage, discretization effects, extrapolation risk, and dependence on benchmark design. This yields a clear boundary between components that are mature enough for applied use and components that remain exploratory.
+The third contribution is a PINN pricing and sensitivity benchmark under Heston. The PINN is evaluated against COS and semi-analytical references not only at the price level, but also through first- and second-order Greeks.
 
-\section{Scope and Structure}
-The scope of this thesis is explicitly bounded to Heston-based pricing, calibration, and Greek estimation workflows under the data and contract settings defined in the experimental design. The focus is on methodological evaluation and reproducible benchmarking, not on full production deployment or broad asset-class coverage beyond the tested domain.
+The fourth contribution is the analysis of Greek improvement methods in the hard short-maturity at-the-money region. Sobolev-style derivative supervision \cite{czarnecki2017sobolev} and the analytic-control-variate diagnostic improve Greek quality, while the remaining errors show that the payoff kink remains a structural limitation.
 
-Validation is presented at a high level through the datasets used, the train/validation/test logic adopted in each learning stage, and the benchmark criteria applied to numerical and neural methods. The goal is to keep the comparison protocol transparent and consistent across chapters.
-\todos{finalize the benchmark list and the exact data period after the last data-quality review}
+\section{Scope and Thesis Structure}
 
-The remainder of the thesis is organized as follows. Chapter~\ref{ch:background} introduces the mathematical and financial background. Chapter~\ref{ch:ann_surrogate} presents the supervised neural surrogate pricer under Heston. Chapter~\ref{ch:cann} covers the calibration architecture and workflow. Chapter~\ref{ch:pinn_greeks} develops the PINN formulation for pricing and Greeks. Chapter~\ref{ch:performance_benchmarks} reports performance and benchmark results. Finally, Chapter~\ref{ch:conclusions} summarizes conclusions and future work.
+The scope is intentionally controlled. The experiments use European vanilla options under the Heston model, synthetic data with known reference values, and benchmark protocols where numerical settings can be inspected. Market microstructure effects, bid-ask spreads, dividends, exotic payoffs, and portfolio-scale deployment are outside the main experimental scope. This restriction is deliberate: it allows the thesis to test the numerical and neural components before making broader claims about market deployment.
+
+The remainder of the thesis is organized as follows. Chapter~\ref{ch:background} introduces the mathematical and financial background, including the Heston model, characteristic-function pricing, the COS method, semi-analytical Greeks, and implied-volatility inversion. Chapter~\ref{ch:ann_surrogate} presents the supervised ANN implied-volatility surrogate. Chapter~\ref{ch:cann} describes the CaNN calibration workflow. Chapter~\ref{ch:pinn_greeks} develops the PINN pricing and Greek computation framework. Chapter~\ref{ch:performance_benchmarks} reports the benchmark results for ANN pricing, CaNN calibration, PINN pricing, Sobolev Greeks, and the ACV diagnostic. Chapter~\ref{ch:conclusions} summarizes the conclusions, limitations, and future work.
