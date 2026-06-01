@@ -2,24 +2,56 @@
 \label{ch:introduction}
 
 \section{Motivation}
+Financial derivatives are contracts whose payoff depends on the future value of another market variable, usually the price of an asset. Options are one of the most common examples: they give the holder the right, but not the obligation, to buy or sell the underlying asset at a fixed strike price, with the contract ending at a specified maturity date. A European option can only be exercised at that maturity date, which makes it simple enough to study in a controlled way but still rich enough to show the main numerical difficulties of derivative pricing.
 
-Modern derivative engines must do more than price options: they must calibrate models repeatedly and produce stable sensitivities for risk management. In the Heston stochastic-volatility model \cite{heston}, semi-analytical and Fourier-based methods provide a strong numerical foundation because the characteristic function is available. In particular, the Fourier-COS method gives accurate and efficient reference prices when the truncation and expansion settings are controlled \cite{fang_oosterlee_2009}.
+In practice, option pricing is not only a questions of computing one price. The same pricing model is often used many times: to generate prices for different strikes and maturities, to fit model parameters to quoted option prices, and to measure how sensitive the price is to change in the inputs. These sensitivities are usually called Greeks. They are important because a small princing error can become more relevant when the model is used inside calibration or risk-management routines.
 
-The practical difficulty is that these routines are rarely called only once. Calibration requires repeated evaluations of the pricing map, large benchmark datasets require many reference valuations, and Greek analysis requires stable local derivatives. This repeated-evaluation setting makes neural approximators attractive, but speed alone is not sufficient in a financial workflow. A learned component is useful only if its errors are measurable, its failure regions are visible, and its outputs remain compatible with the downstream task.
+A classical reference point is the Black-Scholes model \cite{black_scholes_1973}. It gives an explicit formula for European option prices in a simplified setting where volatility is assumed to be fixed. 
+The model is still central because it provides a common reference for comparing option prices across strikes and maturities. In later chapters, this idea will also be connected tot he market convention of expressing option prices through an equivalent volatility level.  
+The limitation of Black-Scholes is that a single fixed volatility is usually not flexible enough to represent option prices across different strikes and maturities.
 
-This thesis studies neural methods from that perspective. The question is not whether neural networks can be fast, but whether they can be made reliable inside a benchmarked derivative workflow. The objective is therefore to identify where neural components can accelerate Heston pricing, calibration, and Greek computation while remaining anchored to explicit numerical references and clearly stated limitations.
+This thesis uses the Heston model \cite{heston} because it relaxes this constant-volatility assumption while keeping the problem numerically tractable. In Heston, the variance of the asset is itself modelled as a random process.
+This allows the model to represent richer price patterns than Black-Scholes, especially when prices vary across strikes and maturities. At the same time, Hestion keeps enough mathematical structure to be priced efficiently by the Fourier-COS method introduced in Chapter \ref{ch:background}.
+This make it a suitable middle ground for the thesis: more expressive than the constant-volatility model, but still controlled enough to provide accurate reference prices.
+
+Another standard way to price derivatives is Monte Carlo simulation \cite{boyle1977montecarlo}. The idea is to simulate many possible future paths of the underlying asset and average the resulting discounted payoffs.
+This approach is very flexible and is especially useful for more complex products. 
+However, it is not the main reference method in this thesis. The experiments require repeated pricing calls, implied-volatility generation, calibration tests, and Greek benchmarks. 
+In that setting, Monte Carlo sampling noise would make the comparison with neural methods less clean. A deterministic Heston-COS reference is more appropiate for the benchmark developed here.
+
+This repeated-use setting is where neural approximations become attractive. A neural network can be trained to approximate a numerical pricing routine and then evaluated very quickly.
+However, speed alone is not sufficient in a financial workflow. A learned component is useful only if its errors can be measused, if its weak regions can be detected and ir its outputs remain reliable when used in calibration or sensitivity analysis.
+ 
+This thesis studies neural methods from that perspective. The question is not wheter neural networks can be fast, but wether they can be assessed in a way that is meaningful for a pricing workflow. 
+The next section makes this setting precise by defining the benchmark problem, the role of the Heston model, and the downstream task used to evaluate reliability.
+
+
+
 
 \section{Problem Setting}
+This thesis focuses on European vanilla put options under the Heston stochastic-volatility model. A put option gives value to its holder when the underlying asset finishes below the strike price. In the European case considered here, the option is evaluated only at the maturity date. This setting is deliberately restricted: the payoff rule is simple, the exercise date is fixed, and the numerical reference can be built under controlled assumptions.
+At the same time, the model is expressive enough to generate non-trivial behaviour across strikes, maturities, and volatility regimes.
 
-The thesis focuses on European vanilla options under the Heston model. This setting is narrow enough to admit reliable reference methods, but rich enough to expose the main difficulties of neural derivative analytics: nonlinear parameter effects, repeated inverse problems, low-price regions, short maturities, and non-smooth payoff behavior.
+The problem is therefore not the complexity of the contract itself, but the reliability of the computational workflow built around it. 
+The thesis studies three connected tasks: approximating the outputs of the Heston pricing routine, using those approximations inside calibration, and evaluating the quality of the resulting sensitivities. Each of these tasks can fail in a different way.
+A neural surrogate may have a small average pricing error but still introduce structured errors across moneyness or matirity. A calibration routine may fit observed quotes while recovering unstable parameter values. A differentiable pricing model may produce reasonable prices while giving inaccurate Greeks.
 
-The main methodological risk is that average pricing accuracy can hide downstream failures. A surrogate with small mean pricing error may still distort calibration if its residuals are structured across moneyness or maturity. A differentiable pricing network may produce plausible prices while giving unstable Delta or Gamma. These issues are especially relevant near the short-maturity at-the-money region, where the payoff kink creates a structural challenge for second-order sensitivities.
+This is especially relevant in regions where the pricing surface changes rapidly. The most delicate cases in this thesis are short maturities and near-the-strike contracts, where the current underlying price is close to the strike. This region is often called at the money, but the important point here is that small movements in the underlying can produce large changes in local curvature. For a European put, the payoff changes slope abruptly at the strike: below \(K\) it increases as the asset price falls, while above \(K\) it is zero. This sharp corner is often called a payoff kink. Near maturity, it makes the pricing surface harder to approximate, especially for second-order sensitivities such as Gamma.
 
-For this reason, the thesis treats benchmarking as part of the method rather than as an afterthought. Numerical prices, implied-volatility labels, calibrated parameters, PINN prices, and Greeks are all evaluated under explicit reference conventions. This makes it possible to separate acceleration from reliability, and to distinguish useful neural components from model variants that only improve a single metric in isolation.
+For this reason, the thesis treats benchmarking as part of the problem itself. Neural components are not evaluated only by speed or by global error metrics, but also by their behaviour in the downstream tasks for which they are intended. The central question is wheter these components can be useful inside a Heston pricing workflow without hiding errors that later affect calibration or Greek computation.
 
-\section{Methodological Approach}
 
-The workflow combines a numerical reference lane with a neural approximation lane. The reference lane produces controlled Heston-COS prices, implied-volatility labels, and semi-analytical Greek benchmarks. The neural lane uses COS/IV labels for the ANN surrogate, embeds the surrogate in a CaNN calibration loop, and evaluates PINN pricing and Greek components against the reference objects. The base PINN is trained through the PDE formulation; reference Greeks enter only through benchmark diagnostics and the Sobolev-enhanced variant.
+\section{Methodological Approach and Contributions}
+The thesis is built around a benchmarked Heston workflow that combines a numerical reference layer with neural approximation components. 
+The reference layer provides accurate option values and sensitivity benchmarks, which are used throughout the experiments as controlled comparison objects. 
+This makes it possible to evaluate neural methods under explicit numerical conditions and to distinguish computational acceleration from genuine loss of reliability.
+
+On top of this reference layer, the thesis studies two neural network approaches. The first is a supervised artificial neural network (ANN) surrogate trained to approximate the outputs of the Heston pricing routine. 
+This surrogate is then used inside a calibration routine, where the objective is to recover model parameters efficiently from option quotes. 
+The second approach is a physics-informed neural network (PINN) used to approximate the option price surface directly from the Heston pricing equation. 
+Since this price surface is differentiable, it can also be used to compute Greeks though automatic differentiation \cite{baydin2018autodiff}. 
+The complete structure of this benchmarked workflow is summarized in Figure \ref{fig:intro_pipeline}.
+
 
 \begin{figure}[H]
     \centering
@@ -64,20 +96,73 @@ The workflow combines a numerical reference lane with a neural approximation lan
     \label{fig:intro_pipeline}
 \end{figure}
 
-This organization is important for the interpretation of the results. The ANN is judged not only as a fast function approximator, but also as the forward engine used by the calibration routine. The PINN is judged not only by price RMSE, but also by spatial error structure and derivative quality. The Greek analysis is treated as a separate problem because automatic differentiation through a learned price surface does not by itself guarantee reliable sensitivities.
+\todos{(cambiar la figura para añadir recuadro de IV inversion)}
 
-\section{Main Contributions}
+A particular focus is placed on the quality of these Greeks.
+The thesis does not treat sensitivity computation as a secondary output of the pricing model, but as a separate diagnostic problem. 
+For this reason, the final part of the workflow studies two complementary ways of improving or analysing Greek accuarcy. 
+One introduces derivative information during training, while the other uses an analytic reference component to correct or diagnose the learned sensitivities. 
+These two ideas are later developed as the Sobolev-enhanced and analytic-control-variate experiments. 
 
-The first contribution is a reproducible benchmark pipeline for Heston derivative analytics. The pipeline connects data generation, COS reference pricing, implied-volatility inversion, ANN training, CaNN calibration, PINN pricing, and Greek diagnostics under common conventions.
+The main contribution of the thesis is the construction and evaluation of this full workflow under a common benchmark.
+The ANN calibration block is used to study whether neural surrogates can accelerate repeated Heston evaluations and parameter recovery. 
+The PINN block is used to study wheter a neural price surface can provide reliable prices and sensitivities at the same time. 
+The final experiments analyse the regions where Greek estimation is most difficult and assess wheter the two Greek-improvement strategies reduce those errors.
 
-The second contribution is the improved neural calibration result. Building on the Liu-style calibration framework \cite{liu}, the final \texttt{tanh} ANN/CaNN configuration improves the controlled Liu et al. benchmark in the reported calibration setting, especially in parameter recovery.
 
-The third contribution is a PINN pricing and sensitivity benchmark under Heston. The PINN is evaluated against COS and semi-analytical references not only at the price level, but also through first- and second-order Greeks.
+This organization is important for the interpretation of the results. 
+The ANN is judged not only as a fast function approximator, but also as the forward engine used by the calibration routine. 
+The PINN is judged not only by price error, but also by spatial error structure and derivative quality. 
+The Greek analysis is treated as a separate problem because automatic differentiation through a learned price surface does not by itself guarantee reliable sensitivities.
 
-The fourth contribution is the analysis of Greek improvement methods in the hard short-maturity at-the-money region. Sobolev-style derivative supervision \cite{czarnecki2017sobolev} and the analytic-control-variate diagnostic improve Greek quality, while the remaining errors show that the payoff kink remains a structural limitation.
+\section{State of the Art}
+
+The literature relevant to this thesis sits at the intersection of numerical option pricing, model calibration, and neural approximation. Classical model-based pricing provides the financial foundation. The Black--Scholes model gives a closed-form benchmark under constant volatility \cite{black_scholes_1973}, while the Heston model extends this framework by introducing stochastic variance and semi-analytical pricing formulas \cite{heston}. Simulation-based approaches, especially Monte Carlo methods, are also a central reference in derivative pricing because of their flexibility across payoffs and dynamics \cite{boyle1977montecarlo}. Their main drawback in the present setting is that repeated simulation can be expensive and introduces sampling noise, which is inconvenient when the objective is to build deterministic benchmarks for calibration and Greek diagnostics.
+
+Fourier and spectral methods provide another important line of work. When the characteristic function of the model is available, as in Heston, transform methods can price options accurately without simulating paths. FFT-based pricing \cite{carr_madan_1999} and the Fourier-COS method \cite{fang_oosterlee_2009} are standard examples of this approach. The COS method is especially useful here because it gives a deterministic and accurate reference layer for repeated pricing, implied-volatility generation, and benchmark construction. Its performance, however, still depends on numerical choices such as the truncation interval, the number of expansion terms, and the stability of the implied volatility inversion.
+
+Neural methods enter this landscape as acceleration and approximation tools. Feed-forward ANN surrogates can learn pricing or implied-volatility maps from synthetic labels and then evaluate them much faster than the numerical solver, which makes them attractive for calibration workflows \cite{liu}. Physics-informed neural networks follow a different route: instead of learning only from labels, they use the pricing equation itself as part of the training objective. Recent work applies this idea to Heston-type option pricing and related PDE settings \cite{hainaut2024pinn,yu2022gpinn}. At the same time, the PINN literature reports well-known difficulties with optimization, loss balancing, gradient flow, and robustness across the training domain \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
+
+For Greek computation, automatic differentiation provides a natural way to obtain sensitivities from differentiable neural price surfaces \cite{baydin2018autodiff}, although accurate prices do not automatically imply accurate derivatives. This motivates derivative-aware training strategies such as Sobolev-type supervision \cite{czarnecki2017sobolev} and correction or diagnostic tools based on analytic control variates, which are related to the broader variance-reduction tradition in Monte Carlo methods \cite{glasserman2004montecarlo}.
+
+Table~\ref{tab:state_of_art_blocks} summarizes these methodological blocks and clarifies their role in this thesis. The table also motivates the structure of the proposed workflow: COS pricing is kept as the deterministic reference, ANN and CaNN components are used for fast calibration, and PINN-based methods are evaluated as differentiable pricing surfaces whose Greek quality must be diagnosed separately.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Methodological blocks and role in this thesis}\label{tab:state_of_art_blocks}}
+    {\begin{tabular}{|P{2.9cm}|P{3.7cm}|P{3.3cm}|P{3.2cm}|}
+        \hline
+        \textbf{Block} & \textbf{Representative methods} & \textbf{Main strengths} & \textbf{Main limitations} \\
+        \hline
+        Classical and simulation-based pricing & Black--Scholes, Heston semi-closed pricing, Monte Carlo \cite{black_scholes_1973,heston,boyle1977montecarlo} & Financial interpretability; flexible valuation framework & High cost in repeated evaluations; possible sampling noise for simulation \\
+        \hline
+        Spectral pricing & FFT/Carr--Madan, COS/Fang--Oosterlee \cite{carr_madan_1999,fang_oosterlee_2009} & High accuracy with efficient repeated pricing & Requires careful numerical setup \\
+        \hline
+        Data-driven surrogates & ANN pricers/calibrators \cite{liu} & Very fast inference once trained & Domain-shift and extrapolation risk \\
+        \hline
+        Physics-informed surrogates & PINN/gPINN variants \cite{hainaut2024pinn,yu2022gpinn} & Injects structural constraints into learning & Training instability and sensitive optimization \cite{wang2021gradientpath,wang2022pinnntk,urban_2025} \\
+        \hline
+        Greek-improvement and correction methods & Automatic differentiation, Sobolev training, control variates \cite{baydin2018autodiff,czarnecki2017sobolev,glasserman2004montecarlo} & Direct sensitivity computation; targeted reduction of derivative errors & Derivative accuracy depends on surface smoothness; control variates are problem-specific \\
+        \hline
+        \multicolumn{4}{l}{Source: Author's synthesis from the cited literature}
+    \end{tabular}}
+\end{table}
 
 \section{Scope and Thesis Structure}
 
-The scope is intentionally controlled. The experiments use European vanilla options under the Heston model, synthetic data with known reference values, and benchmark protocols where numerical settings can be inspected. Market microstructure effects, bid-ask spreads, dividends, exotic payoffs, and portfolio-scale deployment are outside the main experimental scope. This restriction is deliberate: it allows the thesis to test the numerical and neural components before making broader claims about market deployment.
+The scope is intentionally controlled. 
+All experiments are carried out for European vanilla options under the Heston model, using synthetic data and numerical references whose settings can be inspected.
+This restriction is appropriate for the objective of the work: to test whether neural components can accelerate pricing, calibration, and sensitivity computation while remaining comparable to established numerical methods.
 
-The remainder of the thesis is organized as follows. Chapter~\ref{ch:background} introduces the mathematical and financial background, including the Heston model, characteristic-function pricing, the COS method, semi-analytical Greeks, and implied-volatility inversion. Chapter~\ref{ch:ann_surrogate} presents the supervised ANN implied-volatility surrogate. Chapter~\ref{ch:cann} describes the CaNN calibration workflow. Chapter~\ref{ch:pinn_greeks} develops the PINN pricing and Greek computation framework. Chapter~\ref{ch:performance_benchmarks} reports the benchmark results for ANN pricing, CaNN calibration, PINN pricing, Sobolev Greeks, and the ACV diagnostic. Chapter~\ref{ch:conclusions} summarizes the conclusions, limitations, and future work.
+\todos{(No se si quitar este parrafo o cambiarlo)}
+The thesis does not aim to solve all practical issues involved in market deployment. 
+Instead, it focuses on a clean experimental setting where the behaviour of the numerical and neural methods can be analysed separately. 
+Extensions to market data, richer contract classes, portfolio-level implementation, or more complex calibration settings are left as natural directions for future work.
+
+The remainder of the thesis is organized as follows. 
+Chapter~\ref{ch:background} introduces the mathematical and financial background needed for the rest of the work, including option pricing, the Heston model, Greeks, and the numerical methods used as referece.
+Chapter~\ref{ch:ann_surrogate} develops the supervised ANN surrogate for Heston pricing.
+Chapter~\ref{ch:cann} presents the neural calibration workflow.
+Chapter~\ref{ch:pinn_greeks} introduces the PINN framework for Heston pricing and sensitivity computation, including the extensions used to study Greeks accuracy.
+Chapter~\ref{ch:performance_benchmarks} reports the numerical benchmarks for pricing, calibration, PINN performance, and Greek diagnostics.
+Chapter~\ref{ch:conclusions} summarizes the main conclusions and discusses possible extensions.
