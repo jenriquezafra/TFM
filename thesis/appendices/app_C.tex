@@ -11,9 +11,11 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         \textbf{Symbol} & \textbf{Meaning} \\
         \hline
+        $(\Omega,\mathcal F,(\mathcal F_t),\mathbb P)$ & Filtered probability space: outcomes, measurable events, information available over time, and original probability measure. \\
+        \hline
         $t,\;T,\;\tau$ & Valuation time, maturity, and time to maturity ($\tau=T-t$). \\
         \hline
-        $S_t,\;K,\;m$ & Spot price, strike, and moneyness ($m=S_0/K$). \\
+        $S_t,\;K,\;m$ & Spot price, strike, and moneyness ($m=S_0/K$ for quote grids, $m=S/K$ as a PDE coordinate). \\
         \hline
         $r$ & Constant risk-free interest rate. \\
         \hline
@@ -25,7 +27,7 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         $V_{BS},\;V_{\text{target}}$ & Black--Scholes option value and target option value used in IV inversion. \\
         \hline
-        $\Psi$ & Option payoff function at maturity. \\
+        $\Psi,\;\Psi_{\mathrm{put}}$ & Option payoff function at maturity; for the thesis pricing target, $\Psi_{\mathrm{put}}=(K-S_T)^+$. \\
         \hline
         $X_t,\;x,\;y$ & State variable and its initial/terminal values, typically $x=X(t_0)$ and $y=X(T)$. \\
         \hline
