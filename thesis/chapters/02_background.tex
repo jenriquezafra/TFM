@@ -2,17 +2,45 @@
 \label{ch:background}
 
 \section{Mathematical Framework For Option Pricing}
-This section defines the common mathematical setup used in the rest of the thesis for pricing European-style derivatives.
+This section fixes the common mathematical setup used in the rest of the thesis for European put pricing.
 
-Time is continuous on $[0,T]$, with current time $t$ and maturity $T$. A derivative is a financial contract whose value depends on an underlying asset price process $S_t$; in particular, $S_T$ denotes the underlying price at maturity. A European option gives its holder a right, but not an obligation, exercisable only at maturity $T$: a call option pays when $S_T$ finishes above the strike $K$, while a put option pays when $S_T$ finishes below $K$. For example, the terminal payoff is $(S_T-K)^+$ for a European call and $(K-S_T)^+$ for a European put, where $(x)^+=\max(x,0)$. Rather than introducing the full probabilistic machinery, we keep a pricing-focused notation that is sufficient for the methods used later in the thesis.
+Following standard stochastic-process notation \cite[Ch.~1]{oksendal2003}, we work on a filtered probability space
+\[
+(\Omega,\mathcal F,(\mathcal F_t)_{t\in[0,T]},\mathbb P).
+\]
+Here, $\Omega$ is the set of possible outcomes, $\mathcal F$ is the collection of measurable events, $\mathbb P$ is the original probability measure, and $\mathcal F_t$ represents the information available up to time $t$. The filtration is increasing: if $s\leq t$, then $\mathcal F_s\subseteq\mathcal F_t$, so information is accumulated over time.
 
+The maturity is finite, $T>0$. Time is continuous, $t\in[0,T]$, and the time to maturity is $\tau=T-t\in[0,T]$. The underlying asset price $S=(S_t)_{t\in[0,T]}$ is assumed to be positive and adapted to the filtration, meaning that $S_t$ is observable with the information available at time $t$. The strike is $K>0$, and the risk-free rate $r\geq0$ is constant. When a fixed valuation date is needed, it is denoted by $t_0\in[0,T)$ and $S_0:=S_{t_0}$. Later chapters use moneyness $m=S_0/K$ for quote grids and $m=S/K$ as a state coordinate in the PDE formulation.
+
+The contract studied throughout the numerical pipeline is a European vanilla put. Its terminal payoff is
+\begin{equation}
+    \label{eq:european_put_payoff}
+    \Psi_{\mathrm{put}}=(K-S_T)^+,\qquad (x)^+=\max(x,0).
+\end{equation}
+The payoff changes slope at the strike, $S_T=K$. This non-differentiable point is often referred to as the payoff kink.
+Figure~\ref{fig:put_payoff} shows the normalized put payoff $\Psi_{\mathrm{put}}/K$ as a function of the normalized terminal price $S_T/K$.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.72\textwidth]{figures/put_payoff_matplotlib.pdf}
+    \caption{Normalized terminal payoff of a European put.}
+    \label{fig:put_payoff}
+\end{figure}
+
+A call payoff, $(S_T-K)^+$, is only used when needed for comparison or numerical checks such as put-call parity; it is not the pricing target of the thesis.
+
+\todos{No se si quitar este parrafo:}
 A global notation glossary is provided in Appendix~\ref{app:global_glossary} and will be extended as new symbols are introduced.
 
-As a practical starting point for this thesis, we use the standard risk-neutral valuation formula for European claims with constant rate $r$ \cite[Ch.~8]{oksendal2003}:
+For valuation, assume that there exists an equivalent risk-neutral measure $\mathbb Q$ under which discounted tradable prices are martingales. The standard risk-neutral valuation formula for the European payoffs considered in this thesis is \cite[Ch.~8]{oksendal2003}
 \begin{equation}
-    V_t=e^{-r\tau}\,\mathbb E_t^{\mathbb Q}[\Psi].
+    V_t=e^{-r(T-t)}\,\mathbb E^{\mathbb Q}\!\left[\Psi\mid\mathcal F_t\right]
+    =e^{-r\tau}\,\mathbb E_t^{\mathbb Q}[\Psi],
+    \qquad 0\leq t\leq T.
 \end{equation}
-Here, $V_t$ is the option value at time $t$, $\tau=T-t$ is time to maturity, $\Psi$ is the terminal payoff, and $\mathbb E_t^{\mathbb Q}[\cdot]$ denotes conditional expectation under the risk-neutral measure $\mathbb Q$. The risk-neutral measure is the pricing probability measure under which discounted tradable assets have no expected excess return; this is why future payoffs can be discounted at the risk-free rate $r$ in this formula.
+Here, $V_t$ is the option value at time $t$, $\mathbb E_t^{\mathbb Q}[\cdot]$ denotes the conditional expectation given $\mathcal F_t$, and in the put case $\Psi=\Psi_{\mathrm{put}}$. 
+The risk-neutral measure is the pricing probability measure under which discounted tradable asset prices have no expected excess return. 
+This is why future payoffs can be evaluated by taking conditional expectations under $\mathbb Q$ and discounting at the risk-free rate $r$.
 
 In the following sections, this framework is connected to three ingredients used throughout the thesis: the stochastic-calculus tools needed for the model equations, the Heston stochastic-volatility dynamics, and the characteristic-function/Fourier-COS pricing route.
 
