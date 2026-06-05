@@ -8,7 +8,23 @@ This chapter compares the three model blocks developed in the thesis under a com
 
 Unless explicitly stated, all reported metrics are computed on fixed evaluation sets with identical feature conventions, consistent preprocessing, and the same numerical references used in previous chapters.
 
-To keep the empirical comparison coherent, the chapter uses three primary error metrics throughout: MSE, RMSE, and MAPE. MSE is aligned with the training objective used in the supervised components, RMSE restores the error to the natural output units, and MAPE provides a scale-relative percentage reading. For MAPE, denominators are floored by the same stabilized convention used in the benchmark scripts, so near-zero references do not create undefined ratios. Tail quantiles and maximum errors are used only as auxiliary diagnostics when discussing distributional behavior, not as headline metrics.
+\subsection{Primary Error Metrics}
+\label{sec:benchmark_error_metrics}
+
+To keep the empirical comparison coherent, the chapter uses three primary error metrics throughout: MSE, RMSE, and MAPE. Let \(z_i^{\mathrm{ref}}\) be the reference value and \(\hat z_i\) the model value at evaluation point \(i\), for \(i=1,\ldots,n\). The metrics are
+\begin{equation}
+    \begin{aligned}
+    \mathrm{MSE}
+        &=\frac{1}{n}\sum_{i=1}^{n}\left(\hat z_i-z_i^{\mathrm{ref}}\right)^2,\\
+    \mathrm{RMSE}
+        &=\sqrt{\mathrm{MSE}},\\
+    \mathrm{MAPE}
+        &=100\,\frac{1}{n}\sum_{i=1}^{n}
+        \frac{\left|\hat z_i-z_i^{\mathrm{ref}}\right|}
+        {\max\left(\left|z_i^{\mathrm{ref}}\right|,\varepsilon_{\mathrm{MAPE}}\right)}.
+    \end{aligned}
+\end{equation}
+MSE is aligned with the training objective used in the supervised components, RMSE restores the error to the natural output units, and MAPE provides a scale-relative percentage reading. The denominator floor \(\varepsilon_{\mathrm{MAPE}}\) avoids unstable ratios near zero. Tail quantiles and maximum errors are used only as auxiliary diagnostics when discussing distributional behavior, not as headline metrics.
 
 The minimal pre-benchmark validation protocol combines three checks: convergence with respect to \((N,L)\) in the COS expansion, put-call parity residual control across strikes, and Black--Scholes consistency in near-constant-variance regimes.
 

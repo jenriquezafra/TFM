@@ -197,17 +197,17 @@ The previous section showed that option values can be written as transform integ
 
 Its practical appeal in this thesis is that it combines spectral convergence with efficient vectorized evaluation once the model characteristic function is available.
 
-Let $x=X(t_0)$ and $y=X(T)$, and consider a truncation interval $[a,b]$ that concentrates most of the probability mass of $X(T)\mid X(t_0)=x$. On this interval, the conditional density is approximated by
+Let $x=X(t_0)$, $y=X(T)$, and let $[a,b]\subset\mathbb R$, with $a<b$, be a truncation interval chosen to concentrate most of the probability mass of $X(T)\mid X(t_0)=x$. On this interval, the density of the terminal state is approximated by
 \begin{equation}
     \label{eq:cos_density_expansion}
     \hat f_X(y)=\sum_{k=0}^{N-1}\!'\ \bar F_k\cos\left(\pi k\frac{y-a}{b-a}\right),
 \end{equation}
-where $\hat f_X$ is the truncated cosine approximation of the density, $N$ is the number of cosine terms, $k$ indexes the expansion terms, $\sum'$ indicates that the $k=0$ term is weighted by $1/2$, and the cosine coefficients are obtained from the characteristic function:
+where $\hat f_X$ is the truncated cosine approximation of the density, $N\in\mathbb N$ is the number of cosine terms, $k\in\{0,\ldots,N-1\}$ indexes the expansion terms, $\sum'$ indicates that the $k=0$ term is weighted by $1/2$, and the cosine coefficients are obtained from the characteristic function:
 \begin{equation}
     \label{eq:cos_density_coefficients}
     \bar F_k:=\frac{2}{b-a}\Re\!\left[\phi_X\!\left(\frac{\pi k}{b-a}\right)\exp\!\left(-\frac{i\pi ak}{b-a}\right)\right].
 \end{equation}
-The operator $\Re[\cdot]$ denotes the real part.
+The operator $\Re[\cdot]$ denotes the real part; for example, $\Re[\alpha+i\beta]=\alpha$ for $\alpha,\beta\in\mathbb R$.
 
 Starting from
 \begin{equation}
@@ -219,7 +219,7 @@ the COS discretization yields
     \label{eq:cos_price_approximation}
     V(t_0,x)\approx e^{-r\tau}\sum_{k=0}^{N-1}\!'\ \Re\!\left[\phi_X\!\left(\frac{\pi k}{b-a}\right)\exp\!\left(-\frac{i\pi ak}{b-a}\right)\right]H_k,
 \end{equation}
-where the payoff coefficients are
+where the payoff coefficients $H_k$, for $k=0,\ldots,N-1$, are
 \begin{equation}
     \label{eq:cos_payoff_coefficients}
     H_k:=\frac{2}{b-a}\int_a^b V(T,y)\cos\left(\frac{y-a}{b-a}\pi k\right)\,dy.
@@ -234,7 +234,7 @@ The choice of $[a,b]$ controls truncation error. Following the cumulant-based ru
 with $c_1,c_2,c_4$ the first, second, and fourth cumulants of $X(T)$ and $L>0$ a scaling parameter. This connects directly with the cumulant machinery introduced in Section~\ref{sec:stochastic_calculus_background}.
 In the numerical experiments of this thesis, the integration interval is selected using the refined cumulant-based strategy detailed in Appendix~\ref{app:cos_error}.
 
-From a numerical viewpoint, it is useful to separate two error sources:
+The cumulant interval in Equation~\eqref{eq:cos_cumulant_interval} addresses the state-space truncation part of the approximation, but it does not by itself control the error introduced by using only $N$ cosine terms. It is therefore useful to separate two error sources:
 \begin{equation}
     \label{eq:cos_error_split}
     \left|V-V_N^{\mathrm{COS}}\right|
@@ -249,43 +249,54 @@ Implementation is fully vectorized: frequencies $u_k=\pi k/(b-a)$, exponential p
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{The COS Method Applied To The Heston Model}
-Following the notation of Sections~\ref{sec:pricing_characteristic_functions}--\ref{sec:fourier_cos_method} and \cite[Sec.~3]{fang_oosterlee_2009}, define
+Following the notation of Sections~\ref{sec:pricing_characteristic_functions}--\ref{sec:fourier_cos_method} and \cite[Sec.~3]{fang_oosterlee_2009}, define the COS frequencies and log-moneyness variables as
 \[
-u_k:=\frac{k\pi}{b-a},\qquad x:=\log\!\left(\frac{S_0}{K}\right),\qquad y:=\log\!\left(\frac{S_T}{K}\right).
+u_k:=\frac{k\pi}{b-a},\quad k=0,\ldots,N-1,\qquad x:=\log\!\left(\frac{S_0}{K}\right),\qquad y:=\log\!\left(\frac{S_T}{K}\right).
 \]
 Here, $x$ and $y$ are log-moneyness variables: they measure the underlying price relative to the strike before and at maturity. Positive log-moneyness means the underlying is above the strike, while negative log-moneyness means it is below the strike.
-Under Heston dynamics, the conditional characteristic function of $y$ can be written in semi-closed form \cite{heston,rouah_heston_book}
+Under Heston dynamics, the characteristic function of $y$ can be written in semi-closed form \cite{heston,rouah_heston_book}
 \begin{equation}
+    \label{eq:heston_log_moneyness_cf}
     \varphi_H(u;\tau,x,\nu_0)=\exp\!\left(C(u,\tau)+D(u,\tau)\nu_0+iux\right),
 \end{equation}
 with
-\begin{align}
+\begin{equation}
+\begin{aligned}
     d(u)&=\sqrt{\left(\kappa-i\rho\gamma u\right)^2+\gamma^2\left(u^2+iu\right)},\\
     g(u)&=\frac{\kappa-i\rho\gamma u-d(u)}{\kappa-i\rho\gamma u+d(u)},\\
     C(u,\tau)&=iur\tau+\frac{\kappa\bar\nu}{\gamma^2}\!\left[\left(\kappa-i\rho\gamma u-d(u)\right)\tau-2\log\!\left(\frac{1-g(u)e^{-d(u)\tau}}{1-g(u)}\right)\right],\\
     D(u,\tau)&=\frac{\kappa-i\rho\gamma u-d(u)}{\gamma^2}\left(\frac{1-e^{-d(u)\tau}}{1-g(u)e^{-d(u)\tau}}\right).
-\end{align}
+\end{aligned}
+\end{equation}
 Here, $\varphi_H$ denotes the Heston characteristic function of the log-moneyness state, while $C$, $D$, $d$, and $g$ are complex-valued auxiliary functions of the Fourier variable $u$ and maturity $\tau$. This is the standard semi-closed representation used in Fourier pricing; numerically, consistency in branch selection for $d(u)$ and the complex logarithm is required for stability \cite[Chs.~2--3]{rouah_heston_book}.
 
 The COS price for one strike can then be written as
 \begin{equation}
     V(t_0,x)\approx Ke^{-r\tau}\sum_{k=0}^{N-1}\!'\ \Re\!\left[\varphi_H(u_k;\tau,x,\nu_0)\,e^{-iu_ka}\right]U_k,
 \end{equation}
-where $U_k$ are payoff-dependent COS coefficients. For plain-vanilla options:
+where $U_k$ are payoff-dependent COS coefficients for $k=0,\ldots,N-1$. For plain-vanilla options:
 \begin{equation}
     U_k^{\mathrm{call}}=\frac{2}{b-a}\left(\chi_k(0,b)-\psi_k(0,b)\right),\qquad
     U_k^{\mathrm{put}}=\frac{2}{b-a}\left(-\chi_k(a,0)+\psi_k(a,0)\right),
 \end{equation}
 with
-\begin{align}
-    \chi_k(c,d)&=\frac{1}{1+u_k^2}\Big[e^d\!\left(\cos(u_k(d-a))+u_k\sin(u_k(d-a))\right)-e^c\!\left(\cos(u_k(c-a))+u_k\sin(u_k(c-a))\right)\Big],\\
-    \psi_k(c,d)&=
+\begin{equation}
+\begin{aligned}
+    \chi_k(\ell,q)
+    &=\frac{1}{1+u_k^2}\Big[
+        e^q\!\left(\cos(u_k(q-a))+u_k\sin(u_k(q-a))\right)\\
+    &\hspace{3.2cm}
+        -e^\ell\!\left(\cos(u_k(\ell-a))+u_k\sin(u_k(\ell-a))\right)
+    \Big],\\
+    \psi_k(\ell,q)
+    &=
     \begin{cases}
-        d-c, & k=0,\\[2mm]
-        \dfrac{b-a}{k\pi}\left[\sin(u_k(d-a))-\sin(u_k(c-a))\right], & k\ge 1.
+        q-\ell, & k=0,\\[2mm]
+        \dfrac{b-a}{k\pi}\left[\sin(u_k(q-a))-\sin(u_k(\ell-a))\right], & k\ge 1.
     \end{cases}
-\end{align}
-Here, $\chi_k$ and $\psi_k$ are analytical payoff integrals over generic bounds $c$ and $d$ inside the truncation interval.
+\end{aligned}
+\end{equation}
+Here, $\chi_k$ and $\psi_k$ are analytical payoff integrals over generic bounds $\ell$ and $q$ satisfying $a\le \ell<q\le b$.
 In the implementation of this thesis, data generation is run on European puts as a numerical convention, mainly associated with the COS-pricing setup used in the project configuration.
 
 This subsection establishes the analytical Heston-COS pricing block used as the reference framework in the following chapters.
@@ -293,11 +304,11 @@ This subsection establishes the analytical Heston-COS pricing block used as the 
 \subsection{Semi-Analytical Greeks from the Heston Characteristic Function}
 \label{sec:heston_cf_greeks}
 
-For validation purposes, the Greeks defined in Section~\ref{sec:heston_model} can also be computed directly from the Heston characteristic-function pricing representation. A standard presentation is often written for a European call \cite{heston} and is developed in \cite[Chapter~1]{rouah_heston_book}
+For validation purposes, the option Greeks defined in Section~\ref{sec:heston_model} can also be computed directly from the Heston characteristic-function pricing representation. A standard presentation is often written for a European call \cite{heston} and is developed in \cite[Chapter~1]{rouah_heston_book}
 \begin{equation}
-C(S_0,K,\tau)=S_0\,\Pi_1-Ke^{-r\tau}\,\Pi_2,
+V^{\mathrm{call}}(S_0,K,\tau)=S_0\,\Pi_1-Ke^{-r\tau}\,\Pi_2,
 \end{equation}
-where $C(S_0,K,\tau)$ is the European call price and $\Pi_1,\Pi_2$ are risk-neutral probability-type terms in the Heston pricing formula:
+where $V^{\mathrm{call}}(S_0,K,\tau)$ is the European call price and $\Pi_1,\Pi_2$ are risk-neutral probability-type terms in the Heston pricing formula:
 \begin{equation}
 \Pi_j=\frac{1}{2}+\frac{1}{\pi}\int_0^\infty
 \Re\!\left(
@@ -311,7 +322,7 @@ with
 \end{equation}
 where \(j\) selects the two probability terms, \(\Psi_j\) are the corresponding Fourier integrands, and \(\phi_X\) is the characteristic function of \(X_T=\log S_T\) under Heston \cite{heston}; see also \cite[Chapter~1]{rouah_heston_book}. For puts, the same characteristic-function machinery is used through the put payoff coefficients or, equivalently, through put-call parity.
 
-Let \(p\) denote a generic model/input variable (\(r,\tau,\nu_0,\rho,\kappa,\gamma,\bar\nu\), etc.). Under standard regularity and integrability conditions for this characteristic-function representation, differentiation under the integral sign yields \cite[Chapter~11]{rouah_heston_book}
+Let \(p\) denote a generic model/input variable (\(r,\tau,\nu_0,\rho,\kappa,\gamma,\bar\nu\), etc.). If \(\partial_p\Psi_j(u)\) exists and the differentiated integrand is integrable on \((0,\infty)\), differentiation under the integral sign yields \cite[Chapter~11]{rouah_heston_book}
 \begin{equation}
 \partial_p\Pi_j=
 \frac{1}{\pi}\int_0^\infty
@@ -321,27 +332,42 @@ Let \(p\) denote a generic model/input variable (\(r,\tau,\nu_0,\rho,\kappa,\gam
 \end{equation}
 Therefore, Greeks are obtained by combining the derivatives of \(\Pi_1,\Pi_2\) through the pricing identity \cite[Chapter~11]{rouah_heston_book}. For example:
 \begin{align}
-\mathrm{Delta}_{\text{call}} &=
-\partial_{S_0}C
+\mathrm{Delta}_{\mathrm{call}} &=
+\partial_{S_0}V^{\mathrm{call}}
 =\Pi_1+S_0\,\partial_{S_0}\Pi_1-Ke^{-r\tau}\partial_{S_0}\Pi_2,\\
-\mathrm{Gamma}_{\text{call}} &=
-\partial^2_{S_0}C
+\mathrm{Gamma}_{\mathrm{call}} &=
+\partial^2_{S_0}V^{\mathrm{call}}
 =2\partial_{S_0}\Pi_1+S_0\partial^2_{S_0}\Pi_1
 -Ke^{-r\tau}\partial^2_{S_0}\Pi_2,\\
-\mathrm{Vega}_{\text{call}} &=
-\partial_{\nu_0}C
+\mathrm{Vega}_{\mathrm{call}} &=
+\partial_{\nu_0}V^{\mathrm{call}}
 =S_0\partial_{\nu_0}\Pi_1-Ke^{-r\tau}\partial_{\nu_0}\Pi_2,\\
-\mathrm{Rho}_{\text{call}} &=
-\partial_r C
+\mathrm{Rho}_{\mathrm{call}} &=
+\partial_r V^{\mathrm{call}}
 =S_0\partial_r\Pi_1
 +K\tau e^{-r\tau}\Pi_2
 -Ke^{-r\tau}\partial_r\Pi_2,\\
-\mathrm{Theta}_{\text{call}} &=
-\partial_t C
-=-\partial_\tau C.
+\mathrm{Theta}_{\mathrm{call}} &=
+\partial_t V^{\mathrm{call}}
+=-\partial_\tau V^{\mathrm{call}}.
 \end{align}
 
-The practical advantage is that all sensitivities are expressed in terms of derivatives of the same characteristic-function integrands. Since \(\phi_X(u)=\exp\!\big(C(u,\tau)+D(u,\tau)\nu_0+iu\log S_0\big)\), parameter derivatives follow analytically from derivatives of \(C\) and \(D\), and can be inserted directly into the integrals above.
+The thesis focuses on European puts, so the corresponding quantities are obtained through put-call parity,
+\begin{equation}
+    V^{\mathrm{put}}=V^{\mathrm{call}}-S_0+Ke^{-r\tau}.
+\end{equation}
+This gives
+\begin{equation}
+\begin{aligned}
+\mathrm{Delta}_{\mathrm{put}}&=\mathrm{Delta}_{\mathrm{call}}-1, &
+\mathrm{Gamma}_{\mathrm{put}}&=\mathrm{Gamma}_{\mathrm{call}}, &
+\mathrm{Vega}_{\mathrm{put}}&=\mathrm{Vega}_{\mathrm{call}},\\
+\mathrm{Rho}_{\mathrm{put}}&=\mathrm{Rho}_{\mathrm{call}}-\tau K e^{-r\tau}, &
+\mathrm{Theta}_{\mathrm{put}}&=\mathrm{Theta}_{\mathrm{call}}+rK e^{-r\tau}.
+\end{aligned}
+\end{equation}
+
+The practical advantage is that all sensitivities are expressed in terms of derivatives of the same characteristic-function integrands. Equation~\eqref{eq:heston_log_moneyness_cf} shows that the Heston characteristic function is built from \(C(u,\tau)\), \(D(u,\tau)\nu_0\), and the log-state term. Therefore, parameter derivatives can be obtained by differentiating these components and inserting the resulting integrands into the formulas above.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -355,7 +381,7 @@ Numerically, we solve the scalar nonlinear equation
 \end{equation}
 For European vanilla options, $V_{BS}$ is strictly increasing in $\sigma$ when $\tau>0$, so the root is unique whenever $V_{\text{target}}$ satisfies static no-arbitrage bounds.
 
-The inversion routine used in this thesis is the bracketed Brent method \cite[Ch.~9]{press2007numerical}. This choice is robust for the one-dimensional IV root and avoids derivative-sensitivity issues in low-vega regions. As an alternative, Levenberg--Marquardt was also tested in preliminary experiments, but it showed lower numerical stability in this workflow; therefore, it is not used in the final pipeline.
+The inversion routine used in this thesis is the bracketed Brent method \cite[Ch.~9]{press2007numerical}. Brent's method keeps a root bracket and combines bisection with secant and inverse-quadratic interpolation steps, falling back to bisection when the interpolated step is not reliable. This choice is robust for the one-dimensional IV root and avoids derivative-sensitivity issues in low-vega regions. As an alternative, the least-squares method of Levenberg and Marquardt \cite{levenberg1944,marquardt1963} was also tested in preliminary experiments, but it showed lower numerical stability in this workflow; therefore, it is not used in the final pipeline.
 
 Stopping is based on standard price and parameter tolerances:
 \begin{equation}
@@ -366,19 +392,6 @@ Stopping is based on standard price and parameter tolerances:
 \end{equation}
 Here, $\sigma_n$ is the volatility iterate at step $n$, $\varepsilon_{\text{price}}$ and $\varepsilon_\sigma$ are stopping tolerances, and $n_{\max}$ is the maximum number of iterations. If convergence is not reached, or if the target price violates arbitrage bounds, the point is flagged as invalid for IV reporting. In edge cases near the IV floor, the pricing stage may be recomputed with a wider COS truncation interval before retrying inversion.
 
-In the results chapters, IV errors are reported with a unified metric set:
-\begin{equation}
-    \begin{aligned}
-    \mathrm{MSE}_{IV}
-        &=\frac{1}{N}\sum_{i=1}^{N}\left(\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right)^2,\\
-    \mathrm{RMSE}_{IV}
-        &=\sqrt{\mathrm{MSE}_{IV}},\\
-    \mathrm{MAPE}_{IV}
-        &=100\,\frac{1}{N}\sum_{i=1}^{N}
-        \frac{\left|\hat\sigma_i-\sigma_i^{\mathrm{ref}}\right|}
-        {\max\left(\left|\sigma_i^{\mathrm{ref}}\right|,\varepsilon_{\mathrm{MAPE}}\right)}.
-    \end{aligned}
-\end{equation}
-Here, $\mathrm{MSE}_{IV}$ and $\mathrm{RMSE}_{IV}$ measure squared and root-squared error in IV units, while $\mathrm{MAPE}_{IV}$ gives a scale-relative percentage error with denominator floor $\varepsilon_{\mathrm{MAPE}}$ to avoid unstable ratios near zero. The same convention is reused for price and Greek benchmarks by replacing $\sigma$ with the corresponding target variable. Tail quantiles may be used as auxiliary diagnostics, but not as primary benchmark metrics.
+The benchmark metrics used to evaluate the resulting IV, price, and Greek quantities are defined in Section~\ref{sec:benchmark_error_metrics}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
