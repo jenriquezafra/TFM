@@ -155,29 +155,29 @@ The other output quantities used later are Greeks. To keep them distinct from He
 \end{equation}
 Delta is the first-order sensitivity to the underlying price. Gamma is the second-order sensitivity to the underlying price. In this thesis, Vega denotes sensitivity with respect to the Heston variance state; in constant-volatility models Vega is often defined with respect to volatility instead. Rho is the sensitivity to the risk-free rate, and Theta is the sensitivity to calendar time, equivalently the negative derivative with respect to time to maturity.
 
-The next sections use Fourier methods. For that purpose, the relevant object is the conditional characteristic function of a log-price state. For example, if $X_T=\log S_T$, then
+The next sections use Fourier methods. For that purpose, the relevant object is the characteristic function of a log-price state. For example, if $X_T=\log S_T$, then
 \begin{equation}
     \phi_X(u;t,S_t,\nu_t)
     =\mathbb E_t^{\mathbb Q}\!\left[e^{iuX_T}\mid S_t,\nu_t\right].
 \end{equation}
-When pricing by log-moneyness, the same definition is applied to $Y_T=\log(S_T/K)$. Under Heston dynamics, this conditional characteristic function has a semi-closed representation \cite{heston}, which is why the model is well suited to the Fourier-COS pricing route developed in the next sections.
+When pricing by log-moneyness, the same definition is applied to $Y_T=\log(S_T/K)$. Under Heston dynamics, this characteristic function has a semi-closed representation \cite{heston}, which is why the model is well suited to the Fourier-COS pricing route developed in the next sections.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Pricing Via Characteristic Functions}
 \label{sec:pricing_characteristic_functions}
-When the characteristic function is available in closed or semi-closed form, pricing in the Fourier domain becomes a natural alternative to direct density integration. Following \cite[Sec.~2]{fang_oosterlee_2009}, we write the option value in terms of the conditional transition density of the terminal state variable.
+The previous section introduced the Heston characteristic function as the transform object that is available in semi-closed form. This is useful because the density of the terminal log-state is usually not handled directly in pricing. Fourier pricing instead works with the characteristic function and recovers prices through transform integrals.
 
-Using the notation adopted in the next section, with $x=X(t_0)$ and $y=X(T)$, the discounted valuation formula is
+Using the density and characteristic-function notation introduced above, let $x=X(t_0)$ be the current state and $y=X(T)$ the terminal state. The discounted valuation formula can be written as
 \begin{equation}
     V(t_0,x)=e^{-r\tau}\int_{\mathbb R}V(T,y)\,f_X(T,y;t_0,x)\,dy.
 \end{equation}
-Here, $t_0$ is the valuation date, $X$ is the state variable used for transform pricing, $V(T,y)$ is the terminal payoff as a function of the terminal state $y$, and $f_X(T,y;t_0,x)$ is the conditional transition density of $X(T)=y$ given $X(t_0)=x$.
-The corresponding conditional characteristic function is
+Here, $V(T,y)$ is the terminal payoff as a function of the terminal state, and $f_X(T,y;t_0,x)$ is the density of $X(T)=y$ conditioned on the current state $X(t_0)=x$.
+The corresponding characteristic function is
 \begin{equation}
     \phi_X(u;t_0,x):=\mathbb E_{t_0}^{\mathbb Q}\!\left[e^{iuX(T)}\mid X(t_0)=x\right]
     =\int_{\mathbb R}e^{iuy}f_X(T,y;t_0,x)\,dy.
 \end{equation}
-Under standard integrability conditions, the density can be recovered by Fourier inversion:
+If $f_X(T,\cdot;t_0,x)$ exists and $\int_{\mathbb R}|\phi_X(u;t_0,x)|\,du<\infty$, Fourier inversion gives:
 \begin{equation}
     f_X(T,y;t_0,x)=\frac{1}{2\pi}\int_{\mathbb R}e^{-iuy}\phi_X(u;t_0,x)\,du.
 \end{equation}
@@ -193,7 +193,9 @@ The Fourier-COS method used in the next section is a specific spectral discretiz
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The Fourier-COS method}
 \label{sec:fourier_cos_method}
-The Fourier-COS method approximates transition densities and option values by a cosine series on a finite interval \cite[Secs.~3--4]{fang_oosterlee_2009}. Its practical appeal in this thesis is that it combines spectral convergence with efficient vectorized evaluation once the model characteristic function is available.
+The previous section showed that option values can be written as transform integrals once the characteristic function of the terminal state is known. The Fourier-COS method makes this representation numerically usable by replacing the terminal-state density on a finite interval with a cosine expansion \cite[Secs.~3--4]{fang_oosterlee_2009}. The key point is that the cosine coefficients of this density can be computed directly from the characteristic function, so pricing reduces to evaluating the characteristic function on a fixed frequency grid and summing finitely many terms.
+
+Its practical appeal in this thesis is that it combines spectral convergence with efficient vectorized evaluation once the model characteristic function is available.
 
 Let $x=X(t_0)$ and $y=X(T)$, and consider a truncation interval $[a,b]$ that concentrates most of the probability mass of $X(T)\mid X(t_0)=x$. On this interval, the conditional density is approximated by
 \begin{equation}
@@ -237,11 +239,11 @@ From a numerical viewpoint, it is useful to separate two error sources:
     \label{eq:cos_error_split}
     \left|V-V_N^{\mathrm{COS}}\right|
     \le
-    \underbrace{\varepsilon_{\mathrm{trunc}}([a,b])}_{\text{domain truncation}}
+    \underbrace{\varepsilon_{\mathrm{space}}([a,b])}_{\text{state-space truncation}}
     +
-    \underbrace{\varepsilon_{N}}_{\text{finite cosine series}}.
+    \underbrace{\varepsilon_{\mathrm{series}}(N;[a,b])}_{\text{finite COS series}}.
 \end{equation}
-Here, $V_N^{\mathrm{COS}}$ is the COS approximation using $N$ terms, $\varepsilon_{\mathrm{trunc}}$ is the error from truncating the integration domain to $[a,b]$, and $\varepsilon_N$ is the finite-series error. Increasing $L$ reduces $\varepsilon_{\mathrm{trunc}}$ but may require larger $N$ to keep $\varepsilon_N$ small; reducing $L$ has the opposite effect. In practice, we choose $(L,N)$ jointly and verify stability, especially for extreme strikes and short maturities, where numerical artifacts appear first.
+Here, $V_N^{\mathrm{COS}}$ is the COS approximation using $N$ terms, $\varepsilon_{\mathrm{space}}$ is the error from replacing the full state space $\mathbb R$ by the interval $[a,b]$, and $\varepsilon_{\mathrm{series}}$ is the error from keeping only finitely many cosine terms. Increasing $L$ reduces $\varepsilon_{\mathrm{space}}$ but may require larger $N$ to keep $\varepsilon_{\mathrm{series}}$ small; reducing $L$ has the opposite effect. In practice, we choose $(L,N)$ jointly and verify stability, especially for extreme strikes and short maturities, where numerical artifacts appear first.
 
 Implementation is fully vectorized: frequencies $u_k=\pi k/(b-a)$, exponential phase factors, and payoff coefficients are precomputed once per maturity, then reused across strike grids. This is one of the reasons COS is well suited for repeated-pricing workflows such as calibration loops and synthetic dataset generation.
 
