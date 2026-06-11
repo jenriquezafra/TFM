@@ -1,21 +1,22 @@
-\chapter{Neural Network pricer for Heston}
+\chapter{Supervised Neural Methods for Heston Pricing and Calibration}
 \label{ch:ann_surrogate}
+\label{ch:cann}
 
-The main objective of this chapter is to construct an ANN-based surrogate pricer for European vanilla options under the Heston stochastic-volatility model. The target quantity is implied volatility, and the surrogate is designed to approximate the forward map
+The main objective of this chapter is to construct the supervised neural block used in the thesis for Heston pricing and calibration. The first component is an ANN-based surrogate pricer for European vanilla options under the Heston stochastic-volatility model. Its target quantity is implied volatility, and the surrogate is designed to approximate the forward map
 \[
 (\Theta,m,\tau,r)\mapsto \sigma_{imp}.
 \]
+The second component is the neural calibration workflow: the trained pricer is frozen and used as a fast evaluator inside an inverse problem that recovers Heston parameters from an implied-volatility quote surface.
 
-Reference pricing based on numerical methods (in our pipeline, Heston COS valuation plus implied-volatility inversion) is highly accurate but computationally expensive when repeated many times, as required in calibration and sensitivity workflows. The ANN aims to preserve pricing accuracy while reducing inference time by several orders of magnitude.
+Reference pricing based on the numerical methods introduced in Chapter~\ref{ch:background} is highly accurate but computationally expensive when repeated many times, as required in calibration and sensitivity workflows. In this project, the reference layer combines Heston-COS valuation (Section~\ref{sec:fourier_cos_method}) with implied-volatility inversion (Section~\ref{sec:iv_numerical_inversion}). The ANN aims to preserve pricing accuracy while reducing inference time by several orders of magnitude.
 
-Methodologically, this chapter follows the ANN-pricing framework of Liu et al. \cite{liu} as the main reference (architecture family, data ranges, and training philosophy), while explicitly documenting the implementation choices adopted in this project.
-
-This chapter focuses exclusively on the pricing network; the calibration architecture is treated separately in Chapter~\ref{ch:cann}.
+Methodologically, the chapter follows the ANN-pricing and neural-calibration framework of Liu et al. \cite{liu} as the main reference (architecture family, data ranges, and training philosophy), while explicitly documenting the implementation choices adopted in this project. The benchmark results are reported later in Chapter~\ref{ch:performance_benchmarks}; here the focus is the construction of the supervised pricing dataset, the pricer architecture, the training protocol, and the calibration interface.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Problem Formulation}
+\label{sec:ann_problem_formulation}
 
-In this work, vanilla option pricing under Heston is posed as a supervised regression problem. Given a dataset
+After the Heston dynamics and their COS pricing representation have been fixed in Sections~\ref{sec:heston_model} and~\ref{sec:fourier_cos_method}, we now pose vanilla option pricing under Heston as a supervised regression problem. Given a dataset
 \[
 \mathcal{D}=\{(\mathbf{x}_i,y_i)\}_{i=1}^{N},\qquad
 y_i=\sigma_{imp,i},
@@ -25,27 +26,38 @@ the neural network approximates the map
 f_{NN}:\mathbb{R}^{8}\to\mathbb{R}, \qquad
 \mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\mapsto \sigma_{imp},
 \]
-where $m=S_0/K$ is moneyness and $\tau=T-t$ is time-to-maturity. Each label $\sigma_{imp}$ is obtained from Heston-consistent synthetic prices through numerical inversion.
+where $m$ and $\tau$ follow the moneyness and time-to-maturity notation fixed in Chapter~\ref{ch:background}. Each label $\sigma_{imp}$ is obtained from Heston-consistent synthetic prices through numerical inversion.
 
-The training objective is to estimate parameters $\mathbf{w}$ such that the empirical prediction error over $\mathcal{D}$ is minimized. In this chapter, we use the ANN only as a pricing surrogate, i.e., as a fast approximation of the reference numerical pipeline in the forward map $(\Theta,m,\tau,r)\mapsto \sigma_{imp}$.
+The training objective is to estimate parameters $\mathbf{w}$ such that the empirical prediction error over $\mathcal{D}$ is minimized. In the pricing part of this chapter, the ANN is used as a surrogate, i.e., as a fast approximation of the reference numerical pipeline in the forward map $(\Theta,m,\tau,r)\mapsto \sigma_{imp}$. In the calibration part, the same trained map is reused with the quote descriptors fixed and the Heston parameter vector varied.
 
 We learn implied volatility instead of option price because the IV representation is directly comparable across contracts with different maturities and moneyness levels, and it is the market-standard quotation format for calibration and diagnostics. In contrast, raw prices mix scale effects (spot/strike/time) that make learning less homogeneous over the domain.
 
 The resulting surrogate is primarily an in-domain approximator. Preliminary out-of-domain checks indicate that the network remains stable for moderate departures from the training bounds, while errors increase in extreme regimes. For this reason, the methodological core of this chapter is developed on the predefined training domain, and the extrapolation behaviour is discussed separately in the generalization and robustness analysis.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Synthetic Data Formulation}
-Training requires a large set of labeled input-output pairs. To obtain a controlled and fully reproducible dataset, we use synthetic data generated under the Heston model. For each sampled input vector, the target implied volatility is computed through the numerical pricing pipeline (COS valuation followed by implied-volatility inversion).
+\section{Synthetic Dataset And Supervised Learning Vocabulary}
+\label{sec:ann_synthetic_dataset}
+Training this surrogate requires a large set of labeled input-output pairs. To obtain a controlled and reproducible source, we generate synthetic data under the Heston model introduced in Section~\ref{sec:heston_model}. Each sampled contract/model configuration is priced with the Heston-COS machinery of Section~\ref{sec:fourier_cos_method}, and the resulting price is converted into the implied-volatility convention fixed in Equation~\eqref{eq:bs_iv_definition} through the numerical inversion routine described in Section~\ref{sec:iv_numerical_inversion}. Thus, the financial notation comes from the background chapter; this section only fixes the dataset vocabulary used by the implementation.
 
-In the current pipeline, data generation is organized as a \emph{master dataset} shared across downstream models. Each row stores:
+In the current pipeline, generation is organized as a \emph{master dataset}: a table whose rows are available to several downstream workflows. The following implementation terms will be used throughout this chapter:
+\begin{itemize}
+    \item A \emph{feature} is an input variable given to the neural network. In this chapter the feature vector is $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$.
+    \item A \emph{label} is the supervised value paired with a feature vector. For ANN-pricer training, the label is the implied volatility $\sigma_{\mathrm{imp}}$ obtained from the reference numerical pipeline.
+    \item A \emph{target} is any generated output stored for later use. The training target is $\sigma_{\mathrm{imp}}$, while the COS price is also retained as a reference target for diagnostics.
+    \item A \emph{quality flag} is metadata used to assess whether a row is numerically reliable. These flags are not model inputs by default; they support filtering and robustness checks.
+    \item A \emph{split} is a partition of the dataset into train, validation, and test subsets. The training split updates the weights, the validation split selects and monitors the model, and the test split is held out for final evaluation.
+    \item \emph{Preprocessing} refers to transformations applied before training, such as filtering rows, changing numerical precision, or normalizing features and targets.
+\end{itemize}
+
+With this terminology, each row stores features, generated targets, and quality flags:
 \begin{itemize}
     \item features: $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$,
-    \item targets: $(price_{\text{cos}}, \sigma_{\text{imp}}^{\text{brent}})$,
-    \item quality labels: $(feller\_slack, feller\_ok, brent\_success, brent\_abs\_residual)$.
+    \item targets: $(\texttt{price\_cos},\texttt{sigma\_imp\_brent})$,
+    \item quality flags: $(\texttt{feller\_slack},\texttt{feller\_ok},\texttt{brent\_success},\texttt{brent\_abs\_residual})$.
 \end{itemize}
-This design allows ANN and PINN workflows to reuse the same synthetic source while applying experiment-specific filters only at training time.
+This design allows ANN and PINN workflows to reuse the same synthetic source while applying experiment-specific filters only at training or evaluation time.
 
-The raw variable set includes Heston parameters $\Theta=\{\rho,\kappa,\gamma,\bar v,v_0\}$ and contract/market variables $\Sigma=\{K,S_0,\tau,r\}$, which defines a 9-dimensional space. In our setup, we fix $K=1$ and represent the underlying level through moneyness $m=S_0/K$, leading to an 8-dimensional input vector:
+The raw variable set contains the Heston parameters from Equation~\eqref{eq:heston_dynamics} and the contract/market variables $(K,S_0,\tau,r)$. The background chapter uses $\bar\nu$ and $\nu_0$ for variance quantities; the dataset columns $\bar v$ and $v_0$ denote the same long-run and initial variance levels in implementation notation. We fix $K=1$ and keep the moneyness coordinate \(m\) as the relative underlying level. This is consistent with the log-moneyness state used in the Heston-COS formula in Equation~\eqref{eq:heston_log_moneyness_cf}, since $x=\log(S_0/K)=\log m$. The resulting ANN input vector has eight features:
 \[
 \mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\in\mathbb{R}^8.
 \]
@@ -82,37 +94,21 @@ The sampling domain combines Heston parameters, contract variables, and market r
     \end{tabular}}
 \end{table}
 
-To avoid non-physical or numerically unstable samples, we enforce $\tau>0$ and monitor a Feller-type admissibility condition
-\[
-2\kappa\bar v-\gamma^2 \ge 0,
-\]
-through the scalar label
-\[
-feller\_slack = 2\kappa\bar v-\gamma^2,
-\]
-and the binary indicator $feller\_ok=\mathbb{1}\{feller\_slack\ge 0\}$. Importantly, Feller-violating points are \emph{not} removed during generation; they are kept in the master dataset for controlled ablation studies.
+The maturity range enforces $\tau>0$, which is required by the pricing and implied-volatility conventions introduced in Chapter~\ref{ch:background}. We also record the Feller diagnostic from Equation~\eqref{eq:feller_condition}. In the dataset, \texttt{feller\_slack} stores the signed margin of that condition and \texttt{feller\_ok} stores the corresponding Boolean pass/fail flag. Feller-violating points are \emph{not} removed during generation; they are kept in the master dataset for controlled ablation studies and can be filtered later if a particular experiment requires it.
 
-During synthesis we fix the strike to $K=1$ and price European put options. Fixing $K$ is equivalent to expressing spot through moneyness, which reduces the dimensionality from nine variables $(\Theta,S_0,K,\tau,r)$ to eight inputs $(\Theta,m,\tau,r)$ without loss of information for this setup.
+During synthesis we fix the strike to $K=1$ and price European put options. With this convention, the quote grid is expressed through \(m\), which reduces the dimensionality from nine variables $(\Theta,S_0,K,\tau,r)$ to eight inputs $(\Theta,m,\tau,r)$ without loss of information for this setup.
 
 \subsection{Dataset Splitting And Preprocessing}
 After generation, we keep all selected rows in the master dataset and split into train/validation/test subsets with proportions $0.8/0.1/0.1$. In the reported configuration, splits are random (without mandatory stratification), and filtering policies are deferred to each training experiment.
 
 In the baseline configuration, no explicit feature or target normalization is applied (Liu-style setup). Therefore, the model is trained directly on the physical scale of the variables $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$ and predicts IV in absolute units.
 
-Data quality control is integrated in the synthesis pipeline through explicit labels, not hard row deletion by default. In particular, we track Brent inversion status and reconstruction error
-\[
-|V_{BS}(\sigma_{imp})-V_{\text{target}}|,
-\]
-while keeping all generated points available for later filtering. For storage efficiency, output tables are persisted in \texttt{float32}, whereas COS pricing and Brent inversion are computed internally in \texttt{float64}.
+Data quality control is integrated in the synthesis pipeline through explicit flags, not hard row deletion by default. In particular, we track Brent inversion status and the absolute price reconstruction residual associated with the IV inversion of Section~\ref{sec:iv_numerical_inversion}. Keeping these quantities in the table makes the filtering rule auditable: a later experiment can state exactly whether it used all rows, only successful IV inversions, only Feller-admissible rows, or a stricter residual threshold. For storage efficiency, output tables are persisted in \texttt{float32}, whereas COS pricing and Brent inversion are computed internally in \texttt{float64}.
 
 \subsection{Numerical Label Generation (COS + Brent)}
-Each label is produced in two deterministic numerical steps. First, the target option value $V_{\text{target}}$ is computed with the Heston COS solver for a given input vector $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$. Second, implied volatility is obtained by solving
-\[
-V_{BS}(\sigma)=V_{\text{target}}
-\]
-with a Brent root-finding routine under fixed bounds and tolerance \cite{press2007numerical}.
+Each label is produced in two deterministic numerical steps already defined in the background chapter. First, the target option value is computed with the Heston-COS solver for the sampled feature vector. Second, that value is converted to implied volatility using the Brent inversion routine from Section~\ref{sec:iv_numerical_inversion}. Thus, the ANN target is a Heston-consistent implied volatility, not an independently assumed Black--Scholes volatility.
 
-In our implementation, Brent is configured with strict numerical controls (absolute tolerance $10^{-8}$, bounded search interval, and iteration cap). Additionally, when the inferred volatility hits the lower IV floor, an adaptive COS fallback can be triggered: the truncation width is increased ($L\leftarrow 1.5L$, with optional $N$ scaling) and inversion is retried. The retry is accepted only if it improves numerical quality (e.g., leaves the floor or reduces reconstruction error).
+In our implementation, Brent is configured with strict numerical controls (absolute tolerance $10^{-8}$, bounded search interval, and iteration cap). Additionally, when the inferred volatility hits the lower IV floor, an adaptive COS fallback can be triggered by widening the truncation interval before retrying inversion. This is the same numerical-error concern discussed in Appendix~\ref{app:cos_error}: COS labels must be stable because they are later treated as supervised targets.
 
 Rather than dropping those edge cases at generation time, the pipeline records quality metadata (\texttt{brent\_success}, \texttt{brent\_abs\_residual}, and retry diagnostics) so that robustness filters can be applied transparently at training time. This preserves full traceability of numerical reliability across the domain.
 
@@ -189,38 +185,37 @@ Weights are initialized with Xavier uniform initialization and biases are initia
     \centering
     \begin{tikzpicture}[
         >=Latex,
-        neuron/.style={circle,draw=black,minimum size=6.5mm,inner sep=0pt,line width=0.35pt},
+        neuron/.style={circle,draw=black,minimum size=4.2mm,inner sep=0pt,line width=0.35pt},
         input neuron/.style={neuron,fill=black},
         trainable neuron/.style={neuron,fill=white},
-        connection/.style={->,line width=0.25pt,shorten >=1.1pt,shorten <=1.1pt},
-        layer label/.style={font=\small\bfseries},
-        legend text/.style={font=\scriptsize},
+        connection/.style={->,line width=0.22pt,shorten >=1.0pt,shorten <=1.0pt},
+        layer label/.style={font=\large\bfseries},
+        legend text/.style={font=\small},
         transform shape
     ]
-        \draw[rounded corners=4pt,line width=0.35pt] (-1.15,-2.65) rectangle (10.35,2.35);
+        \draw[rounded corners=4pt,line width=0.35pt] (-1.30,-3.05) rectangle (13.05,2.75);
 
-        \node[layer label] at (0,2.05) {Input layer};
-        \node[layer label] at (4.95,2.05) {Hidden layers};
-        \node[layer label] at (9.25,2.05) {Output layer};
+        \node[layer label] at (0,2.35) {Input layer};
+        \node[layer label] at (6.10,2.35) {Hidden layers};
+        \node[layer label] at (11.65,2.35) {Output layer};
 
-        \node[input neuron,label=left:{\scriptsize$\rho$}] (I1) at (0,1.55) {};
-        \node[input neuron,label=left:{\scriptsize$\kappa$}] (I2) at (0,1.10) {};
-        \node[input neuron,label=left:{\scriptsize$\gamma$}] (I3) at (0,0.65) {};
-        \node[input neuron,label=left:{\scriptsize$\bar v$}] (I4) at (0,0.20) {};
-        \node[input neuron,label=left:{\scriptsize$v_0$}] (I5) at (0,-0.25) {};
-        \node[input neuron,label=left:{\scriptsize$m$}] (I6) at (0,-0.70) {};
-        \node[input neuron,label=left:{\scriptsize$\tau$}] (I7) at (0,-1.15) {};
-        \node[input neuron,label=left:{\scriptsize$r$}] (I8) at (0,-1.60) {};
+        \node[input neuron,label=left:{\small$\rho$}] (I1) at (0,1.75) {};
+        \node[input neuron,label=left:{\small$\kappa$}] (I2) at (0,1.25) {};
+        \node[input neuron,label=left:{\small$\gamma$}] (I3) at (0,0.75) {};
+        \node[input neuron,label=left:{\small$\bar v$}] (I4) at (0,0.25) {};
+        \node[input neuron,label=left:{\small$v_0$}] (I5) at (0,-0.25) {};
+        \node[input neuron,label=left:{\small$m$}] (I6) at (0,-0.75) {};
+        \node[input neuron,label=left:{\small$\tau$}] (I7) at (0,-1.25) {};
+        \node[input neuron,label=left:{\small$r$}] (I8) at (0,-1.75) {};
 
-        \foreach \layer/\xpos in {1/2.10,2/4.00,3/5.90,4/7.80} {
-            \foreach \nodeidx/\ypos in {1/1.20,2/0.45,3/-0.45,4/-1.20} {
+        \foreach \layer/\xpos in {1/2.45,2/4.90,3/7.35,4/9.80} {
+            \foreach \nodeidx/\ypos in {1/1.40,2/0.50,3/-0.50,4/-1.40} {
                 \node[trainable neuron] (H\layer\nodeidx) at (\xpos,\ypos) {};
             }
-            \node[font=\small] at (\xpos,0) {$\vdots$};
-                \node[font=\scriptsize] at (\xpos,-1.75) {200 \texttt{tanh} units};
+            \node[font=\normalsize] at (\xpos,0) {$\vdots$};
         }
-
-        \node[trainable neuron,label=right:{\scriptsize$\hat\sigma_{\mathrm{imp}}$}] (O1) at (9.25,0) {};
+        \node[trainable neuron] (O1) at (11.65,0) {};
+        \node[font=\small,anchor=west] at (11.95,0) {$\hat\sigma_{\mathrm{imp}}$};
 
         \foreach \i in {1,...,8} {
             \foreach \j in {1,...,4} {
@@ -238,10 +233,10 @@ Weights are initialized with Xavier uniform initialization and biases are initia
             \draw[connection] (H4\i) -- (O1);
         }
 
-        \node[input neuron] at (2.15,-2.25) {};
-        \node[legend text,anchor=west] at (2.45,-2.25) {Fixed input feature};
-        \node[trainable neuron] at (5.75,-2.25) {};
-        \node[legend text,anchor=west] at (6.05,-2.25) {Trainable affine layer};
+        \node[input neuron] at (2.45,-2.35) {};
+        \node[legend text,anchor=west] at (2.75,-2.35) {Fixed input feature};
+        \node[trainable neuron] at (6.65,-2.35) {};
+        \node[legend text,anchor=west] at (6.95,-2.35) {Trainable affine layer};
     \end{tikzpicture}
     \caption{Fully connected ANN pricer used in the forward Heston implied-volatility surrogate. The eight fixed inputs are mapped through four \texttt{tanh} hidden layers of width \(200\), and the final linear layer returns the predicted implied volatility.}
     \label{fig:ann_architecture_tikz}
@@ -259,9 +254,11 @@ This output definition also preserves differentiability of the surrogate with re
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Training Procedure}
-Training is fully configuration-driven and follows an epoch-based supervised learning loop. At each epoch, the active optimizer performs parameter updates on the training split, then the model is evaluated on the validation split without gradient computation. For Adam updates, optimization is done with standard mini-batch backpropagation; for L-BFGS updates, each step is computed through a closure that evaluates the loss and its gradient on the selected batch regime.
+Training the network means adjusting the weights \(\mathbf{w}\) so that the empirical loss on the supervised dataset decreases. At this stage we describe the common training loop; the numerical rule used to update the weights, and the meaning of optimizer in this setting, are introduced in Section~\ref{sec:ann_optimizer_hyperparameters}.
 
-Each epoch stores train/validation metrics, current optimizer identity, and learning rate. When enabled, the validation monitor can be either the raw validation loss or a trimmed variant that discards the top-tail hardest samples before aggregation. This provides a robust alternative when a small fraction of outlier points may dominate the monitor value.
+The training loop is fully configuration-driven and follows an epoch-based supervised learning scheme. At each epoch, the configured update rule modifies the parameters using the training split, then the model is evaluated on the validation split without gradient computation. This separates the learning step from the monitoring step: the former changes \(\mathbf{w}\), while the latter only measures out-of-sample behaviour under the current weights.
+
+Each epoch stores train/validation metrics, current update-rule identity, and learning rate. When enabled, the validation monitor can be either the raw validation loss or a trimmed variant that discards the top-tail hardest samples before aggregation. This provides a robust alternative when a small fraction of outlier points may dominate the monitor value.
 
 Execution device is selected automatically (\texttt{mps} when available, otherwise \texttt{cpu}), and data-shuffling reproducibility is controlled through a fixed generator seed from configuration. During training, two checkpoints are maintained: the \textit{last} checkpoint (always overwritten each epoch) and the \textit{best} checkpoint (updated only when the monitored validation metric improves). The best checkpoint is used as the reference model for post-training evaluation and downstream calibration.
 
@@ -274,33 +271,29 @@ Let $\{(\mathbf{x}_i,\sigma_i)\}_{i=1}^{B}$ denote a mini-batch, where $\sigma_i
 MSE is preferred because it is smooth, differentiable everywhere, and strongly penalizes large deviations, which is desirable when the ANN is later used in calibration loops sensitive to local pricing errors. RMSE and MAPE are then used as reporting metrics, following the convention fixed in Chapter~\ref{ch:performance_benchmarks}.
 
 \subsection{Optimizer And Hyperparameters}
-Several optimizer and activation configurations were tested (Adam, mixed schedules, and \texttt{mix\_half}). For model selection, we prioritize out-of-sample MSE/RMSE and MAPE, since this keeps the training objective and the reporting convention aligned with the benchmark chapter.
+\label{sec:ann_optimizer_hyperparameters}
+In this context, an optimizer is the numerical rule that updates the network weights \(\mathbf{w}\) in order to reduce the loss. In a full-gradient method, the update direction would be computed from all training samples at each step. For a dataset of this size, this is unnecessarily expensive, so the practical alternative is to estimate the gradient from mini-batches. This gives a stochastic gradient: it is cheaper to compute, but it introduces sampling noise because each batch only approximates the full empirical gradient.
 
-Under this criterion, the selected reference ANN is \texttt{Liu\_like\_tanh\_1M\_v01} (Adam). It preserves the Liu-style width and depth, but uses \texttt{tanh} hidden activations. This run gives the lowest validation and test MSE among the retained candidates, improves the test RMSE relative to the earlier ReLU reference, and is the ANN used in the final CaNN pipeline.
+Adam belongs to the family of stochastic gradient methods, but it modifies plain stochastic gradient descent by using adaptive moments. More precisely, it keeps exponential moving averages of the mini-batch gradient and of its squared values, and uses them to scale the update of each coordinate. The learning rate fixes the base step size before this adaptive rescaling, while the optimizer weight decay controls whether the update also includes an \(L^2\)-type shrinkage of the weights. The values used in the finally retained run are reported in Table~\ref{tab:ann_selected_hyperparameters}: the Adam learning rate starts at \(10^{-3}\), and weight decay is set to \(0.0\), so no additional regularization is imposed through Adam itself. This is useful in our supervised ANN setting because the dataset is large, the loss is non-convex, and the different input directions may produce gradients with different magnitudes.
 
-\begin{table}[H]
-    \ttabbox[\FBwidth]
-    {\caption{Reference and runner-up runs used in optimizer selection}\label{tab:ann_optimizer_selection}}
-    {\scriptsize
-    \begin{tabular}{|P{2.25cm}|P{1.35cm}|P{1.55cm}|P{1.45cm}|P{1.45cm}|P{1.45cm}|P{1.35cm}|}
-        \hline
-        \textbf{Run} & \textbf{Activation} & \textbf{Optimizer} & \textbf{Val MSE} & \textbf{Test MSE} & \textbf{Test RMSE} & \textbf{Test MAPE} \\
-        \hline
-        Liu tanh 1M v01 & \texttt{tanh} & Adam & $4.00\times 10^{-6}$ & $3.47\times 10^{-6}$ & $1.86\times 10^{-3}$ & 15.88\% \\
-        \hline
-        Liu ReLU v01 & ReLU & Adam & $4.65\times 10^{-6}$ & $9.18\times 10^{-6}$ & $3.03\times 10^{-3}$ & 18.33\% \\
-        \hline
-        MIX half v01 & ReLU & Adam $\rightarrow$ L-BFGS & $4.55\times 10^{-6}$ & $9.41\times 10^{-6}$ & $3.07\times 10^{-3}$ & 27.17\% \\
-        \hline
-        \multicolumn{7}{l}{Source: Own elaboration from \texttt{outputs/runs/*/metrics/eval\_summary.yaml}}
-    \end{tabular}}
-\end{table}
+L-BFGS follows a different logic. It is a limited-memory method that uses recent parameter and gradient differences to build a compact approximation of the local curvature of the loss \cite[Ch.~7]{nocedal2006numerical}. In practical terms, it tries to use more information than the current gradient alone, which can help when the parameters are already close to a good region. The trade-off is computational: each L-BFGS step is heavier and requires reevaluating the loss and its gradient through a closure. For this reason, in this project L-BFGS is mainly tested as a refinement stage after an Adam phase, not as the default training rule for the full ANN run.
 
-The hyperparameters of the selected reference run (\texttt{Liu\_like\_tanh\_1M\_v01}) are summarized in Table~\ref{tab:ann_selected_hyperparameters}.
+The optimizer experiments followed this logic. First, Adam-only runs were used to establish stable baselines under the Liu-style architecture, varying activation, learning-rate schedule, weight decay, and early-stopping policy. Then, mixed schedules were tested by switching from Adam to L-BFGS after an initial stochastic phase. The motivation for these mixed runs was reasonable: Adam can move efficiently through the large dataset, while L-BFGS might improve the final local fit. The retained mixed candidate did not improve the held-out error profile of the selected Adam--\texttt{tanh} run, so L-BFGS remains part of the experimental path but not part of the final reference surrogate. The quantitative comparison is reported with the ANN benchmark results in Table~\ref{tab:ann_optimizer_selection}.
+
+Under this criterion, the selected reference ANN is the Liu-style architecture trained with Adam and \texttt{tanh} hidden activations. It preserves the reference width and depth, improves on the earlier ReLU baseline in the retained benchmark comparison, and is the ANN used in the final CaNN pipeline. The complete configuration of this selected run is summarized after introducing the regularization and callback controls.
+
+\subsection{Regularization And Callbacks}
+Regularization in the selected run is intentionally light: dropout is disabled ($p=0$), batch normalization is disabled, and Adam weight decay is set to zero. In addition, feature/target normalization is turned off in the Liu-style reference setup. This design keeps the training protocol close to the reference architecture and isolates the effect of the selected hidden activation, optimizer scheduling, and data quality controls.
+
+A learning-rate scheduler is a callback that changes the optimizer step size during training according to a prescribed rule. In the selected run we use StepLR, which reduces Adam's learning rate by a factor \(\gamma\) after a fixed number of epochs. Early stopping follows a different purpose: it monitors validation performance and interrupts training when the selected validation criterion stops improving over a given patience window. In our final run this mechanism is available in the training pipeline but disabled, so model selection relies on the stored \textit{best} and \textit{last} checkpoints rather than on an automatic stopping rule.
+
+Callback management therefore includes: (i) checkpointing of both \textit{best} and \textit{last} models, (ii) StepLR scheduling for Adam, and (iii) an early-stopping module available in the pipeline but disabled in the baseline experiments. When enabled, early stopping supports both standard validation loss and trimmed validation loss monitors.
+
+From an experimental standpoint, this callback configuration reduces the risk of selecting a late degraded checkpoint without over-constraining the optimization path. The scheduler controls the Adam step size in the selected run, while the Adam-to-L-BFGS transition remains available for mixed experiments. Generalization is then assessed empirically on held-out validation and test splits rather than enforced through strong explicit regularizers.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Training hyperparameters of the selected run (\texttt{Liu\_like\_tanh\_1M\_v01})}\label{tab:ann_selected_hyperparameters}}
+    {\caption{Hyperparameters and training controls of the selected ANN run}\label{tab:ann_selected_hyperparameters}}
     {\begin{tabular}{|P{5.0cm}|P{6.8cm}|}
         \hline
         \textbf{Hyperparameter} & \textbf{Value} \\
@@ -309,7 +302,7 @@ The hyperparameters of the selected reference run (\texttt{Liu\_like\_tanh\_1M\_
         \hline
         Hidden activation & \texttt{tanh} \\
         \hline
-        Seed (data-loader generator) & 42 \\
+        Seed & 42 \\
         \hline
         Epochs & 8000 \\
         \hline
@@ -319,11 +312,11 @@ The hyperparameters of the selected reference run (\texttt{Liu\_like\_tanh\_1M\_
         \hline
         Loss & MSE \\
         \hline
-        Adam learning rate & $10^{-3}$ \\
+        Adam learning rate & \(10^{-3}\) \\
         \hline
         Adam weight decay & 0.0 \\
         \hline
-        LR scheduler & StepLR, step\_size $=500$, $\gamma=0.5$ \\
+        LR scheduler & StepLR, step size \(=500\), \(\gamma=0.5\) \\
         \hline
         Early stopping & Disabled \\
         \hline
@@ -331,9 +324,68 @@ The hyperparameters of the selected reference run (\texttt{Liu\_like\_tanh\_1M\_
     \end{tabular}}
 \end{table}
 
-\subsection{Regularization And Callbacks}
-Regularization in the selected run is intentionally light: dropout is disabled ($p=0$), batch normalization is disabled, and Adam weight decay is set to zero. In addition, feature/target normalization is turned off in the Liu-style reference setup. This design keeps the training protocol close to the reference architecture and isolates the effect of the selected hidden activation, optimizer scheduling, and data quality controls.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Neural Calibration As An Inverse Problem}
+\label{sec:cann_inverse_problem}
 
-Callback management includes: (i) checkpointing of both \textit{best} and \textit{last} models, (ii) StepLR scheduling for Adam, and (iii) an early-stopping module available in the pipeline but disabled in the baseline experiments. When enabled, early stopping supports both standard validation loss and trimmed validation loss monitors.
+The supervised ANN pricer constructed in the previous sections approximates the forward Heston map from parameters and contract descriptors to implied volatility. Neural calibration uses the same idea in the opposite direction: given a finite implied-volatility surface, infer the Heston parameter vector
+\[
+\theta=(\rho,\kappa,\gamma,\bar v,v_0).
+\]
+Here the parameter meanings are those fixed in Table~\ref{tab:heston_parameters}, with the same dataset notation convention for $\bar v$ and $v_0$ described in Section~\ref{sec:ann_synthetic_dataset}. The calibration workflow follows the neural-calibration idea of Liu et al. \cite{liu}: the trained ANN pricer is frozen and used as a fast evaluator inside a calibration loop.
 
-From an experimental standpoint, this callback configuration improves training robustness without over-constraining the optimization path: checkpoints protect against late-epoch degradation, while the Adam-to-L-BFGS transition plus scheduler supports stable convergence. Generalization is then assessed empirically on held-out validation and test splits rather than enforced through strong explicit regularizers.
+The purpose is not to introduce a new calibration algorithm. The contribution in this thesis is the integration of this calibration step into the ANN--PINN workflow and the diagnostic reading of its output. For that reason, this section keeps only the setup needed to interpret the benchmark in Chapter~\ref{ch:performance_benchmarks}.
+
+\subsection{Calibration Setup}
+\label{sec:cann_setup}
+
+The trained ANN surrogate approximates the forward map
+\[
+f_{NN}:(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\mapsto \sigma_{\mathrm{IV}},
+\]
+where \(m\), \(\tau\), \(r\), and \(\sigma_{\mathrm{IV}}\) keep the notation fixed in Chapter~\ref{ch:background}. In calibration, the quote descriptors are fixed and only \(\theta\) is varied. For each candidate \(\theta\), the network is evaluated on the quote set
+\[
+\mathcal{Q}=\{(m_j,\tau_j,r_j,\sigma^{\mathrm{mkt}}_j,w_j)\}_{j=1}^{N_q},
+\]
+where \(w_j\geq0\) is an optional quote weight. The selected benchmark uses \(N_q=35\) quotes on a complete \(5\times7\) moneyness--maturity grid with constant \(r=0.03\); the exact nodes are reported in Section~\ref{sec:cann_performance}.
+
+For quote \(j\), the predicted implied volatility and residual are
+\[
+\hat\sigma_j(\theta)=f_{NN}(\rho,\kappa,\gamma,\bar v,v_0,m_j,\tau_j,r_j),
+\qquad
+e_j(\theta)=\hat\sigma_j(\theta)-\sigma^{\mathrm{mkt}}_j.
+\]
+Calibration is therefore performed in implied-volatility space, matching the ANN training target and the market convention used for volatility smiles.
+
+The objective minimized in the calibration loop is
+\begin{equation}
+\label{eq:cann_objective}
+J(\theta)
+=
+\frac{1}{\sum_{j=1}^{N_q} w_j}
+\sum_{j=1}^{N_q} w_j e_j(\theta)^2
++\lambda R(\theta),
+\end{equation}
+where \(R(\theta)\) is an optional regularization penalty. The calibrated vector is
+\begin{equation}
+\label{eq:cann_argmin}
+\theta^\star
+=
+\arg\min_{\theta\in\mathcal{B}}J(\theta),
+\end{equation}
+with \(\mathcal{B}\) the admissible Heston parameter box. In this thesis, the bounds are aligned with the ANN training domain: \(\rho\in[-0.9,0]\), \(\kappa\in[0,3]\), \(\gamma\in[0.01,0.8]\), \(\bar v\in[0.01,0.5]\), and \(v_0\in[0.05,0.5]\). This restriction keeps calibration inside the intended interpolation regime of the forward surrogate.
+
+\subsection{Search And Stability Checks}
+\label{sec:cann_search_stability}
+
+The inverse residual surface is not assumed to be convex, so the reference calibration uses Differential Evolution followed by local polishing. This is a pragmatic choice: the method is robust to initialization, does not require gradients of the neural objective, and can evaluate a population of candidates through batched ANN inference.
+
+The calibration configuration used in the benchmark is fixed in advance and kept inside the interpolation domain of the ANN. It uses the \texttt{Liu\_like\_tanh\_1M\_v01} checkpoint, the 35-quote grid described above, no regularization in the reference objective (\(\lambda=0\)), and the same parameter bounds as the ANN training domain. Differential Evolution is run with maximum iteration count \(1000\), population multiplier \(20\), tolerance \(10^{-4}\), mutation range \((0.5,1.0)\), recombination \(0.7\), and final polishing enabled. Regularized variants are reserved for the stability analysis reported in Chapter~\ref{ch:performance_benchmarks}.
+
+The selected solution is assessed at two levels. First, quote-level residuals check whether the implied-volatility surface is reproduced. Second, parameter diagnostics check whether the selected optimum is locally stable. Around a low-residual optimum, the residual data term can be read through the Gauss--Newton approximation
+\[
+H(\theta^\star)\approx 2J_e(\theta^\star)^\top WJ_e(\theta^\star),
+\]
+where \(J_e(\theta^\star)\) is the Jacobian of quote residuals with respect to \(\theta\), and \(W\) is the diagonal matrix of quote weights. Large curvature indicates directions where the quote surface reacts strongly to parameter changes; small curvature indicates flatter, less identified directions.
+
+These diagnostics are not interpreted here as results; they define the checks used later to decide whether a calibration is both low-residual and locally stable. The numerical recovery, residual metrics, and parameter-error tables are reported in Chapter~\ref{ch:performance_benchmarks}.

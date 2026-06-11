@@ -98,6 +98,7 @@ These objects are central in the rest of this chapter: the characteristic functi
 
 Before introducing stochastic volatility, it is useful to fix the implied-volatility convention used throughout the thesis. Black--Scholes is the constant-volatility reference model used for this convention \cite{black_scholes_1973}. Given a target European put value $V_{\text{target}}$, its implied volatility is the value $\sigma_{\mathrm{imp}}$ that reproduces this price when inserted into the Black--Scholes pricing formula with the same contract inputs:
 \begin{equation}
+    \label{eq:bs_iv_definition}
     V_{BS}^{\mathrm{put}}(S_0,K,r,\tau,\sigma_{\mathrm{imp}})=V_{\text{target}}.
 \end{equation}
 Thus, implied volatility is a transformation of prices into volatility units; it is not a structural parameter of the Heston model. It is nevertheless the main comparison space in this thesis, because option quotes and calibration errors are usually interpreted across moneyness and maturity in implied-volatility units. The numerical inversion used to compute $\sigma_{\mathrm{imp}}$ is detailed in Section~\ref{sec:iv_numerical_inversion}.
@@ -139,6 +140,7 @@ The model parameters are summarized in Table~\ref{tab:heston_parameters}. The ta
 
 A common positivity condition for the CIR variance process is the Feller condition
 \begin{equation}
+    \label{eq:feller_condition}
     2\kappa\bar\nu \ge \gamma^2.
 \end{equation}
 In practice, calibrated parameter sets may violate this inequality while still producing usable market fits; therefore, it is treated as a diagnostic and stability indicator rather than as a hard calibration constraint in many numerical workflows \cite[Chs.~2--3]{rouah_heston_book}.

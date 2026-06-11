@@ -34,7 +34,7 @@ The protocol is fixed as follows. Randomness is controlled with a common seed (\
 
 Reported metrics are always computed on fixed held-out sets, with ANN split policy fixed to \(0.8/0.1/0.1\) (train/validation/test), and values reported in decimal units (IV for ANN/CaNN, price for PINN). Finally, each model block reports equivalent evidence layers (global table, regional/spatial diagnostic, and convergence or runtime indicator), so cross-model comparisons remain methodologically aligned.
 
-Methodological details of each block are kept in their dedicated chapters (Chapter~\ref{ch:ann_surrogate} for ANN, Chapter~\ref{ch:cann} for CaNN, and Chapter~\ref{ch:pinn_greeks} for PINN), while this chapter focuses on consolidated benchmark outcomes under the protocol above.
+Methodological details are kept in the corresponding method chapters: Chapter~\ref{ch:ann_surrogate} for the supervised ANN/CaNN block and Chapter~\ref{ch:pinn_greeks} for PINN. This chapter focuses on consolidated benchmark outcomes under the protocol above.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{ANN Pricer Performance}
@@ -48,6 +48,26 @@ e=\hat{\sigma}_{\mathrm{IV}}-\sigma_{\mathrm{IV}}^{\mathrm{ref}},
 where \(\hat{\sigma}_{\mathrm{IV}}\) is the ANN-predicted implied volatility and \(\sigma_{\mathrm{IV}}^{\mathrm{ref}}\) is the reference implied volatility obtained from the Heston-COS/Brent pipeline. The error \(e\) is reported in decimal implied-volatility units.
 
 Global quality is summarized with MSE, RMSE, and MAPE. Regional diagnostics use fixed bins over \(m\) and \(\tau\), and extrapolation behavior is analyzed through sensitivity maps with explicit interpolation limits (Figure~\ref{fig:extrapolation_grid_ann}).
+
+Before reporting the final split-wise metrics, Table~\ref{tab:ann_optimizer_selection} summarizes the retained candidates used to select the reference ANN. The table uses descriptive names rather than internal run identifiers: all candidates follow the same Liu-style depth and width, while the activation and update schedule are the relevant differences.
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Optimizer-selection results for retained ANN candidates. All rows use the same train/validation/test split policy and Liu-style network size.}\label{tab:ann_optimizer_selection}}
+    {\small
+    \begin{tabular}{|P{2.65cm}|P{1.75cm}|P{1.95cm}|P{1.55cm}|P{1.55cm}|P{1.4cm}|}
+        \hline
+        \textbf{Candidate} & \textbf{Activation} & \textbf{Update schedule} & \textbf{Val MSE} & \textbf{Test RMSE} & \textbf{Test MAPE} \\
+        \hline
+        Selected tanh ANN & \texttt{tanh} & Adam & \(4.00\times10^{-6}\) & \(1.86\times10^{-3}\) & 15.88\% \\
+        \hline
+        ReLU baseline & ReLU & Adam & \(4.65\times10^{-6}\) & \(3.03\times10^{-3}\) & 18.33\% \\
+        \hline
+        Adam--L-BFGS refinement & ReLU & Adam \(\rightarrow\) L-BFGS & \(4.55\times10^{-6}\) & \(3.07\times10^{-3}\) & 27.17\% \\
+        \hline
+        \multicolumn{6}{l}{Source: Own elaboration from stored ANN evaluation summaries}
+    \end{tabular}}
+\end{table}
 
 \subsection{Global Error Metrics}
 
@@ -93,11 +113,11 @@ The same pattern appears in the regional MSE curves by moneyness and maturity bi
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Calibration Network Performance}
 \label{sec:cann_performance}
-This section reports the benchmark outcomes of the CaNN workflow. The compact calibration setup and diagnostic reading are introduced in Chapter~\ref{ch:cann}; here we focus on final metrics and on the selection of the reference calibration run used in the rest of the chapter.
+This section reports the benchmark outcomes of the CaNN workflow. The compact calibration setup and diagnostic reading are introduced in Section~\ref{sec:cann_inverse_problem}; here we focus on final metrics and on the selection of the reference calibration run used in the rest of the chapter.
 
 \subsection{Benchmark Snapshot}
 
-The calibration benchmark in this section follows the inverse-problem construction of Chapter~\ref{ch:cann}: it uses a fixed ANN surrogate (from Section~\ref{sec:ann_pricer_performance}) and one fixed quote universe of 35 contracts (Table~\ref{tab:cann_quote_universe}). The calibrated vector is \((\rho,\kappa,\gamma,\bar v,v_0)\), optimized with Differential Evolution plus polish under the same bounds and controls defined in Chapter~\ref{ch:cann}.
+The calibration benchmark in this section follows the inverse-problem construction of Section~\ref{sec:cann_setup}: it uses a fixed ANN surrogate (from Section~\ref{sec:ann_pricer_performance}) and one fixed quote universe of 35 contracts (Table~\ref{tab:cann_quote_universe}). The calibrated vector is \((\rho,\kappa,\gamma,\bar v,v_0)\), optimized with Differential Evolution plus polish under the same bounds and controls defined in Sections~\ref{sec:cann_setup}--\ref{sec:cann_search_stability}.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
@@ -215,7 +235,7 @@ The pointwise agreement between PINN and COS prices, the global metric table, th
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figures/pinn/pricing/pricing_benchmark_composite.png}
-    \caption{Composite PINN pricing benchmark versus COS reference. Top-left: PINN-COS scatter. Top-right: global MSE/RMSE/MAPE and relative-error summary. Bottom-left: mean relative absolute-error map over \((m,\tau)\). Bottom-right: empirical CDF of relative absolute pricing errors.}
+    \caption[Composite PINN pricing benchmark versus COS reference]{Composite PINN pricing benchmark versus COS reference. Top-left: PINN-COS scatter. Top-right: global MSE/RMSE/MAPE and relative-error summary. Bottom-left: mean relative absolute-error map over \((m,\tau)\). Bottom-right: empirical CDF of relative absolute pricing errors.}
     \label{fig:pinn_pricing_composite}
 \end{figure}
 
