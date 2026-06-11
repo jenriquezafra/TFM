@@ -336,6 +336,13 @@ Figure~\ref{fig:no_sobolev_greeks_error_maps} displays baseline relative absolut
     \label{fig:no_sobolev_greeks_error_maps}
 \end{figure}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\textwidth]{figures/pinn/greeks/baseline_vs_sobolev_rel_abs_error_maps_10panel.png}
+    \caption{Baseline PINN Greek relative-error maps.}
+    \label{fig:no_sobolev_greeks_error_maps}
+\end{figure}
+
 The baseline histogram panel complements this map-level view with error distributions. The heaviest tails appear in GAMMA and VEGA, while DELTA, THETA, and RHO are comparatively tighter. This confirms that the baseline model captures coarse sensitivity structure but still exhibits non-negligible extreme deviations in the hardest derivatives.
 
 \begin{figure}[H]
@@ -362,6 +369,13 @@ The same effect appears in Figure~\ref{fig:sobolev_error_histograms}: Sobolev tr
     \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_error_hist_5greeks.png}
     \caption{Sobolev PINN Greek error histograms.}
     \label{fig:sobolev_error_histograms}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/baseline_vs_sobolev_error_hist_overlay_logy_5greeks.png}
+    \caption{\textbf{TODO: REUBICAR / AJUSTAR CAPTION.} Baseline--Sobolev Greek error histograms with overlaid log-density scale.}
+    \label{fig:todo_baseline_sobolev_error_histograms}
 \end{figure}
 
 
