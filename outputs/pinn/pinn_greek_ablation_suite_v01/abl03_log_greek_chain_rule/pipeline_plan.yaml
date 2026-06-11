@@ -1,0 +1,31 @@
+project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl03_log_greek_chain_rule/pipeline.yaml
+experiment_name: abl03_log_greek_chain_rule
+description: Mismo entrenamiento log-PDE; fuerza la evaluacion comun con chain rule
+  sobre m para Delta/Gamma.
+architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl03_log_greek_chain_rule/architecture.yaml
+training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl03_log_greek_chain_rule/training.yaml
+outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn
+run_name: pinn_greek_ablation_suite_v01/abl03_log_greek_chain_rule
+plan_filename: pipeline_plan.yaml
+plan_path: null
+cann_inputs:
+  calibration_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_no_reg
+  summary_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_no_reg/summary.yaml
+  quotes_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/Liu_like_v01/Calibration_no_reg/quotes_comparison.parquet
+  parameter_key: theta_star
+pipeline:
+  stages:
+  - name: prepare_dataset
+    enabled: false
+    description: Read calibrated parameters from CaNN and build supervised + physics
+      datasets.
+    owner_module: src.pinn.data_builder
+  - name: train
+    enabled: true
+    description: Train the PINN with data loss and PDE residual losses.
+    owner_module: src.pinn.trainer
+  - name: evaluate
+    enabled: false
+    description: Evaluate PINN pricing quality and physics consistency metrics.
+    owner_module: src.pinn.evaluator

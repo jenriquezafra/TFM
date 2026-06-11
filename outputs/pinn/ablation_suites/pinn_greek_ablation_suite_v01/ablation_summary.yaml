@@ -1,0 +1,13 @@
+suite_id: pinn_greek_ablation_suite_v01
+manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/resolved_manifest.yaml
+baseline_key: abl00_baseline
+outputs:
+  scores_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/tables/ablation_scores.csv
+  scores_markdown: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/tables/ablation_scores.md
+  score_scatter: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/score_scatter_hard_vs_global.png
+  pairwise_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/pairwise
+pairwise_figures:
+  abl01_log_core_pdf: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/pairwise/abl01_log_core_pdf_greek_error_maps_vs_baseline.png
+best_global_score: abl00_baseline
+best_hard_score: abl00_baseline
+best_price_score: abl01_log_core_pdf

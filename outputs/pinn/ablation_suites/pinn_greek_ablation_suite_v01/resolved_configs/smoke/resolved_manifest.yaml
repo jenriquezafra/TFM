@@ -1,0 +1,154 @@
+suite_id: pinn_greek_ablation_suite_v01
+seed: 42
+baseline_key: abl00_baseline
+resolved_config_root: outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs
+base_configs:
+  pipeline: configs/pinn_pipeline_fixed_theta.yaml
+  architecture: configs/pinn_model_architecture.yaml
+  training: configs/pinn_training_fixed_theta.yaml
+  diagnostics: configs/pinn_baseline_diagnostics.yaml
+  adaptive: configs/pinn_adaptive_collocation.yaml
+diagnostics:
+  output_subdir: baseline_diagnostics
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+comparison:
+  output_dir: outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+  thresholds:
+    global_improvement:
+      global_score_max: 0.95
+      price_score_max: 1.1
+      hard_score_max: 1.25
+      greek_ratio_max: 1.2
+    hard_specialist:
+      hard_score_max: 0.9
+      price_score_max: 1.1
+      global_score_max: 1.1
+modes:
+  smoke:
+    training_overrides:
+      sampling:
+        sizes:
+          n_interior: 512
+          n_terminal: 128
+          n_lower: 128
+          n_right: 128
+          n_v_zero: 128
+      loop:
+        epochs: 2
+        mix_half_switch_epoch: 999999
+        batch_size_collocation: 128
+        batch_size_boundary: 64
+        log_every: 1
+      optimizers:
+      - name: adam
+        learn_rate: 0.001
+        weight_decay: 0.0
+      - name: L-BFGS
+        learn_rate: 1.0
+        max_iter: 2
+        line_search_fn: strong_wolfe
+        historic_size: 20
+        full_batch: true
+    diagnostics_overrides:
+      diagnostics:
+        n_bins: 31
+        surface_grid:
+          x_points: 31
+          y_points: 31
+        finite_difference:
+          enabled: false
+        cf_integration:
+          n_u: 240
+    adaptive_overrides:
+      adaptive:
+        sizes:
+          n_interior: 512
+        candidate_pool:
+          n_candidates: 2000
+          batch_size: 512
+      training:
+        training_config: configs/pinn_training_fixed_theta.yaml
+  full:
+    diagnostics_overrides:
+      diagnostics:
+        n_bins: 181
+        surface_grid:
+          x_points: 181
+          y_points: 181
+variants:
+- key: abl00_baseline
+  label: Baseline
+  role: baseline
+  enabled: true
+  description: PINN actual reentrenada con protocolo comun.
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline
+  diagnostics_subdir: baseline_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/adaptive.yaml
+- key: abl01_log_core_pdf
+  label: Log core PDF
+  enabled: true
+  description: 'Ablacion individual fiel al PDF: coordenada x=log(m), PDE en x, features
+    sqrt(tau) y q_clip, y Greeks con chain rule.'
+  architecture_overrides:
+    input:
+      features:
+      - tau
+      - log_moneyness
+      - v
+      - rho
+      - kappa
+      - gamma
+      - bar_v
+      - r
+    feature_map:
+      enabled: true
+      mode: kink_adapted
+      input_coordinate: log_moneyness
+      moneyness_floor: 1.0e-06
+      tau_epsilon: 1.0e-06
+      q_epsilon: 1.0e-08
+      q_clip: 10.0
+  training_overrides:
+    sampling:
+      coordinate_space: log_moneyness
+      domain:
+        moneyness:
+        - 0.05
+        - 2.0
+      boundaries:
+        lower_moneyness: 0.05
+    loss:
+      pde:
+        coordinate: log_moneyness
+      weights:
+        pde: 1.0
+        term: 5.0
+        low: 1.0
+        no_arbitrage: 0.0
+  diagnostics_overrides:
+    global:
+      spot_feature: log_moneyness
+    diagnostics:
+      surface_grid:
+        x_feature: moneyness
+      boundary_checks:
+        lower_moneyness: 0.05
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf
+  diagnostics_subdir: baseline_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/adaptive.yaml
+mode: smoke

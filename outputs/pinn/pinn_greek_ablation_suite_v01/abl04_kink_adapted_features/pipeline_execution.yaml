@@ -1,0 +1,12 @@
+timestamp: 2026-06-10_22-51-25
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl04_kink_adapted_features/pipeline.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl04_kink_adapted_features
+stages:
+  prepare_dataset:
+    status: skipped
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl04_kink_adapted_features/full/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl04_kink_adapted_features/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped

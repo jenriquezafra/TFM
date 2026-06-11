@@ -1,0 +1,51 @@
+dataset_format: parquet
+datasets:
+  interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/full_adaptive/interior.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl00_baseline/full/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl00_baseline/full/lower.parquet
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+sampling_strategy: adaptive_residual
+sampling_mode: parametric_theta
+seed: 42
+sizes:
+  n_interior: 40000
+  n_terminal: 10000
+  n_lower: 10000
+  n_interior_uniform: 24000
+  n_interior_adaptive: 16000
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.0
+  - 2.0
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05
+adaptive:
+  base_collocation_manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl00_baseline/full/collocation_sets_manifest.yaml
+  base_train_summary: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/metrics/train_summary.yaml
+  base_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/checkpoints/model_best.pt
+  candidate_pool_size: 120000
+  adaptive_ratio: 0.4
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+    atm_moneyness_bounds:
+    - 0.9704455335485082
+    - 1.030454533953517
+    short_tau_bounds:
+    - 0.0
+    - 0.05

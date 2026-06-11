@@ -463,6 +463,8 @@ def build_adaptive_collocation_dataset(
     _validate_lhs_set(
         data=interior,
         name="interior",
+        feature_order=PINN_FEATURE_ORDER,
+        coordinate_space="moneyness",
         tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
         moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
         v_bounds=np.asarray(domain_cfg["v"], dtype=np.float64),
@@ -471,6 +473,8 @@ def build_adaptive_collocation_dataset(
     _validate_lhs_set(
         data=terminal,
         name="terminal",
+        feature_order=PINN_FEATURE_ORDER,
+        coordinate_space="moneyness",
         tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
         moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
         v_bounds=np.asarray(domain_cfg["v"], dtype=np.float64),
@@ -479,6 +483,8 @@ def build_adaptive_collocation_dataset(
     _validate_lhs_set(
         data=lower,
         name="lower",
+        feature_order=PINN_FEATURE_ORDER,
+        coordinate_space="moneyness",
         tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
         moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
         v_bounds=np.asarray(domain_cfg["v"], dtype=np.float64),

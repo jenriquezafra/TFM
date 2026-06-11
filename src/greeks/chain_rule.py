@@ -221,6 +221,24 @@ def apply_moneyness_to_spot_chain_rule(
     return apply_input_linear_chain_rule(jacobian_wrt_m, hessian_wrt_m, scales)
 
 
+def log_moneyness_delta_gamma_to_moneyness(
+    *,
+    u_x: Tensor,
+    u_xx: Tensor,
+    x: Tensor,
+) -> tuple[Tensor, Tensor]:
+    """
+    Convert derivatives with respect to x=log(m) to derivatives with respect
+    to moneyness m:
+      dU/dm = exp(-x) U_x
+      d2U/dm2 = exp(-2x) (U_xx - U_x)
+    """
+    x_t = torch.as_tensor(x, dtype=u_x.dtype, device=u_x.device)
+    delta_m = torch.exp(-x_t) * u_x
+    gamma_m = torch.exp(-2.0 * x_t) * (u_xx - u_x)
+    return delta_m, gamma_m
+
+
 __all__ = [
     "apply_input_linear_chain_rule",
     "apply_output_linear_chain_rule",
@@ -228,4 +246,5 @@ __all__ = [
     "network_space_to_raw_space",
     "moneyness_to_spot_scales",
     "apply_moneyness_to_spot_chain_rule",
+    "log_moneyness_delta_gamma_to_moneyness",
 ]

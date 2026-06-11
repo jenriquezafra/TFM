@@ -1,0 +1,14 @@
+experiment_id: acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4
+status: completed
+mode: save_initial_checkpoint_only
+config_path: configs/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4
+device: cpu
+dtype: torch.float64
+best_loss: 0.0
+best_stage: initial_control_variate
+n_steps: 0
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4/checkpoints/model_last.pt
+baseline_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/PINN_mix_scaled_param
+baseline_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/protos/sobolev_mix/PINN_mix_scaled_param_v01/checkpoints/model_best.pt

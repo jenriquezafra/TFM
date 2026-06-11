@@ -1,0 +1,81 @@
+collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/full/collocation_sets_manifest.yaml
+device: mps
+optimizer_mode: mix_half
+mix_half_switch_epoch: 2001
+epochs: 4000
+batch_size_collocation: 2048
+batch_size_boundary: 512
+initial_checkpoint: null
+initial_checkpoint_report: null
+val_fraction: 0.2
+n_train_interior: 32000
+n_train_terminal: 8000
+n_train_lower: 8000
+n_val_interior: 8000
+n_val_terminal: 2000
+n_val_lower: 2000
+input_scaling:
+  enabled: true
+  method: standardize_train
+  eps: 1.0e-08
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  a:
+  - -0.9792621731758118
+  - -1.399817705154419
+  - -1.8047614097595215
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - -1.7307813167572021
+  b:
+  - 1.0136220455169678
+  - 1.6724859476089478
+  - 7.074011325836182
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 69.24742126464844
+  mean_train:
+  - 0.9661018252372742
+  - 0.8369683027267456
+  - 0.25512561202049255
+  - -0.5241299867630005
+  - 1.057623267173767
+  - 0.2995682656764984
+  - 0.19758449494838715
+  - 0.02499416097998619
+  std_train:
+  - 0.9865610003471375
+  - 0.5979123711585999
+  - 0.1413625180721283
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.014440970495343208
+  frozen_features:
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+best_val_total: 6.481919765472412
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/checkpoints/model_last.pt
+history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/metrics/train_history.csv
+figures:
+  loss_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/loss_curve.png
+  loss_components_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/loss_components_curve.png
+  learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/learning_rate_curve.png
+  pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/pde_residual_map_m_tau.png
+  pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/pde_residual_map_m_tau_log.png
+total_training_seconds: 2991.1928347499343

@@ -1,0 +1,30 @@
+manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/full_adaptive/collocation_sets_manifest.yaml
+interior_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/full_adaptive/interior.parquet
+selected_adaptive_points_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/full_adaptive/selected_adaptive_points.parquet
+base_collocation_manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl00_baseline/full/collocation_sets_manifest.yaml
+base_train_summary: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/metrics/train_summary.yaml
+base_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/checkpoints/model_best.pt
+device: mps
+n_candidates: 120000
+n_uniform: 24000
+n_adaptive: 16000
+candidate_counts:
+  uniform: 60000
+  hard: 24000
+  short: 18000
+  atm: 18000
+selected_counts:
+  hard: 7273
+  short: 4364
+  atm: 4363
+abs_residual_summary:
+  candidate_mean: 0.12904313206672668
+  candidate_p50: 0.031915657222270966
+  candidate_p90: 0.22504398226737976
+  candidate_p99: 1.9313267469406128
+  selected_min: 0.06091546267271042
+  selected_mean: 0.6774367690086365
+  selected_max: 4.852975368499756
+figures:
+  candidate_pde_residual_map: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/full_adaptive/figures/candidate_pde_residual_map.png
+  candidate_pde_residual_map_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/full_adaptive/figures/candidate_pde_residual_map_log.png

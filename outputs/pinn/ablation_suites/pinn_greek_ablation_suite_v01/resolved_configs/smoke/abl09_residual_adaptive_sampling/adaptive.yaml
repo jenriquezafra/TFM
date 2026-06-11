@@ -1,0 +1,74 @@
+meta:
+  experiment_id: adaptive_collocation
+  seed: 42
+  description: Residual-based adaptive collocation fine-tuning from the stable boundary-layer
+    PINN.
+base:
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline
+  checkpoint: null
+  train_summary: null
+  collocation_manifest: null
+  device: auto
+model:
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl09_residual_adaptive_sampling/architecture.yaml
+training:
+  training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl09_residual_adaptive_sampling/training.yaml
+  output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/train
+adaptive:
+  seed: 42
+  output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/smoke_adaptive
+  sizes:
+    n_interior: 512
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+  candidate_pool:
+    n_candidates: 2000
+    batch_size: 512
+    n_bins_tau: 36
+    n_bins_m: 36
+    region_shares:
+      uniform: 0.5
+      hard: 0.2
+      short: 0.15
+      atm: 0.15
+  selection:
+    adaptive_ratio: 0.4
+    min_source_shares:
+      hard: 0.25
+      short: 0.15
+      atm: 0.15
+  sampling:
+    strategy: lhs_static
+    mode: parametric_theta
+    seed: 42
+    sizes:
+      n_interior: 40000
+      n_terminal: 10000
+      n_lower: 10000
+    domain:
+      tau:
+      - 0.0
+      - 3.0
+      moneyness:
+      - 0.0
+      - 2.0
+      v:
+      - 0.01
+      - 0.5
+      r:
+      - 0.0
+      - 0.05
+      heston_params:
+        rho:
+        - -0.9
+        - 0.0
+        kappa:
+        - 0.0
+        - 3.0
+        gamma:
+        - 0.01
+        - 0.8
+        bar_v:
+        - 0.01
+        - 0.5

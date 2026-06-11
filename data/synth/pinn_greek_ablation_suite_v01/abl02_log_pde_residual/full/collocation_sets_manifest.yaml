@@ -1,0 +1,34 @@
+dataset_format: parquet
+datasets:
+  interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl02_log_pde_residual/full/interior.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl02_log_pde_residual/full/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl02_log_pde_residual/full/lower.parquet
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+sampling_strategy: lhs_static
+sampling_mode: fixed_theta
+seed: 42
+sizes:
+  n_interior: 40000
+  n_terminal: 10000
+  n_lower: 10000
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.0
+  - 2.0
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05

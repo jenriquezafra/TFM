@@ -227,6 +227,135 @@ class BoundaryLayerPINNPricer(PINNPricer):
         return self.backbone(self._boundary_layer_features(raw))
 
 
+class FeatureMapPINNPricer(PINNPricer):
+    """
+    PINN with explicit feature maps for ablation studies.
+
+    The trainer stores and batches physical coordinates. By default the second
+    coordinate is moneyness m, but `feature_map.input_coordinate=log_moneyness`
+    makes it x=log(m). This module recovers those raw coordinates from the
+    input affine transform and feeds either log-moneyness or kink-adapted
+    features to the backbone. Autograd therefore still differentiates with
+    respect to the physical PDE coordinates, not detached engineered features.
+    """
+
+    def __init__(self, architecture_config: dict):
+        fmap_cfg = architecture_config.get("feature_map", {})
+        if not isinstance(fmap_cfg, dict):
+            raise ValueError("architecture.feature_map must be a dictionary when provided.")
+        if not bool(fmap_cfg.get("enabled", False)):
+            raise ValueError("FeatureMapPINNPricer requires feature_map.enabled=true")
+
+        input_dim = int(architecture_config.get("input", {}).get("dim", 8))
+        if input_dim < 8:
+            raise ValueError("FeatureMapPINNPricer expects at least 8 physical inputs.")
+
+        self.feature_map_mode = str(fmap_cfg.get("mode", "log_moneyness")).strip().lower()
+        if self.feature_map_mode not in {"log_moneyness", "kink_adapted"}:
+            raise ValueError("feature_map.mode must be 'log_moneyness' or 'kink_adapted'.")
+
+        self.input_coordinate = str(
+            fmap_cfg.get("input_coordinate", fmap_cfg.get("coordinate_space", "moneyness"))
+        ).strip().lower()
+        if self.input_coordinate not in {"moneyness", "m", "log_moneyness", "log-moneyness", "x"}:
+            raise ValueError("feature_map.input_coordinate must be 'moneyness' or 'log_moneyness'.")
+
+        self.moneyness_floor = float(fmap_cfg.get("moneyness_floor", 1.0e-6))
+        if self.moneyness_floor <= 0.0:
+            raise ValueError("feature_map.moneyness_floor must be > 0.")
+
+        self.tau_epsilon = float(fmap_cfg.get("tau_epsilon", 1.0e-6))
+        if self.tau_epsilon <= 0.0:
+            raise ValueError("feature_map.tau_epsilon must be > 0.")
+
+        self.q_epsilon = float(fmap_cfg.get("q_epsilon", 1.0e-8))
+        if self.q_epsilon <= 0.0:
+            raise ValueError("feature_map.q_epsilon must be > 0.")
+
+        self.q_clip = float(fmap_cfg.get("q_clip", 10.0))
+        if self.q_clip <= 0.0:
+            raise ValueError("feature_map.q_clip must be > 0.")
+
+        # log_moneyness: [tau, x, v, rho, kappa, gamma, bar_v, r]
+        # kink_adapted:  [tau, x, sqrt(tau+eps), q_clip, v, rho, kappa, gamma, bar_v, r]
+        network_input_dim = 8 if self.feature_map_mode == "log_moneyness" else 10
+        super().__init__(architecture_config, network_input_dim=network_input_dim)
+
+        self.register_buffer("input_affine_a", torch.zeros(input_dim, dtype=torch.float32))
+        self.register_buffer("input_affine_b", torch.ones(input_dim, dtype=torch.float32))
+
+    def configure_input_affine(self, input_affine: dict | None) -> None:
+        if input_affine is None:
+            self.input_affine_a.zero_()
+            self.input_affine_b.fill_(1.0)
+            return
+
+        a = torch.as_tensor(
+            input_affine.get("a"),
+            dtype=self.input_affine_a.dtype,
+            device=self.input_affine_a.device,
+        )
+        b = torch.as_tensor(
+            input_affine.get("b"),
+            dtype=self.input_affine_b.dtype,
+            device=self.input_affine_b.device,
+        )
+        if a.numel() != self.input_affine_a.numel() or b.numel() != self.input_affine_b.numel():
+            raise ValueError(
+                "feature-map input affine dimension mismatch: "
+                f"expected {self.input_affine_a.numel()}, got a={a.numel()} b={b.numel()}"
+            )
+        if torch.any(torch.abs(b) < 1.0e-12):
+            raise ValueError("feature-map input affine contains near-zero scale values.")
+        self.input_affine_a.copy_(a.reshape_as(self.input_affine_a))
+        self.input_affine_b.copy_(b.reshape_as(self.input_affine_b))
+
+    def _raw_inputs(self, x_net: torch.Tensor) -> torch.Tensor:
+        a = self.input_affine_a.to(dtype=x_net.dtype, device=x_net.device).view(1, -1)
+        b = self.input_affine_b.to(dtype=x_net.dtype, device=x_net.device).view(1, -1)
+        return (x_net - a) / b
+
+    def _feature_map(self, raw: torch.Tensor) -> torch.Tensor:
+        tau = torch.clamp(raw[:, 0:1], min=0.0)
+        if self.input_coordinate in {"log_moneyness", "log-moneyness", "x"}:
+            x = raw[:, 1:2]
+            m = torch.exp(x)
+        else:
+            m = torch.clamp(raw[:, 1:2], min=self.moneyness_floor)
+            x = torch.log(m)
+        v = torch.clamp(raw[:, 2:3], min=0.0)
+
+        if self.feature_map_mode == "log_moneyness":
+            return torch.cat([tau, x, raw[:, 2:8]], dim=1)
+
+        tau_eps = tau + torch.as_tensor(self.tau_epsilon, dtype=raw.dtype, device=raw.device)
+        sqrt_tau_eps = torch.sqrt(tau_eps)
+        q_denom = torch.sqrt(v * tau + torch.as_tensor(self.q_epsilon, dtype=raw.dtype, device=raw.device))
+        q = x / q_denom
+        q_clip = self.q_clip * torch.tanh(q / self.q_clip)
+        return torch.cat(
+            [
+                tau,
+                x,
+                sqrt_tau_eps,
+                q_clip,
+                raw[:, 2:3],  # v
+                raw[:, 3:4],  # rho
+                raw[:, 4:5],  # kappa
+                raw[:, 5:6],  # gamma
+                raw[:, 6:7],  # bar_v
+                raw[:, 7:8],  # r
+            ],
+            dim=1,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 2:
+            raise ValueError(f"Expected 2D tensor [batch, features], got shape {tuple(x.shape)}")
+        raw = self._raw_inputs(x)
+        return self.backbone(self._feature_map(raw))
+
+
 class PayoffAwarePINNPricer(PINNPricer):
     """
     PINN ansatz:
@@ -470,6 +599,9 @@ def build_pinn_model(architecture_config: dict) -> PINNPricer:
     ansatz_cfg = architecture_config.get("payoff_aware", {})
     if isinstance(ansatz_cfg, dict) and bool(ansatz_cfg.get("enabled", False)):
         return PayoffAwarePINNPricer(architecture_config=architecture_config)
+    feature_map_cfg = architecture_config.get("feature_map", {})
+    if isinstance(feature_map_cfg, dict) and bool(feature_map_cfg.get("enabled", False)):
+        return FeatureMapPINNPricer(architecture_config=architecture_config)
     boundary_cfg = architecture_config.get("boundary_layer", {})
     if isinstance(boundary_cfg, dict) and bool(boundary_cfg.get("enabled", False)):
         return BoundaryLayerPINNPricer(architecture_config=architecture_config)

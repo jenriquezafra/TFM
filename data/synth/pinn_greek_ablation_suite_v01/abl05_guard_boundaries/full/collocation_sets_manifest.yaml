@@ -1,0 +1,38 @@
+dataset_format: parquet
+datasets:
+  interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/full/interior.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/full/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/full/lower.parquet
+  right: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/full/right.parquet
+  v_zero: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/full/v_zero.parquet
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+sampling_strategy: lhs_static
+sampling_mode: fixed_theta
+seed: 42
+sizes:
+  n_interior: 40000
+  n_terminal: 10000
+  n_lower: 10000
+  n_right: 10000
+  n_v_zero: 10000
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.0
+  - 2.0
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05

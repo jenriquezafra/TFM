@@ -21,6 +21,59 @@ PINN_FEATURE_ORDER = (
     "r",
 )
 
+PINN_LOG_FEATURE_ORDER = (
+    "tau",
+    "log_moneyness",
+    "v",
+    "rho",
+    "kappa",
+    "gamma",
+    "bar_v",
+    "r",
+)
+
+
+def _coordinate_space_key(sampling_config: dict | str | None) -> str:
+    if isinstance(sampling_config, dict):
+        raw = sampling_config.get(
+            "coordinate_space",
+            sampling_config.get("coordinate", sampling_config.get("spot_coordinate", "moneyness")),
+        )
+    else:
+        raw = sampling_config or "moneyness"
+    key = str(raw).strip().lower()
+    if key in {"moneyness", "m", "raw"}:
+        return "moneyness"
+    if key in {"log_moneyness", "log-moneyness", "x"}:
+        return "log_moneyness"
+    raise ValueError("sampling.coordinate_space must be 'moneyness' or 'log_moneyness'.")
+
+
+def _feature_order_for_coordinate(coordinate_space: str) -> tuple[str, ...]:
+    return PINN_LOG_FEATURE_ORDER if _coordinate_space_key(coordinate_space) == "log_moneyness" else PINN_FEATURE_ORDER
+
+
+def _convert_spot_coordinate(data: np.ndarray, coordinate_space: str) -> np.ndarray:
+    if _coordinate_space_key(coordinate_space) != "log_moneyness":
+        return data.astype(np.float32, copy=False)
+    out = data.astype(np.float32, copy=True)
+    if (out[:, 1] <= 0.0).any():
+        raise ValueError("log_moneyness collocation requires strictly positive moneyness before conversion.")
+    out[:, 1] = np.log(out[:, 1].astype(np.float64)).astype(np.float32)
+    return out
+
+
+def _moneyness_column(data: np.ndarray, coordinate_space: str) -> np.ndarray:
+    if _coordinate_space_key(coordinate_space) == "log_moneyness":
+        return np.exp(data[:, 1].astype(np.float64))
+    return data[:, 1].astype(np.float64)
+
+
+def _outside_bounds(values: np.ndarray, bounds: np.ndarray) -> np.ndarray:
+    span = max(1.0, abs(float(bounds[0])), abs(float(bounds[1])))
+    tol = 1.0e-6 * span
+    return (values < float(bounds[0]) - tol) | (values > float(bounds[1]) + tol)
+
 
 def _as_bounds(value: float | Sequence[float], *, name: str) -> np.ndarray:
     if isinstance(value, (list, tuple)) and len(value) == 2:
@@ -58,6 +111,14 @@ def _get_sampling_sizes(sampling_config: dict) -> tuple[int, int, int]:
             raise ValueError(f"sampling.sizes.{name} must be > 0. Got {value}.")
 
     return n_interior, n_terminal, n_lower
+
+
+def _get_optional_sampling_size(sampling_config: dict, key: str) -> int:
+    sizes_cfg = sampling_config.get("sizes", {})
+    value = int(sizes_cfg.get(key, 0)) if isinstance(sizes_cfg, dict) else 0
+    if value < 0:
+        raise ValueError(f"sampling.sizes.{key} must be >= 0. Got {value}.")
+    return value
 
 
 def _extract_fixed_theta(
@@ -192,40 +253,81 @@ def _sample_lhs_points(
     return x.astype(np.float32, copy=False)
 
 
+def _sample_kink_band_points(
+    *,
+    n_samples: int,
+    seed: int,
+    param_ranges: np.ndarray,
+    tau_bounds: np.ndarray,
+    moneyness_bounds: np.ndarray,
+    r_bounds: np.ndarray,
+    config: dict,
+) -> np.ndarray:
+    if n_samples <= 0:
+        return np.empty((0, len(PINN_FEATURE_ORDER)), dtype=np.float32)
+    tau_c = float(config.get("tau_c", tau_bounds[1]))
+    tau_high = min(float(tau_bounds[1]), max(float(tau_bounds[0]), tau_c))
+    tau_band = np.array([float(tau_bounds[0]), float(np.nextafter(tau_high, np.inf))], dtype=np.float64)
+    base = _sample_lhs_points(
+        n_samples=n_samples,
+        seed=seed,
+        param_ranges=param_ranges,
+        tau_bounds=tau_band,
+        moneyness_bounds=moneyness_bounds,
+        r_bounds=r_bounds,
+    )
+    rng = np.random.default_rng(seed + 7919)
+    c = float(config.get("c", 2.0))
+    eps = float(config.get("epsilon", 1.0e-8))
+    tau = np.maximum(base[:, 0].astype(np.float64), 0.0)
+    v = np.maximum(base[:, 2].astype(np.float64), 0.0)
+    width = c * np.sqrt(v * tau + eps)
+    x = rng.uniform(low=-width, high=width)
+    m = np.exp(x)
+    base[:, 1] = np.clip(m, float(moneyness_bounds[0]), float(moneyness_bounds[1])).astype(np.float32)
+    return base.astype(np.float32, copy=False)
+
+
 def _validate_lhs_set(
     *,
     data: np.ndarray,
     name: str,
+    feature_order: Sequence[str],
+    coordinate_space: str,
     tau_bounds: np.ndarray,
     moneyness_bounds: np.ndarray,
     v_bounds: np.ndarray,
     r_bounds: np.ndarray,
 ) -> None:
-    if data.ndim != 2 or data.shape[1] != len(PINN_FEATURE_ORDER):
+    if data.ndim != 2 or data.shape[1] != len(feature_order):
         raise ValueError(
-            f"{name} must have shape [N,{len(PINN_FEATURE_ORDER)}]. Got {tuple(data.shape)}"
+            f"{name} must have shape [N,{len(feature_order)}]. Got {tuple(data.shape)}"
         )
     if not np.isfinite(data).all():
         raise ValueError(f"{name} contains non-finite values.")
 
     tau = data[:, 0]
-    m = data[:, 1]
+    m = _moneyness_column(data, coordinate_space)
     v = data[:, 2]
     r = data[:, 7]
 
-    if name != "terminal" and ((tau < tau_bounds[0]).any() or (tau > tau_bounds[1]).any()):
+    if name != "terminal" and _outside_bounds(tau, tau_bounds).any():
         raise ValueError(f"{name}.tau outside configured bounds {tau_bounds.tolist()}.")
-    if name != "lower" and ((m < moneyness_bounds[0]).any() or (m > moneyness_bounds[1]).any()):
+    if name != "lower" and _outside_bounds(m, moneyness_bounds).any():
         raise ValueError(f"{name}.moneyness outside configured bounds {moneyness_bounds.tolist()}.")
-    if (v < v_bounds[0]).any() or (v > v_bounds[1]).any():
+    if _outside_bounds(v, v_bounds).any():
         raise ValueError(f"{name}.v outside configured bounds {v_bounds.tolist()}.")
-    if (r < r_bounds[0]).any() or (r > r_bounds[1]).any():
+    if _outside_bounds(r, r_bounds).any():
         raise ValueError(f"{name}.r outside configured bounds {r_bounds.tolist()}.")
 
     if name == "terminal" and not np.allclose(tau, 0.0):
         raise ValueError("Terminal set must satisfy tau=0 for all points.")
-    if name == "lower" and not np.allclose(m, 0.0):
-        raise ValueError("Lower-boundary set must satisfy moneyness=0 for all points.")
+    if name == "lower" and not np.allclose(m, m[0]):
+        raise ValueError("Lower-boundary set must have constant moneyness.")
+    if name == "right" and not np.allclose(m, m[0]):
+        raise ValueError("Right-boundary set must have constant moneyness.")
+    if name == "v_zero" and not np.allclose(v, v[0]):
+        raise ValueError("Variance-zero boundary set must have constant v.")
 
 
 def _write_collocation_manifest(
@@ -234,33 +336,51 @@ def _write_collocation_manifest(
     interior_path: Path,
     terminal_path: Path,
     lower_path: Path,
+    right_path: Path | None,
+    v_zero_path: Path | None,
     sampling_config: dict,
     feature_order: Sequence[str],
     interior: np.ndarray,
     terminal: np.ndarray,
     lower: np.ndarray,
+    right: np.ndarray | None,
+    v_zero: np.ndarray | None,
     tau_bounds: np.ndarray,
     moneyness_bounds: np.ndarray,
     v_bounds: np.ndarray,
     r_bounds: np.ndarray,
 ) -> None:
     mode = str(sampling_config.get("mode", "fixed_theta")).strip().lower()
+    coordinate_space = _coordinate_space_key(sampling_config)
+    datasets = {
+        "interior": str(interior_path),
+        "terminal": str(terminal_path),
+        "lower": str(lower_path),
+    }
+    if right_path is not None and right is not None and right.shape[0] > 0:
+        datasets["right"] = str(right_path)
+    if v_zero_path is not None and v_zero is not None and v_zero.shape[0] > 0:
+        datasets["v_zero"] = str(v_zero_path)
+
+    sizes = {
+        "n_interior": int(interior.shape[0]),
+        "n_terminal": int(terminal.shape[0]),
+        "n_lower": int(lower.shape[0]),
+    }
+    if right is not None:
+        sizes["n_right"] = int(right.shape[0])
+    if v_zero is not None:
+        sizes["n_v_zero"] = int(v_zero.shape[0])
+
     manifest = {
         "dataset_format": "parquet",
-        "datasets": {
-            "interior": str(interior_path),
-            "terminal": str(terminal_path),
-            "lower": str(lower_path),
-        },
+        "datasets": datasets,
         "feature_order": list(feature_order),
+        "coordinate_space": coordinate_space,
         "sampling_strategy": str(sampling_config.get("strategy", "lhs_static")),
         "sampling_mode": mode,
         "seed": int(sampling_config.get("seed", 42)),
-        "sizes": {
-            "n_interior": int(interior.shape[0]),
-            "n_terminal": int(terminal.shape[0]),
-            "n_lower": int(lower.shape[0]),
-        },
+        "sizes": sizes,
         "domain": {
             "tau": [float(tau_bounds[0]), float(tau_bounds[1])],
             "moneyness": [float(moneyness_bounds[0]), float(moneyness_bounds[1])],
@@ -268,6 +388,11 @@ def _write_collocation_manifest(
             "r": [float(r_bounds[0]), float(r_bounds[1])],
         },
     }
+    if coordinate_space == "log_moneyness":
+        manifest["domain"]["log_moneyness"] = [
+            float(np.log(moneyness_bounds[0])),
+            float(np.log(moneyness_bounds[1])),
+        ]
     with open(manifest_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(manifest, f, sort_keys=False)
 
@@ -417,7 +542,11 @@ def build_lhs_pinn_sets(
         )
 
     n_interior, n_terminal, n_lower = _get_sampling_sizes(sampling_config)
+    n_right = _get_optional_sampling_size(sampling_config, "n_right")
+    n_v_zero = _get_optional_sampling_size(sampling_config, "n_v_zero")
     seed = int(sampling_config.get("seed", 42))
+    coordinate_space = _coordinate_space_key(sampling_config)
+    feature_order = _feature_order_for_coordinate(coordinate_space)
 
     domain, param_ranges = _sampling_domain_and_ranges(
         sampling_config=sampling_config,
@@ -428,15 +557,40 @@ def build_lhs_pinn_sets(
     moneyness_bounds = domain["moneyness"]
     v_bounds = domain["v"]
     r_bounds = domain["r"]
+    if coordinate_space == "log_moneyness" and moneyness_bounds[0] <= 0.0:
+        raise ValueError(
+            "sampling.coordinate_space='log_moneyness' requires domain.moneyness[0] > 0."
+        )
 
-    interior = _sample_lhs_points(
-        n_samples=n_interior,
+    kink_cfg = sampling_config.get("kink_band", {})
+    kink_enabled = isinstance(kink_cfg, dict) and bool(kink_cfg.get("enabled", False))
+    kink_fraction = float(kink_cfg.get("fraction", 0.0)) if kink_enabled else 0.0
+    if kink_fraction < 0.0 or kink_fraction > 1.0:
+        raise ValueError("sampling.kink_band.fraction must be in [0, 1].")
+    n_kink = int(round(n_interior * kink_fraction))
+    n_global = n_interior - n_kink
+
+    interior_global = _sample_lhs_points(
+        n_samples=n_global,
         seed=seed,
         param_ranges=param_ranges,
         tau_bounds=tau_bounds,
         moneyness_bounds=moneyness_bounds,
         r_bounds=r_bounds,
     )
+    if n_kink > 0:
+        interior_kink = _sample_kink_band_points(
+            n_samples=n_kink,
+            seed=seed + 101,
+            param_ranges=param_ranges,
+            tau_bounds=tau_bounds,
+            moneyness_bounds=moneyness_bounds,
+            r_bounds=r_bounds,
+            config=kink_cfg,
+        )
+        interior = np.vstack([interior_global, interior_kink]).astype(np.float32, copy=False)
+    else:
+        interior = interior_global
     terminal = _sample_lhs_points(
         n_samples=n_terminal,
         seed=seed + 1,
@@ -455,11 +609,52 @@ def build_lhs_pinn_sets(
         moneyness_bounds=moneyness_bounds,
         r_bounds=r_bounds,
     )
-    lower[:, 1] = 0.0
+    boundary_cfg = sampling_config.get("boundaries", {})
+    boundary_cfg = boundary_cfg if isinstance(boundary_cfg, dict) else {}
+    lower_moneyness = float(boundary_cfg.get("lower_moneyness", 0.0))
+    right_moneyness = float(boundary_cfg.get("right_moneyness", moneyness_bounds[1]))
+    v_zero_value = float(boundary_cfg.get("v_zero_value", 0.0))
+    if coordinate_space == "log_moneyness":
+        for boundary_name, boundary_value in (
+            ("lower_moneyness", lower_moneyness),
+            ("right_moneyness", right_moneyness),
+        ):
+            if boundary_value <= 0.0:
+                raise ValueError(
+                    "sampling.coordinate_space='log_moneyness' requires "
+                    f"boundaries.{boundary_name} > 0."
+                )
+    lower[:, 1] = lower_moneyness
+
+    right = None
+    if n_right > 0:
+        right = _sample_lhs_points(
+            n_samples=n_right,
+            seed=seed + 3,
+            param_ranges=param_ranges,
+            tau_bounds=tau_bounds,
+            moneyness_bounds=moneyness_bounds,
+            r_bounds=r_bounds,
+        )
+        right[:, 1] = right_moneyness
+
+    v_zero = None
+    if n_v_zero > 0:
+        v_zero = _sample_lhs_points(
+            n_samples=n_v_zero,
+            seed=seed + 4,
+            param_ranges=param_ranges,
+            tau_bounds=tau_bounds,
+            moneyness_bounds=moneyness_bounds,
+            r_bounds=r_bounds,
+        )
+        v_zero[:, 2] = v_zero_value
 
     _validate_lhs_set(
         data=interior,
         name="interior",
+        feature_order=PINN_FEATURE_ORDER,
+        coordinate_space="moneyness",
         tau_bounds=tau_bounds,
         moneyness_bounds=moneyness_bounds,
         v_bounds=v_bounds,
@@ -468,6 +663,8 @@ def build_lhs_pinn_sets(
     _validate_lhs_set(
         data=terminal,
         name="terminal",
+        feature_order=PINN_FEATURE_ORDER,
+        coordinate_space="moneyness",
         tau_bounds=tau_bounds,
         moneyness_bounds=moneyness_bounds,
         v_bounds=v_bounds,
@@ -476,31 +673,140 @@ def build_lhs_pinn_sets(
     _validate_lhs_set(
         data=lower,
         name="lower",
+        feature_order=PINN_FEATURE_ORDER,
+        coordinate_space="moneyness",
         tau_bounds=tau_bounds,
         moneyness_bounds=moneyness_bounds,
         v_bounds=v_bounds,
         r_bounds=r_bounds,
     )
+    if right is not None:
+        _validate_lhs_set(
+            data=right,
+            name="right",
+            feature_order=PINN_FEATURE_ORDER,
+            coordinate_space="moneyness",
+            tau_bounds=tau_bounds,
+            moneyness_bounds=np.array(
+                [min(float(moneyness_bounds[0]), right_moneyness), max(float(moneyness_bounds[1]), right_moneyness)],
+                dtype=np.float64,
+            ),
+            v_bounds=v_bounds,
+            r_bounds=r_bounds,
+        )
+    if v_zero is not None:
+        _validate_lhs_set(
+            data=v_zero,
+            name="v_zero",
+            feature_order=PINN_FEATURE_ORDER,
+            coordinate_space="moneyness",
+            tau_bounds=tau_bounds,
+            moneyness_bounds=moneyness_bounds,
+            v_bounds=np.array(
+                [min(float(v_bounds[0]), v_zero_value), max(float(v_bounds[1]), v_zero_value)],
+                dtype=np.float64,
+            ),
+            r_bounds=r_bounds,
+        )
+
+    interior_out = _convert_spot_coordinate(interior, coordinate_space)
+    terminal_out = _convert_spot_coordinate(terminal, coordinate_space)
+    lower_out = _convert_spot_coordinate(lower, coordinate_space)
+    right_out = _convert_spot_coordinate(right, coordinate_space) if right is not None else None
+    v_zero_out = _convert_spot_coordinate(v_zero, coordinate_space) if v_zero is not None else None
+
+    _validate_lhs_set(
+        data=interior_out,
+        name="interior",
+        feature_order=feature_order,
+        coordinate_space=coordinate_space,
+        tau_bounds=tau_bounds,
+        moneyness_bounds=moneyness_bounds,
+        v_bounds=v_bounds,
+        r_bounds=r_bounds,
+    )
+    _validate_lhs_set(
+        data=terminal_out,
+        name="terminal",
+        feature_order=feature_order,
+        coordinate_space=coordinate_space,
+        tau_bounds=tau_bounds,
+        moneyness_bounds=moneyness_bounds,
+        v_bounds=v_bounds,
+        r_bounds=r_bounds,
+    )
+    _validate_lhs_set(
+        data=lower_out,
+        name="lower",
+        feature_order=feature_order,
+        coordinate_space=coordinate_space,
+        tau_bounds=tau_bounds,
+        moneyness_bounds=moneyness_bounds,
+        v_bounds=v_bounds,
+        r_bounds=r_bounds,
+    )
+    if right_out is not None:
+        _validate_lhs_set(
+            data=right_out,
+            name="right",
+            feature_order=feature_order,
+            coordinate_space=coordinate_space,
+            tau_bounds=tau_bounds,
+            moneyness_bounds=np.array(
+                [min(float(moneyness_bounds[0]), right_moneyness), max(float(moneyness_bounds[1]), right_moneyness)],
+                dtype=np.float64,
+            ),
+            v_bounds=v_bounds,
+            r_bounds=r_bounds,
+        )
+    if v_zero_out is not None:
+        _validate_lhs_set(
+            data=v_zero_out,
+            name="v_zero",
+            feature_order=feature_order,
+            coordinate_space=coordinate_space,
+            tau_bounds=tau_bounds,
+            moneyness_bounds=moneyness_bounds,
+            v_bounds=np.array(
+                [min(float(v_bounds[0]), v_zero_value), max(float(v_bounds[1]), v_zero_value)],
+                dtype=np.float64,
+            ),
+            r_bounds=r_bounds,
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     interior_path = output_dir / "interior.parquet"
     terminal_path = output_dir / "terminal.parquet"
     lower_path = output_dir / "lower.parquet"
-    pd.DataFrame(interior, columns=PINN_FEATURE_ORDER).to_parquet(
+    right_path = output_dir / "right.parquet" if right is not None else None
+    v_zero_path = output_dir / "v_zero.parquet" if v_zero is not None else None
+    pd.DataFrame(interior_out, columns=feature_order).to_parquet(
         interior_path,
         engine="pyarrow",
         index=False,
     )
-    pd.DataFrame(terminal, columns=PINN_FEATURE_ORDER).to_parquet(
+    pd.DataFrame(terminal_out, columns=feature_order).to_parquet(
         terminal_path,
         engine="pyarrow",
         index=False,
     )
-    pd.DataFrame(lower, columns=PINN_FEATURE_ORDER).to_parquet(
+    pd.DataFrame(lower_out, columns=feature_order).to_parquet(
         lower_path,
         engine="pyarrow",
         index=False,
     )
+    if right_out is not None and right_path is not None:
+        pd.DataFrame(right_out, columns=feature_order).to_parquet(
+            right_path,
+            engine="pyarrow",
+            index=False,
+        )
+    if v_zero_out is not None and v_zero_path is not None:
+        pd.DataFrame(v_zero_out, columns=feature_order).to_parquet(
+            v_zero_path,
+            engine="pyarrow",
+            index=False,
+        )
 
     manifest_path = output_dir / "collocation_sets_manifest.yaml"
     _write_collocation_manifest(
@@ -508,11 +814,15 @@ def build_lhs_pinn_sets(
         interior_path=interior_path,
         terminal_path=terminal_path,
         lower_path=lower_path,
+        right_path=right_path,
+        v_zero_path=v_zero_path,
         sampling_config=sampling_config,
-        feature_order=PINN_FEATURE_ORDER,
-        interior=interior,
-        terminal=terminal,
-        lower=lower,
+        feature_order=feature_order,
+        interior=interior_out,
+        terminal=terminal_out,
+        lower=lower_out,
+        right=right_out,
+        v_zero=v_zero_out,
         tau_bounds=tau_bounds,
         moneyness_bounds=moneyness_bounds,
         v_bounds=v_bounds,

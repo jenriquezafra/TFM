@@ -12,10 +12,13 @@ class PINNLossTerms:
     term: float
     low: float
     no_arbitrage: float
+    right: float = 0.0
+    v_zero: float = 0.0
     dpde: float = 0.0
     greek_delta: float = 0.0
     greek_gamma: float = 0.0
     greek_vega: float = 0.0
+    curvature_bulk: float = 0.0
 
     @property
     def total(self) -> float:
@@ -24,10 +27,13 @@ class PINNLossTerms:
             + self.dpde
             + self.term
             + self.low
+            + self.right
+            + self.v_zero
             + self.no_arbitrage
             + self.greek_delta
             + self.greek_gamma
             + self.greek_vega
+            + self.curvature_bulk
         )
 
 
@@ -60,6 +66,33 @@ def _get_weight(loss_config: dict, key: str, default: float) -> float:
     return float(weights.get(key, default))
 
 
+def _nested_dict(config: dict, key: str) -> dict:
+    value = config.get(key, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _coordinate_key(coordinate: str) -> str:
+    key = str(coordinate).strip().lower()
+    if key in {"moneyness", "m", "raw"}:
+        return "moneyness"
+    if key in {"log_moneyness", "log-moneyness", "x"}:
+        return "log_moneyness"
+    raise ValueError("coordinate must be 'moneyness' or 'log_moneyness'.")
+
+
+def _moneyness_from_input(x: torch.Tensor, coordinate: str) -> torch.Tensor:
+    if _coordinate_key(coordinate) == "log_moneyness":
+        return torch.exp(x[:, 1:2])
+    return x[:, 1:2]
+
+
+def _log_moneyness_from_input(x: torch.Tensor, coordinate: str) -> torch.Tensor:
+    if _coordinate_key(coordinate) == "log_moneyness":
+        return x[:, 1:2]
+    m = torch.clamp(x[:, 1:2], min=torch.finfo(x.dtype).eps)
+    return torch.log(m)
+
+
 def _gradient(*, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     grad_out = torch.ones_like(y)
     return torch.autograd.grad(
@@ -76,11 +109,12 @@ def compute_heston_pde_residual(
     model: nn.Module,
     x_interior: torch.Tensor,
     input_affine: dict[str, torch.Tensor] | None = None,
+    coordinate: str = "moneyness",
 ) -> torch.Tensor:
     if x_interior.ndim != 2:
         raise ValueError(f"x_interior must be 2D [batch, features], got {tuple(x_interior.shape)}")
     if x_interior.shape[1] < 8:
-        raise ValueError("Expected at least 8 input features: [tau,m,v,rho,kappa,gamma,bar_v,r].")
+        raise ValueError("Expected at least 8 input features: [tau,spot_coord,v,rho,kappa,gamma,bar_v,r].")
 
     x_interior = x_interior.requires_grad_(True)
     x_net = _apply_input_affine(x=x_interior, input_affine=input_affine)
@@ -90,16 +124,15 @@ def compute_heston_pde_residual(
 
     grads = _gradient(y=u_interior, x=x_interior)
     u_tau = grads[:, 0:1]
-    u_m = grads[:, 1:2]
+    u_s = grads[:, 1:2]
     u_v = grads[:, 2:3]
 
-    grad_u_m = _gradient(y=u_m, x=x_interior)
+    grad_u_s = _gradient(y=u_s, x=x_interior)
     grad_u_v = _gradient(y=u_v, x=x_interior)
-    u_mm = grad_u_m[:, 1:2]
-    u_mv = grad_u_m[:, 2:3]
+    u_ss = grad_u_s[:, 1:2]
+    u_sv = grad_u_s[:, 2:3]
     u_vv = grad_u_v[:, 2:3]
 
-    m = x_interior[:, 1:2]
     v = x_interior[:, 2:3]
     rho = x_interior[:, 3:4]
     kappa = x_interior[:, 4:5]
@@ -107,16 +140,98 @@ def compute_heston_pde_residual(
     bar_v = x_interior[:, 6:7]
     r = x_interior[:, 7:8]
 
+    coordinate_key = _coordinate_key(coordinate)
+    if coordinate_key == "moneyness":
+        m = x_interior[:, 1:2]
+        residual = (
+            u_tau
+            - 0.5 * v * (m**2) * u_ss
+            - rho * gamma * v * m * u_sv
+            - 0.5 * (gamma**2) * v * u_vv
+            - r * m * u_s
+            - kappa * (bar_v - v) * u_v
+            + r * u_interior
+        )
+        return residual
+
     residual = (
         u_tau
-        - 0.5 * v * (m**2) * u_mm
-        - rho * gamma * v * m * u_mv
+        - 0.5 * v * u_ss
+        - (r - 0.5 * v) * u_s
+        - rho * gamma * v * u_sv
         - 0.5 * (gamma**2) * v * u_vv
-        - r * m * u_m
         - kappa * (bar_v - v) * u_v
         + r * u_interior
     )
     return residual
+
+
+def compute_heston_v_zero_residual(
+    *,
+    model: nn.Module,
+    x_v_zero: torch.Tensor,
+    input_affine: dict[str, torch.Tensor] | None = None,
+    coordinate: str = "moneyness",
+) -> torch.Tensor:
+    if x_v_zero.ndim != 2:
+        raise ValueError(f"x_v_zero must be 2D [batch, features], got {tuple(x_v_zero.shape)}")
+    x_v_zero = x_v_zero.requires_grad_(True)
+    u = model(_apply_input_affine(x=x_v_zero, input_affine=input_affine))
+    grads = _gradient(y=u, x=x_v_zero)
+    u_tau = grads[:, 0:1]
+    u_s = grads[:, 1:2]
+    u_v = grads[:, 2:3]
+    kappa = x_v_zero[:, 4:5]
+    bar_v = x_v_zero[:, 6:7]
+    r = x_v_zero[:, 7:8]
+    if _coordinate_key(coordinate) == "log_moneyness":
+        return u_tau - r * u_s - kappa * bar_v * u_v + r * u
+    m = x_v_zero[:, 1:2]
+    return u_tau - r * m * u_s - kappa * bar_v * u_v + r * u
+
+
+def _price_derivatives(
+    *,
+    model: nn.Module,
+    x: torch.Tensor,
+    input_affine: dict[str, torch.Tensor] | None,
+    coordinate: str = "moneyness",
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Return price, first spot-coordinate derivative, v derivative and financial
+    curvature term. For log-moneyness the last component is G=U_xx-U_x.
+    """
+    x = x.requires_grad_(True)
+    u = model(_apply_input_affine(x=x, input_affine=input_affine))
+    grads = _gradient(y=u, x=x)
+    u_s = grads[:, 1:2]
+    u_v = grads[:, 2:3]
+    grad_u_s = _gradient(y=u_s, x=x)
+    u_ss = grad_u_s[:, 1:2]
+    if _coordinate_key(coordinate) == "log_moneyness":
+        return u, u_s, u_v, u_ss - u_s
+    return u, u_s, u_v, u_ss
+
+
+def _kink_gate(x: torch.Tensor, loss_config: dict, *, coordinate: str = "moneyness") -> torch.Tensor:
+    cfg = _nested_dict(loss_config, "kink_bulk")
+    eps_l = float(cfg.get("ell_epsilon", cfg.get("epsilon", 1.0e-8)))
+    c = float(cfg.get("c", 2.0))
+    delta_x = float(cfg.get("delta_x", 0.05))
+    delta_tau = float(cfg.get("delta_tau", 0.02))
+    tau_c = float(cfg.get("tau_c", 0.15))
+    log_m = _log_moneyness_from_input(x, coordinate)
+    tau = torch.clamp(x[:, 0:1], min=0.0)
+    v = torch.clamp(x[:, 2:3], min=0.0)
+    ell = c * torch.sqrt(v * tau + torch.as_tensor(eps_l, dtype=x.dtype, device=x.device))
+    gate_x = torch.sigmoid((ell - torch.abs(log_m)) / delta_x)
+    gate_tau = torch.sigmoid((tau_c - tau) / delta_tau)
+    return gate_x * gate_tau
+
+
+def _weighted_mean_square(values: torch.Tensor, weights: torch.Tensor, eps: float = 1.0e-12) -> torch.Tensor:
+    denom = torch.sum(weights) + torch.as_tensor(eps, dtype=values.dtype, device=values.device)
+    return torch.sum(weights * values**2) / denom
 
 
 def compute_heston_pde_derivative_residual(
@@ -124,24 +239,30 @@ def compute_heston_pde_derivative_residual(
     model: nn.Module,
     x_interior: torch.Tensor,
     input_affine: dict[str, torch.Tensor] | None = None,
+    coordinate: str = "moneyness",
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Return PDE residual and first derivatives of the residual with respect to
     log-moneyness x=log(m) and variance v.
 
-    The model and PDE still receive raw financial coordinates. The x derivative
-    is obtained by chain rule from the raw moneyness derivative:
-      dN/dx = m * dN/dm.
+    When the second input coordinate is raw moneyness, the x derivative is
+    obtained by chain rule: dR/dx = m dR/dm. When the second coordinate is
+    already x=log(m), the derivative is the direct autograd derivative.
     """
 
+    coordinate_key = _coordinate_key(coordinate)
     residual = compute_heston_pde_residual(
         model=model,
         x_interior=x_interior,
         input_affine=input_affine,
+        coordinate=coordinate_key,
     )
     grad_residual = _gradient(y=residual, x=x_interior)
-    m = x_interior[:, 1:2]
-    d_residual_dx = m * grad_residual[:, 1:2]
+    if coordinate_key == "log_moneyness":
+        d_residual_dx = grad_residual[:, 1:2]
+    else:
+        m = x_interior[:, 1:2]
+        d_residual_dx = m * grad_residual[:, 1:2]
     d_residual_dv = grad_residual[:, 2:3]
     return residual, d_residual_dx, d_residual_dv
 
@@ -165,24 +286,34 @@ def compute_weighted_pinn_loss(
     if x_interior.ndim != 2 or x_terminal.ndim != 2 or x_lower.ndim != 2:
         raise ValueError("All PINN batch tensors must be 2D [batch, features].")
     if x_interior.shape[1] < 8 or x_terminal.shape[1] < 8 or x_lower.shape[1] < 8:
-        raise ValueError("Expected at least 8 input features: [tau,m,v,rho,kappa,gamma,bar_v,r].")
+        raise ValueError("Expected at least 8 input features: [tau,spot_coord,v,rho,kappa,gamma,bar_v,r].")
 
+    coordinate = str(_nested_dict(loss_config, "pde").get("coordinate", "moneyness"))
+    coordinate_key = _coordinate_key(coordinate)
     residual = compute_heston_pde_residual(
         model=model,
         x_interior=x_interior,
         input_affine=input_affine,
+        coordinate=coordinate_key,
     )
-    l_pde = torch.mean(residual**2)
+    if bool(_nested_dict(loss_config, "kink_bulk").get("enabled", False)):
+        gate = _kink_gate(x_interior, loss_config, coordinate=coordinate_key)
+        l_pde_kink = _weighted_mean_square(residual, gate)
+        l_pde_bulk = _weighted_mean_square(residual, 1.0 - gate)
+        l_pde = l_pde_kink + l_pde_bulk
+    else:
+        l_pde = torch.mean(residual**2)
 
     u_terminal = model(_apply_input_affine(x=x_terminal, input_affine=input_affine))
-    m_terminal = x_terminal[:, 1:2]
+    m_terminal = _moneyness_from_input(x_terminal, coordinate_key)
     payoff = torch.clamp(1.0 - m_terminal, min=0.0)
     l_term = torch.mean((u_terminal - payoff) ** 2)
 
     u_lower = model(_apply_input_affine(x=x_lower, input_affine=input_affine))
     tau_lower = x_lower[:, 0:1]
     r_lower = x_lower[:, 7:8]
-    lower_target = torch.exp(-r_lower * tau_lower)
+    m_lower = _moneyness_from_input(x_lower, coordinate_key)
+    lower_target = torch.clamp(torch.exp(-r_lower * tau_lower) - m_lower, min=0.0)
     l_low = torch.mean((u_lower - lower_target) ** 2)
 
     w_pde = _get_weight(loss_config, "pde", 1.0)
@@ -197,6 +328,13 @@ def compute_weighted_pinn_loss(
         _get_weight(loss_config, "boundary", 1.0),
     )
     w_no_arb = _get_weight(loss_config, "no_arbitrage", 0.0)
+    w_right = _get_weight(loss_config, "right", _get_weight(loss_config, "upper", 0.0))
+    w_v_zero = _get_weight(loss_config, "v_zero", 0.0)
+    w_left_delta = _get_weight(loss_config, "left_delta", 0.0)
+    w_left_gamma = _get_weight(loss_config, "left_gamma", 0.0)
+    w_right_delta = _get_weight(loss_config, "right_delta", 0.0)
+    w_right_gamma = _get_weight(loss_config, "right_gamma", 0.0)
+    w_curvature_bulk = _get_weight(loss_config, "curvature_bulk", 0.0)
     w_dpde = _get_weight(
         loss_config,
         "dpde",
@@ -219,10 +357,35 @@ def compute_weighted_pinn_loss(
     )
 
     no_arb_term = torch.zeros_like(l_pde)
+    if w_no_arb > 0.0:
+        u_noarb, u_s_noarb, _u_v_noarb, u_curv_noarb = _price_derivatives(
+            model=model,
+            x=x_interior,
+            input_affine=input_affine,
+            coordinate=coordinate_key,
+        )
+        tau_noarb = x_interior[:, 0:1]
+        m_noarb = _moneyness_from_input(x_interior, coordinate_key)
+        r_noarb = x_interior[:, 7:8]
+        lower_bound = torch.clamp(torch.exp(-r_noarb * tau_noarb) - m_noarb, min=0.0)
+        upper_bound = torch.exp(-r_noarb * tau_noarb)
+        noarb_cfg = _nested_dict(loss_config, "no_arbitrage")
+        beta_delta = float(noarb_cfg.get("beta_delta", 1.0))
+        beta_gamma = float(noarb_cfg.get("beta_gamma", 1.0))
+        price_bounds = torch.relu(lower_bound - u_noarb) ** 2 + torch.relu(u_noarb - upper_bound) ** 2
+        if coordinate_key == "log_moneyness":
+            delta_bounds = torch.relu(u_s_noarb) ** 2 + torch.relu(-m_noarb - u_s_noarb) ** 2
+        else:
+            delta_bounds = torch.relu(u_s_noarb) ** 2 + torch.relu(-1.0 - u_s_noarb) ** 2
+        convexity = torch.relu(-u_curv_noarb) ** 2
+        no_arb_term = torch.mean(price_bounds + beta_delta * delta_bounds + beta_gamma * convexity)
     if w_dpde > 0.0:
         grad_residual = _gradient(y=residual, x=x_interior)
-        m_interior = x_interior[:, 1:2]
-        d_residual_dx = m_interior * grad_residual[:, 1:2]
+        if coordinate_key == "log_moneyness":
+            d_residual_dx = grad_residual[:, 1:2]
+        else:
+            m_interior = x_interior[:, 1:2]
+            d_residual_dx = m_interior * grad_residual[:, 1:2]
         d_residual_dv = grad_residual[:, 2:3]
         l_dpde = torch.mean(d_residual_dx**2 + d_residual_dv**2)
     else:
@@ -264,25 +427,91 @@ def compute_weighted_pinn_loss(
         l_greek_gamma = torch.zeros_like(l_pde)
         l_greek_vega = torch.zeros_like(l_pde)
 
+    l_low_extra = torch.zeros_like(l_pde)
+    if w_left_delta > 0.0 or w_left_gamma > 0.0:
+        m_left = _moneyness_from_input(x_lower, coordinate_key)
+        _u_left, u_s_left, _u_v_left, u_curv_left = _price_derivatives(
+            model=model,
+            x=x_lower,
+            input_affine=input_affine,
+            coordinate=coordinate_key,
+        )
+        if w_left_delta > 0.0:
+            left_delta_target = -m_left if coordinate_key == "log_moneyness" else -torch.ones_like(m_left)
+            l_low_extra = l_low_extra + w_left_delta * torch.mean((u_s_left - left_delta_target) ** 2)
+        if w_left_gamma > 0.0:
+            l_low_extra = l_low_extra + w_left_gamma * torch.mean(u_curv_left**2)
+
+    l_right = torch.zeros_like(l_pde)
+    l_right_extra = torch.zeros_like(l_pde)
+    if "right" in batch_payload and (w_right > 0.0 or w_right_delta > 0.0 or w_right_gamma > 0.0):
+        x_right = batch_payload["right"]
+        u_right, u_s_right, _u_v_right, u_curv_right = _price_derivatives(
+            model=model,
+            x=x_right,
+            input_affine=input_affine,
+            coordinate=coordinate_key,
+        )
+        if w_right > 0.0:
+            l_right = l_right + torch.mean(u_right**2)
+        if w_right_delta > 0.0:
+            l_right_extra = l_right_extra + w_right_delta * torch.mean(u_s_right**2)
+        if w_right_gamma > 0.0:
+            l_right_extra = l_right_extra + w_right_gamma * torch.mean(u_curv_right**2)
+
+    l_v_zero = torch.zeros_like(l_pde)
+    if "v_zero" in batch_payload and w_v_zero > 0.0:
+        l_v_zero = torch.mean(
+            compute_heston_v_zero_residual(
+                model=model,
+                x_v_zero=batch_payload["v_zero"],
+                input_affine=input_affine,
+                coordinate=coordinate_key,
+            )
+            ** 2
+        )
+
+    l_curvature_bulk = torch.zeros_like(l_pde)
+    if w_curvature_bulk > 0.0:
+        u_bulk, u_s_bulk, _u_v_bulk, u_curv_bulk = _price_derivatives(
+            model=model,
+            x=x_interior,
+            input_affine=input_affine,
+            coordinate=coordinate_key,
+        )
+        del u_bulk, u_s_bulk, _u_v_bulk
+        grad_curv = _gradient(y=u_curv_bulk, x=x_interior)
+        curv_x = grad_curv[:, 1:2]
+        gate = _kink_gate(x_interior, loss_config, coordinate=coordinate_key)
+        l_curvature_bulk = _weighted_mean_square(curv_x, 1.0 - gate)
+
     total = (
         w_pde * l_pde
         + w_dpde * l_dpde
         + w_term * l_term
         + w_low * l_low
+        + l_low_extra
+        + w_right * l_right
+        + l_right_extra
+        + w_v_zero * l_v_zero
         + w_no_arb * no_arb_term
         + w_greek_delta * l_greek_delta
         + w_greek_gamma * l_greek_gamma
         + w_greek_vega * l_greek_vega
+        + w_curvature_bulk * l_curvature_bulk
     )
 
     terms = PINNLossTerms(
         pde=float((w_pde * l_pde).detach().item()),
         dpde=float((w_dpde * l_dpde).detach().item()),
         term=float((w_term * l_term).detach().item()),
-        low=float((w_low * l_low).detach().item()),
+        low=float((w_low * l_low + l_low_extra).detach().item()),
+        right=float((w_right * l_right + l_right_extra).detach().item()),
+        v_zero=float((w_v_zero * l_v_zero).detach().item()),
         no_arbitrage=float((w_no_arb * no_arb_term).detach().item()),
         greek_delta=float((w_greek_delta * l_greek_delta).detach().item()),
         greek_gamma=float((w_greek_gamma * l_greek_gamma).detach().item()),
         greek_vega=float((w_greek_vega * l_greek_vega).detach().item()),
+        curvature_bulk=float((w_curvature_bulk * l_curvature_bulk).detach().item()),
     )
     return total, terms

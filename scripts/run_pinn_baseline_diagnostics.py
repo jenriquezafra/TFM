@@ -35,9 +35,11 @@ from src.pinn.losses import (
 
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "pinn_baseline_diagnostics.yaml"
 PINN_PDE_FEATURE_ORDER = ["tau", "moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+PINN_LOG_PDE_FEATURE_ORDER = ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
 DEFAULT_FIXED_VALUES = {
     "tau": 1.0,
     "moneyness": 1.0,
+    "log_moneyness": 0.0,
     "v": 0.04,
     "rho": -0.7,
     "kappa": 2.0,
@@ -89,11 +91,38 @@ def _resolve_defaults(feature_order: list[str], fixed_values: dict | None) -> np
     for i, name in enumerate(feature_order):
         if name in fixed:
             out[i] = float(fixed[name])
+        elif name == "log_moneyness" and "moneyness" in fixed:
+            m = float(fixed["moneyness"])
+            if m <= 0.0:
+                raise ValueError("fixed_values.moneyness must be > 0 when feature_order uses log_moneyness.")
+            out[i] = float(np.log(m))
         elif name in DEFAULT_FIXED_VALUES:
             out[i] = float(DEFAULT_FIXED_VALUES[name])
         else:
             out[i] = 0.0
     return out
+
+
+def _storage_feature_for_grid(display_feature: str, feature_order: list[str]) -> str:
+    if display_feature in feature_order:
+        return display_feature
+    if display_feature == "moneyness" and "log_moneyness" in feature_order:
+        return "log_moneyness"
+    raise KeyError(
+        f"surface_grid feature '{display_feature}' cannot be resolved for feature_order={feature_order}."
+    )
+
+
+def _grid_values_for_storage(display_feature: str, storage_feature: str, values: np.ndarray) -> np.ndarray:
+    if display_feature == "moneyness" and storage_feature == "log_moneyness":
+        if (values <= 0.0).any():
+            raise ValueError("surface_grid moneyness values must be > 0 for log_moneyness models.")
+        return np.log(values)
+    return values
+
+
+def _is_log_moneyness_spot(spot_feature: str) -> bool:
+    return str(spot_feature).strip().lower() in {"log_moneyness", "log-moneyness", "x"}
 
 
 def _build_surface_grid(*, feature_order: list[str], diagnostics_cfg: dict) -> np.ndarray:
@@ -105,11 +134,10 @@ def _build_surface_grid(*, feature_order: list[str], diagnostics_cfg: dict) -> n
     y_feature = str(grid_cfg.get("y_feature", "tau"))
     if x_feature == y_feature:
         raise ValueError("surface_grid x_feature and y_feature must be different")
-    if x_feature not in feature_order or y_feature not in feature_order:
-        raise KeyError(
-            f"surface_grid features must be in feature_order={feature_order}. "
-            f"Got x={x_feature}, y={y_feature}"
-        )
+    x_storage_feature = _storage_feature_for_grid(x_feature, feature_order)
+    y_storage_feature = _storage_feature_for_grid(y_feature, feature_order)
+    if x_storage_feature == y_storage_feature:
+        raise ValueError("surface_grid x_feature and y_feature resolve to the same model coordinate")
 
     x_min = float(grid_cfg.get("x_min"))
     x_max = float(grid_cfg.get("x_max"))
@@ -123,15 +151,17 @@ def _build_surface_grid(*, feature_order: list[str], diagnostics_cfg: dict) -> n
         raise ValueError("surface_grid ranges must satisfy max > min")
 
     base = _resolve_defaults(feature_order, diagnostics_cfg.get("fixed_values"))
-    idx_x = feature_order.index(x_feature)
-    idx_y = feature_order.index(y_feature)
+    idx_x = feature_order.index(x_storage_feature)
+    idx_y = feature_order.index(y_storage_feature)
     x_axis = np.linspace(x_min, x_max, x_points, dtype=np.float64)
     y_axis = np.linspace(y_min, y_max, y_points, dtype=np.float64)
     xx, yy = np.meshgrid(x_axis, y_axis, indexing="ij")
+    xx_storage = _grid_values_for_storage(x_feature, x_storage_feature, xx)
+    yy_storage = _grid_values_for_storage(y_feature, y_storage_feature, yy)
 
     out = np.repeat(base.reshape(1, -1), repeats=xx.size, axis=0)
-    out[:, idx_x] = xx.reshape(-1)
-    out[:, idx_y] = yy.reshape(-1)
+    out[:, idx_x] = xx_storage.reshape(-1)
+    out[:, idx_y] = yy_storage.reshape(-1)
     return out
 
 
@@ -412,9 +442,18 @@ def _finite_difference_consistency(
         dtype=dtype,
         device=device,
     ).reshape(-1)
-    spot_scale = 1.0 / float(strike) if spot_feature == "moneyness" else 1.0
-    add_metric("delta", ((vp - vm) / (2.0 * h_spot)) * spot_scale, ad_greeks["delta"])
-    add_metric("gamma", ((vp - 2.0 * v0 + vm) / (h_spot * h_spot)) * spot_scale * spot_scale, ad_greeks["gamma"])
+    first_spot_fd = (vp - vm) / (2.0 * h_spot)
+    second_spot_fd = (vp - 2.0 * v0 + vm) / (h_spot * h_spot)
+    if _is_log_moneyness_spot(spot_feature):
+        x_coord = x_t[:, spec.idx_spot]
+        delta_fd = torch.exp(-x_coord) * first_spot_fd / float(strike)
+        gamma_fd = torch.exp(-2.0 * x_coord) * (second_spot_fd - first_spot_fd) / (float(strike) ** 2)
+    else:
+        spot_scale = 1.0 / float(strike) if spot_feature == "moneyness" else 1.0
+        delta_fd = first_spot_fd * spot_scale
+        gamma_fd = second_spot_fd * spot_scale * spot_scale
+    add_metric("delta", delta_fd, ad_greeks["delta"])
+    add_metric("gamma", gamma_fd, ad_greeks["gamma"])
 
     if spec.idx_vol is not None and "vega" in ad_greeks:
         h_vol = float(fd_cfg.get("vol_step", 1.0e-4))
@@ -544,6 +583,7 @@ def _compute_pde_derivative_residuals(
     model: torch.nn.Module,
     x_eval: np.ndarray,
     input_affine: dict,
+    coordinate: str,
     dtype: torch.dtype,
     device: torch.device,
     cfg: dict,
@@ -567,6 +607,7 @@ def _compute_pde_derivative_residuals(
                 model=model,
                 x_interior=x_batch,
                 input_affine=input_affine,
+                coordinate=coordinate,
             )
         out_dx[start:stop] = residual_dx.detach().cpu().numpy().reshape(-1).astype(np.float64, copy=False)
         out_dv[start:stop] = residual_dv.detach().cpu().numpy().reshape(-1).astype(np.float64, copy=False)
@@ -774,10 +815,16 @@ def _boundary_condition_rows(
     y_max = float(grid_cfg.get("y_max", 3.0)) if isinstance(grid_cfg, dict) else 3.0
 
     rows: list[dict] = []
+    log_spot = _is_log_moneyness_spot(spot_feature)
 
     terminal = np.repeat(fixed.reshape(1, -1), repeats=n_points, axis=0)
     terminal[:, idx_tau] = 0.0
-    terminal[:, idx_spot] = np.linspace(x_min, x_max, n_points, dtype=np.float64)
+    terminal_spot_axis = np.linspace(x_min, x_max, n_points, dtype=np.float64)
+    if log_spot:
+        terminal_spot_axis = np.maximum(terminal_spot_axis, np.finfo(np.float64).tiny)
+        terminal[:, idx_spot] = np.log(terminal_spot_axis)
+    else:
+        terminal[:, idx_spot] = terminal_spot_axis
     terminal_t = torch.from_numpy(terminal).to(device=device, dtype=dtype)
     pred_terminal = values_batch(
         price_fn,
@@ -786,7 +833,10 @@ def _boundary_condition_rows(
         dtype=dtype,
         device=device,
     ).detach().cpu().numpy().reshape(-1).astype(np.float64, copy=False)
-    s_terminal = terminal[:, idx_spot] * strike if spot_feature == "moneyness" else terminal[:, idx_spot]
+    if log_spot:
+        s_terminal = terminal_spot_axis * strike
+    else:
+        s_terminal = terminal[:, idx_spot] * strike if spot_feature == "moneyness" else terminal[:, idx_spot]
     if option_type == "call":
         target_terminal = np.maximum(s_terminal - strike, 0.0)
     else:
@@ -809,7 +859,15 @@ def _boundary_condition_rows(
     )
 
     lower = np.repeat(fixed.reshape(1, -1), repeats=n_points, axis=0)
-    lower[:, idx_spot] = 0.0
+    lower_moneyness = float(cfg.get("lower_moneyness", 0.0))
+    if log_spot:
+        lower_moneyness = float(cfg.get("lower_moneyness", max(x_min, 1.0e-4)))
+        lower_moneyness = max(lower_moneyness, np.finfo(np.float64).tiny)
+        lower[:, idx_spot] = np.log(lower_moneyness)
+        lower_spot = np.full(n_points, lower_moneyness * strike, dtype=np.float64)
+    else:
+        lower[:, idx_spot] = lower_moneyness
+        lower_spot = lower[:, idx_spot] * strike if spot_feature == "moneyness" else lower[:, idx_spot]
     lower[:, idx_tau] = np.linspace(max(0.0, y_min), max(0.0, y_max), n_points, dtype=np.float64)
     lower_t = torch.from_numpy(lower).to(device=device, dtype=dtype)
     pred_lower = values_batch(
@@ -823,7 +881,7 @@ def _boundary_condition_rows(
     tau_lower = lower[:, idx_tau]
     target_lower = np.zeros_like(pred_lower)
     if option_type == "put":
-        target_lower = strike * np.exp(-r_lower * tau_lower)
+        target_lower = np.maximum(strike * np.exp(-r_lower * tau_lower) - lower_spot, 0.0)
     err_lower = pred_lower - target_lower
     abs_lower = np.abs(err_lower)
     rows.append(
@@ -868,7 +926,10 @@ def _reference_heston(
     t0 = time.perf_counter()
     for i, row in enumerate(x_eval):
         spot_raw = float(row[spec.idx_spot])
-        s0 = spot_raw * strike if spot_feature == "moneyness" else spot_raw
+        if _is_log_moneyness_spot(spot_feature):
+            s0 = float(np.exp(spot_raw) * strike)
+        else:
+            s0 = spot_raw * strike if spot_feature == "moneyness" else spot_raw
         try:
             vals = heston_cf_greeks_scalar(
                 option_type=option_type,
@@ -965,6 +1026,16 @@ def main() -> None:
             idx_moneyness=spec.idx_spot,
             strike=strike,
         )
+    elif _is_log_moneyness_spot(spot_feature):
+        x_coord = torch.as_tensor(x_eval[:, spec.idx_spot], dtype=jacobian.dtype, device=jacobian.device)
+        jac_for_greeks = jacobian.clone()
+        hess_for_greeks = hessian.clone()
+        u_x = jacobian[:, spec.idx_spot]
+        u_xx = hessian[:, spec.idx_spot, spec.idx_spot]
+        jac_for_greeks[:, spec.idx_spot] = torch.exp(-x_coord) * u_x / float(strike)
+        hess_for_greeks[:, spec.idx_spot, spec.idx_spot] = (
+            torch.exp(-2.0 * x_coord) * (u_xx - u_x) / (float(strike) ** 2)
+        )
     greek_map = greeks_from_jacobian_hessian(
         jac_for_greeks,
         hess_for_greeks,
@@ -993,7 +1064,8 @@ def main() -> None:
     pde_residual = np.full(x_eval.shape[0], np.nan, dtype=np.float64)
     pde_residual_dx_log_m = np.full(x_eval.shape[0], np.nan, dtype=np.float64)
     pde_residual_dv = np.full(x_eval.shape[0], np.nan, dtype=np.float64)
-    pde_supported = feature_order == PINN_PDE_FEATURE_ORDER
+    pde_coordinate = "log_moneyness" if feature_order == PINN_LOG_PDE_FEATURE_ORDER else "moneyness"
+    pde_supported = feature_order in (PINN_PDE_FEATURE_ORDER, PINN_LOG_PDE_FEATURE_ORDER)
     if pde_supported:
         x_pde = torch.from_numpy(x_eval).to(device=loaded.device, dtype=dtype)
         pde_input_affine = {"a": loaded.price_fn.a, "b": loaded.price_fn.b}
@@ -1001,12 +1073,14 @@ def main() -> None:
             model=loaded.price_fn.model,
             x_interior=x_pde,
             input_affine=pde_input_affine,
+            coordinate=pde_coordinate,
         )
         pde_residual = residual_t.detach().cpu().numpy().reshape(-1).astype(np.float64, copy=False)
         pde_residual_dx_log_m, pde_residual_dv = _compute_pde_derivative_residuals(
             model=loaded.price_fn.model,
             x_eval=x_eval,
             input_affine=pde_input_affine,
+            coordinate=pde_coordinate,
             dtype=dtype,
             device=loaded.device,
             cfg=diagnostics_cfg.get("derivative_residual", {}),
@@ -1031,6 +1105,8 @@ def main() -> None:
     )
 
     points_df = pd.DataFrame(x_eval, columns=feature_order)
+    if "log_moneyness" in points_df.columns and "moneyness" not in points_df.columns:
+        points_df["moneyness"] = np.exp(points_df["log_moneyness"].to_numpy(dtype=np.float64))
     points_df["pinn_price"] = values
     points_df["ref_price"] = ref["price"]
     points_df["error_price"] = points_df["pinn_price"] - points_df["ref_price"]
@@ -1058,9 +1134,10 @@ def main() -> None:
                 )
 
     hard_cfg = diagnostics_cfg.get("hard_region", {})
+    region_spot_feature = "moneyness" if "moneyness" in points_df.columns else spot_feature
     masks = _region_masks(
         points=points_df,
-        spot_feature=spot_feature,
+        spot_feature=region_spot_feature,
         tau_feature=str(tau_feature),
         epsilon_m=float(hard_cfg.get("epsilon_m", 0.03)),
         epsilon_tau=float(hard_cfg.get("epsilon_tau", 0.05)),
@@ -1192,7 +1269,8 @@ def main() -> None:
 
     n_bins = int(diagnostics_cfg.get("n_bins", 181))
     x_axis_values = points_df[str(tau_feature)].to_numpy(dtype=np.float64)
-    y_axis_values = points_df[spot_feature].to_numpy(dtype=np.float64)
+    y_axis_feature = "moneyness" if "moneyness" in points_df.columns else spot_feature
+    y_axis_values = points_df[y_axis_feature].to_numpy(dtype=np.float64)
     for variable in ("price", "delta", "gamma", "vega", "theta", "rho"):
         col = f"abs_error_{variable}"
         if col not in points_df.columns:
@@ -1208,7 +1286,7 @@ def main() -> None:
             x_edges=x_edges,
             y_edges=y_edges,
             x_label=str(tau_feature),
-            y_label=spot_feature,
+            y_label=y_axis_feature,
             out_path=fig_dir / f"abs_error_map_{variable}.png",
             title=f"{variable}: absolute error baseline diagnostic",
             cbar_label="mean absolute error",
@@ -1227,7 +1305,7 @@ def main() -> None:
             x_edges=x_edges,
             y_edges=y_edges,
             x_label=str(tau_feature),
-            y_label=spot_feature,
+            y_label=y_axis_feature,
             out_path=fig_dir / "pde_residual_abs_map.png",
             title="PDE residual absolute value baseline diagnostic",
             cbar_label="mean |PDE residual|",
@@ -1260,11 +1338,22 @@ def main() -> None:
             x_edges=x_edges,
             y_edges=y_edges,
             x_label=str(tau_feature),
-            y_label=spot_feature,
+            y_label=y_axis_feature,
             out_path=fig_dir / filename,
             title=title,
             cbar_label=f"mean |{residual_col}|",
             log_scale=True,
+        )
+
+    if pde_coordinate == "log_moneyness":
+        implemented_residual = (
+            "U_tau - 0.5*v*U_xx - (r-0.5*v)*U_x - rho*gamma*v*U_xv "
+            "- 0.5*gamma^2*v*U_vv - kappa*(bar_v-v)*U_v + r*U"
+        )
+    else:
+        implemented_residual = (
+            "u_tau - 0.5*v*m^2*u_mm - rho*gamma*v*m*u_mv "
+            "- 0.5*gamma^2*v*u_vv - r*m*u_m - kappa*(bar_v-v)*u_v + r*u"
         )
 
     report = {
@@ -1273,17 +1362,21 @@ def main() -> None:
         "pde_convention": {
             "time_variable": "tau = T - t",
             "calendar_theta": "theta = -dV/dtau when theta_sign='minus_dv_dtau'",
-            "implemented_residual": (
-                "u_tau - 0.5*v*m^2*u_mm - rho*gamma*v*m*u_mv "
-                "- 0.5*gamma^2*v*u_vv - r*m*u_m - kappa*(bar_v-v)*u_v + r*u"
-            ),
-            "pde_feature_order_supported": PINN_PDE_FEATURE_ORDER,
+            "coordinate": pde_coordinate,
+            "implemented_residual": implemented_residual,
+            "pde_feature_order_supported": [PINN_PDE_FEATURE_ORDER, PINN_LOG_PDE_FEATURE_ORDER],
             "pde_residual_computed": bool(pde_supported),
             "derivative_residual_computed": bool(np.isfinite(pde_residual_dx_log_m).any()),
         },
         "greek_definitions": {
-            "delta": f"dV/d{spot_feature}; converted to spot S with strike={strike} when moneyness is used",
-            "gamma": f"d2V/d{spot_feature}2; converted to spot S with strike={strike} when moneyness is used",
+            "delta": (
+                f"dV/d{spot_feature}; converted to spot S with strike={strike}. "
+                "For log_moneyness, Delta=e^-x U_x / K."
+            ),
+            "gamma": (
+                f"d2V/d{spot_feature}2; converted to spot S with strike={strike}. "
+                "For log_moneyness, Gamma=e^-2x (U_xx-U_x) / K^2."
+            ),
             "vega": f"dV/d{vol_feature}; current convention is sensitivity to variance v",
             "theta": "calendar-time theta = -dV/dtau" if theta_sign == "minus_dv_dtau" else "dV/dtau",
             "rho": f"dV/d{rate_feature}",

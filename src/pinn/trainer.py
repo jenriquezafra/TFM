@@ -209,6 +209,9 @@ def _build_input_affine_from_train(
         raise ValueError(f"data.input_scaling.eps must be > 0. Got {eps}.")
 
     blocks = [x_train["interior"], x_train["terminal"], x_train["lower"]]
+    for optional_key in ("right", "v_zero"):
+        if optional_key in x_train:
+            blocks.append(x_train[optional_key])
     x_cat = np.concatenate(blocks, axis=0).astype(np.float64, copy=False)
     if x_cat.ndim != 2:
         raise ValueError(f"Expected 2D collocation matrix, got shape {x_cat.shape}.")
@@ -429,6 +432,19 @@ def _build_loader(x: np.ndarray, *, batch_size: int, shuffle: bool) -> DataLoade
     return DataLoader(ds, batch_size=min(batch_size, len(ds)), shuffle=shuffle)
 
 
+def _build_optional_loaders(
+    x_train: dict[str, np.ndarray],
+    *,
+    batch_size: int,
+    shuffle: bool,
+) -> dict[str, DataLoader]:
+    return {
+        key: _build_loader(value, batch_size=batch_size, shuffle=shuffle)
+        for key, value in x_train.items()
+        if key in {"right", "v_zero"}
+    }
+
+
 def _cycle_loader(loader: DataLoader):
     while True:
         for (xb,) in loader:
@@ -463,6 +479,9 @@ def _evaluate_epoch_loss(
             "terminal": torch.from_numpy(x_val["terminal"]).to(device),
             "lower": torch.from_numpy(x_val["lower"]).to(device),
         }
+        for optional_key in ("right", "v_zero"):
+            if optional_key in x_val:
+                batch_payload[optional_key] = torch.from_numpy(x_val[optional_key]).to(device)
         total, terms = compute_weighted_pinn_loss(
             model=model,
             loss_config=loss_config,
@@ -503,6 +522,10 @@ def _save_loss_curves(*, history_df: pd.DataFrame, figures_dir: Path) -> dict[st
         ("greek_vega", "Vega consistency"),
         ("term", "Terminal"),
         ("low", "Lower boundary"),
+        ("right", "Right boundary"),
+        ("v_zero", "Variance-zero boundary"),
+        ("no_arbitrage", "No-arbitrage"),
+        ("curvature_bulk", "Curvature bulk"),
     ]
     component_specs = [
         (key, label)
@@ -558,6 +581,7 @@ def _save_pde_residual_zone_map(
     x_val_interior: np.ndarray,
     figures_dir: Path,
     input_affine: dict[str, torch.Tensor] | None,
+    pde_coordinate: str = "moneyness",
     n_bins_m: int = 24,
     n_bins_tau: int = 24,
 ) -> dict[str, str]:
@@ -571,11 +595,15 @@ def _save_pde_residual_zone_map(
             model=model,
             x_interior=x_t,
             input_affine=input_affine,
+            coordinate=pde_coordinate,
         )
         abs_residual = residual.detach().abs().cpu().numpy().reshape(-1)
 
     tau = x_val_interior[:, 0]
-    moneyness = x_val_interior[:, 1]
+    if str(pde_coordinate).strip().lower() in {"log_moneyness", "log-moneyness", "x"}:
+        moneyness = np.exp(x_val_interior[:, 1].astype(np.float64))
+    else:
+        moneyness = x_val_interior[:, 1]
     tau_edges = np.linspace(float(tau.min()), float(tau.max()), int(n_bins_tau) + 1)
     m_edges = np.linspace(float(moneyness.min()), float(moneyness.max()), int(n_bins_m) + 1)
 
@@ -700,6 +728,13 @@ class PINNTrainer:
             path=Path(datasets_cfg["lower"]),
             feature_order=feature_order,
         )
+        x_optional: dict[str, np.ndarray] = {}
+        for optional_key in ("right", "v_zero"):
+            if optional_key in datasets_cfg:
+                x_optional[optional_key] = _load_parquet_matrix(
+                    path=Path(datasets_cfg[optional_key]),
+                    feature_order=feature_order,
+                )
 
         meta_cfg = self.training_config.get("meta", {})
         loop_cfg = self.training_config.get("loop", {})
@@ -740,6 +775,10 @@ class PINNTrainer:
         x_lower_train, x_lower_val = _split_array(
             x_lower, val_fraction=val_fraction, seed=seed + 2
         )
+        x_optional_train_val = {
+            key: _split_array(value, val_fraction=val_fraction, seed=seed + 10 + i)
+            for i, (key, value) in enumerate(x_optional.items())
+        }
 
         x_train = {
             "interior": x_interior_train,
@@ -751,6 +790,9 @@ class PINNTrainer:
             "terminal": x_terminal_val,
             "lower": x_lower_val,
         }
+        for key, (x_key_train, x_key_val) in x_optional_train_val.items():
+            x_train[key] = x_key_train
+            x_val[key] = x_key_val
         input_affine_np = _build_input_affine(
             x_train=x_train,
             feature_order=feature_order,
@@ -808,6 +850,7 @@ class PINNTrainer:
         optimizers_by_name: dict[str, torch.optim.Optimizer] = {}
         schedulers_by_name: dict[str, torch.optim.lr_scheduler.LRScheduler | None] = {}
         train_loaders_by_name: dict[str, tuple[DataLoader, DataLoader, DataLoader]] = {}
+        optional_loaders_by_name: dict[str, dict[str, DataLoader]] = {}
 
         mix_half_switch_epoch: int | None = None
         if mode == "mix_half":
@@ -843,6 +886,11 @@ class PINNTrainer:
                 _build_loader(x_train["terminal"], batch_size=batch_size_boundary, shuffle=True),
                 _build_loader(x_train["lower"], batch_size=batch_size_boundary, shuffle=True),
             )
+            optional_loaders_by_name["adam"] = _build_optional_loaders(
+                x_train,
+                batch_size=batch_size_boundary,
+                shuffle=True,
+            )
             train_loaders_by_name["lbfgs"] = (
                 _build_loader(
                     x_train["interior"],
@@ -859,6 +907,11 @@ class PINNTrainer:
                     batch_size=len(x_train["lower"]) if lbfgs_full_batch else lbfgs_batch_size,
                     shuffle=not lbfgs_full_batch,
                 ),
+            )
+            optional_loaders_by_name["lbfgs"] = _build_optional_loaders(
+                x_train,
+                batch_size=len(x_train["interior"]) if lbfgs_full_batch else lbfgs_batch_size,
+                shuffle=not lbfgs_full_batch,
             )
 
             default_switch = max(2, (epochs // 2) + 1)
@@ -909,11 +962,21 @@ class PINNTrainer:
                         shuffle=not lbfgs_full_batch,
                     ),
                 )
+                optional_loaders_by_name[opt_name] = _build_optional_loaders(
+                    x_train,
+                    batch_size=len(x_train["interior"]) if lbfgs_full_batch else lbfgs_batch_size,
+                    shuffle=not lbfgs_full_batch,
+                )
             else:
                 train_loaders_by_name[opt_name] = (
                     _build_loader(x_train["interior"], batch_size=batch_size_collocation, shuffle=True),
                     _build_loader(x_train["terminal"], batch_size=batch_size_boundary, shuffle=True),
                     _build_loader(x_train["lower"], batch_size=batch_size_boundary, shuffle=True),
+                )
+                optional_loaders_by_name[opt_name] = _build_optional_loaders(
+                    x_train,
+                    batch_size=batch_size_boundary,
+                    shuffle=True,
                 )
 
             active_optimizer_name = opt_name
@@ -946,10 +1009,20 @@ class PINNTrainer:
 
             model.train()
             loader_interior, loader_terminal, loader_lower = train_loaders_by_name[active_optimizer_name]
-            n_steps = max(len(loader_interior), len(loader_terminal), len(loader_lower))
+            active_optional_loaders = optional_loaders_by_name.get(active_optimizer_name, {})
+            n_steps = max(
+                len(loader_interior),
+                len(loader_terminal),
+                len(loader_lower),
+                *(len(loader) for loader in active_optional_loaders.values()),
+            )
             it_interior = _cycle_loader(loader_interior)
             it_terminal = _cycle_loader(loader_terminal)
             it_lower = _cycle_loader(loader_lower)
+            it_optional = {
+                key: _cycle_loader(loader)
+                for key, loader in active_optional_loaders.items()
+            }
 
             train_loss_sum = 0.0
             train_pde_sum = 0.0
@@ -960,11 +1033,21 @@ class PINNTrainer:
             train_term_sum = 0.0
             train_low_sum = 0.0
             train_no_arb_sum = 0.0
+            train_right_sum = 0.0
+            train_v_zero_sum = 0.0
+            train_curvature_bulk_sum = 0.0
 
             for _ in range(n_steps):
                 xb_interior = next(it_interior).to(device)
                 xb_terminal = next(it_terminal).to(device)
                 xb_lower = next(it_lower).to(device)
+                batch_payload = {
+                    "interior": xb_interior,
+                    "terminal": xb_terminal,
+                    "lower": xb_lower,
+                }
+                for optional_key, optional_iter in it_optional.items():
+                    batch_payload[optional_key] = next(optional_iter).to(device)
 
                 if active_optimizer_name == "lbfgs":
                     terms_holder: dict[str, PINNLossTerms] = {}
@@ -974,11 +1057,7 @@ class PINNTrainer:
                         total_local, terms_local = compute_weighted_pinn_loss(
                             model=model,
                             loss_config=loss_cfg,
-                            batch_payload={
-                                "interior": xb_interior,
-                                "terminal": xb_terminal,
-                                "lower": xb_lower,
-                            },
+                            batch_payload=batch_payload,
                             input_affine=input_affine,
                         )
                         total_local.backward()
@@ -993,11 +1072,7 @@ class PINNTrainer:
                     loss_tensor, step_terms = compute_weighted_pinn_loss(
                         model=model,
                         loss_config=loss_cfg,
-                        batch_payload={
-                            "interior": xb_interior,
-                            "terminal": xb_terminal,
-                            "lower": xb_lower,
-                        },
+                        batch_payload=batch_payload,
                         input_affine=input_affine,
                     )
                     loss_tensor.backward()
@@ -1012,7 +1087,10 @@ class PINNTrainer:
                 train_greek_vega_sum += step_terms.greek_vega
                 train_term_sum += step_terms.term
                 train_low_sum += step_terms.low
+                train_right_sum += step_terms.right
+                train_v_zero_sum += step_terms.v_zero
                 train_no_arb_sum += step_terms.no_arbitrage
+                train_curvature_bulk_sum += step_terms.curvature_bulk
 
             train_total = train_loss_sum / max(n_steps, 1)
             train_terms = PINNLossTerms(
@@ -1023,7 +1101,10 @@ class PINNTrainer:
                 greek_vega=train_greek_vega_sum / max(n_steps, 1),
                 term=train_term_sum / max(n_steps, 1),
                 low=train_low_sum / max(n_steps, 1),
+                right=train_right_sum / max(n_steps, 1),
+                v_zero=train_v_zero_sum / max(n_steps, 1),
                 no_arbitrage=train_no_arb_sum / max(n_steps, 1),
+                curvature_bulk=train_curvature_bulk_sum / max(n_steps, 1),
             )
 
             val_total, val_terms = _evaluate_epoch_loss(
@@ -1051,7 +1132,10 @@ class PINNTrainer:
                     "train_greek_vega": float(train_terms.greek_vega),
                     "train_term": float(train_terms.term),
                     "train_low": float(train_terms.low),
+                    "train_right": float(train_terms.right),
+                    "train_v_zero": float(train_terms.v_zero),
                     "train_no_arbitrage": float(train_terms.no_arbitrage),
+                    "train_curvature_bulk": float(train_terms.curvature_bulk),
                     "val_total": float(val_total),
                     "val_pde": float(val_terms.pde),
                     "val_dpde": float(val_terms.dpde),
@@ -1060,7 +1144,10 @@ class PINNTrainer:
                     "val_greek_vega": float(val_terms.greek_vega),
                     "val_term": float(val_terms.term),
                     "val_low": float(val_terms.low),
+                    "val_right": float(val_terms.right),
+                    "val_v_zero": float(val_terms.v_zero),
                     "val_no_arbitrage": float(val_terms.no_arbitrage),
+                    "val_curvature_bulk": float(val_terms.curvature_bulk),
                 }
             )
 
@@ -1107,6 +1194,9 @@ class PINNTrainer:
             x_val_interior=x_val["interior"],
             figures_dir=figures_dir,
             input_affine=input_affine,
+            pde_coordinate=str(loss_cfg.get("pde", {}).get("coordinate", "moneyness"))
+            if isinstance(loss_cfg.get("pde", {}), dict)
+            else "moneyness",
             n_bins_m=24,
             n_bins_tau=24,
         )
@@ -1131,6 +1221,16 @@ class PINNTrainer:
             "n_val_interior": int(len(x_val["interior"])),
             "n_val_terminal": int(len(x_val["terminal"])),
             "n_val_lower": int(len(x_val["lower"])),
+            **{
+                f"n_train_{key}": int(len(x_train[key]))
+                for key in ("right", "v_zero")
+                if key in x_train
+            },
+            **{
+                f"n_val_{key}": int(len(x_val[key]))
+                for key in ("right", "v_zero")
+                if key in x_val
+            },
             "input_scaling": input_affine_np
             if input_affine_np is not None
             else {

@@ -1,0 +1,42 @@
+dataset_format: parquet
+datasets:
+  interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/smoke/interior.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/smoke/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/smoke/lower.parquet
+  right: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/smoke/right.parquet
+  v_zero: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/smoke/v_zero.parquet
+feature_order:
+- tau
+- log_moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+coordinate_space: log_moneyness
+sampling_strategy: lhs_static
+sampling_mode: fixed_theta
+seed: 42
+sizes:
+  n_interior: 512
+  n_terminal: 128
+  n_lower: 128
+  n_right: 128
+  n_v_zero: 128
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.05
+  - 2.0
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05
+  log_moneyness:
+  - -2.995732273553991
+  - 0.6931471805599453

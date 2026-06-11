@@ -1,0 +1,12 @@
+timestamp: 2026-06-11_02-30-50
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl07_kink_bulk_loss/pipeline.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl07_kink_bulk_loss
+stages:
+  prepare_dataset:
+    status: skipped
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl07_kink_bulk_loss/full/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl07_kink_bulk_loss/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped
