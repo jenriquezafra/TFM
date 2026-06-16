@@ -1,0 +1,97 @@
+meta:
+  seed: 42
+  device: auto
+  optimizer: mix_half
+data:
+  supervised_source: cann_quotes_comparison
+  target_column: price_market
+  val_fraction: 0.2
+  input_scaling:
+    enabled: true
+    method: standardize_train
+    eps: 1.0e-08
+sampling:
+  strategy: lhs_static
+  mode: fixed_theta
+  seed: 42
+  output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl16_baseline_log_learned_weights/full
+  sizes:
+    n_interior: 40000
+    n_terminal: 10000
+    n_lower: 10000
+  domain:
+    tau:
+    - 0.0
+    - 3.0
+    moneyness:
+    - 0.0
+    - 2.0
+    v:
+    - 0.01
+    - 0.5
+    r:
+    - 0.0
+    - 0.05
+optimizers:
+- name: adam
+  learn_rate: 0.001
+  weight_decay: 0.0
+- name: L-BFGS
+  learn_rate: 1.0
+  max_iter: 30
+  line_search_fn: strong_wolfe
+  historic_size: 100
+  full_batch: true
+loss:
+  reduction: mean
+  weights:
+    pde: 1.0
+    term: 1.0
+    low: 1.0
+    no_arbitrage: 1.0
+  learned_weights:
+    enabled: true
+    terms:
+    - pde
+    - term
+    - low
+    - no_arbitrage
+    init:
+      pde: 0.0
+      term: 0.0
+      low: 0.0
+      no_arbitrage: 0.0
+    min_log_var: -3.0
+    max_log_var: 3.0
+    prior:
+      strength: 0.2
+      target: 0.0
+loop:
+  epochs: 4000
+  mix_half_switch_epoch: 2001
+  batch_size_collocation: 2048
+  batch_size_boundary: 512
+  log_every: 50
+callbacks:
+  checkpoint:
+    enabled: true
+    filename_best: model_best.pt
+    filename_last: model_last.pt
+  early_stopping:
+    enabled: false
+    monitor: val_total_loss
+    patience: 300
+    min_delta: 1.0e-07
+  lr_scheduler:
+    enabled: true
+    name: step
+    step_size: 500
+    gamma: 0.5
+evaluation:
+  enabled: true
+  batch_size: 8192
+  metrics:
+  - mse
+  - mae
+  - rmse
+  - pde_residual_l2

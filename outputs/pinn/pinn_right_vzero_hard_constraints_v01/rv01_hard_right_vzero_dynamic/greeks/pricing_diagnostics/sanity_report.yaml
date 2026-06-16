@@ -1,0 +1,81 @@
+timestamp: 2026-06-16_14-32-12
+experiment_id: rv01_hard_right_vzero_dynamic
+pde_convention:
+  time_variable: tau = T - t
+  calendar_theta: theta = -dV/dtau when theta_sign='minus_dv_dtau'
+  coordinate: moneyness
+  implemented_residual: u_tau - 0.5*v*m^2*u_mm - rho*gamma*v*m*u_mv - 0.5*gamma^2*v*u_vv
+    - r*m*u_m - kappa*(bar_v-v)*u_v + r*u
+  pde_feature_order_supported:
+  - - tau
+    - moneyness
+    - v
+    - rho
+    - kappa
+    - gamma
+    - bar_v
+    - r
+  - - tau
+    - log_moneyness
+    - v
+    - rho
+    - kappa
+    - gamma
+    - bar_v
+    - r
+  pde_residual_computed: true
+  derivative_residual_computed: false
+greek_definitions:
+  delta: dV/dmoneyness; converted to spot S with strike=1.0. For log_moneyness, Delta=e^-x
+    U_x / K.
+  gamma: d2V/dmoneyness2; converted to spot S with strike=1.0. For log_moneyness,
+    Gamma=e^-2x (U_xx-U_x) / K^2.
+  vega: dV/dv; current convention is sensitivity to variance v
+  theta: calendar-time theta = -dV/dtau
+  rho: dV/dr
+  multi_output_heads: head_delta/head_gamma/head_vega are reported when the model
+    exposes forward_all(); they are diagnostics only and are not COS-trained labels.
+regions:
+  epsilon_m: 0.03
+  epsilon_tau: 0.05
+  counts:
+    full: 32761
+    non_hard: 32626
+    short_maturity: 905
+    atm: 4887
+    hard: 135
+run:
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic
+  checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/train/checkpoints/model_best.pt
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/resolved_configs/full/rv01_hard_right_vzero_dynamic/architecture.yaml
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  device: cpu
+  dtype: torch.float64
+  multi_output_heads_computed: false
+timing:
+  pinn_derivatives_seconds: 6.471931458101608
+  reference_seconds: 9.067308875033632
+  pinn_points_per_second: 5062.012818289285
+  reference_points_per_second: 3613.089666571934
+reference:
+  option_type: put
+  failed_reference_points: 0
+  cf_integration:
+    u_min: 1.0e-06
+    u_max: 200.0
+    n_u: 1200
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/greeks/pricing_diagnostics/points_baseline_diagnostics.csv
+  metrics_by_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/greeks/pricing_diagnostics/metrics_by_region.csv
+  no_reference_diagnostics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/greeks/pricing_diagnostics/no_reference_diagnostics.csv
+  finite_difference_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/greeks/pricing_diagnostics/finite_difference_consistency.csv
+  finite_difference_metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/greeks/pricing_diagnostics/finite_difference_metrics.csv
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/greeks/pricing_diagnostics/figures

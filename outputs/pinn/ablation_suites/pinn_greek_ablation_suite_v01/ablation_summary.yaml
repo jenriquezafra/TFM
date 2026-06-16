@@ -7,7 +7,8 @@ outputs:
   score_scatter: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/score_scatter_hard_vs_global.png
   pairwise_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/pairwise
 pairwise_figures:
-  abl01_log_core_pdf: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/pairwise/abl01_log_core_pdf_greek_error_maps_vs_baseline.png
+  abl13_log_core_acv_pricing: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/pairwise/abl13_log_core_acv_pricing_greek_error_maps_vs_baseline.png
+  abl14_acv_log_learned_weights: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/figures/pairwise/abl14_acv_log_learned_weights_greek_error_maps_vs_baseline.png
 best_global_score: abl00_baseline
 best_hard_score: abl00_baseline
-best_price_score: abl01_log_core_pdf
+best_price_score: abl00_baseline

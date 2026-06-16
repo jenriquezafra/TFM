@@ -1,8 +1,8 @@
 meta:
   experiment_name: abl10_curvature_bulk_optional
   seed: 42
-  description: Regularizacion opcional de curvatura de tercer orden solo fuera del
-    kink.
+  description: 'Regularizacion opcional de curvatura solo en bulk: penaliza d_x(U_xx-U_x)
+    fuera del kink con peso pequeno.'
 inputs:
   cann:
     calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg

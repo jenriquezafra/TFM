@@ -14,6 +14,7 @@ feature_order:
 - gamma
 - bar_v
 - r
+coordinate_space: moneyness
 sampling_strategy: lhs_static
 sampling_mode: fixed_theta
 seed: 42

@@ -1,0 +1,81 @@
+timestamp: 2026-06-16_19-03-49
+experiment_id: warm01_w_pde025_term2_low2
+pde_convention:
+  time_variable: tau = T - t
+  calendar_theta: theta = -dV/dtau when theta_sign='minus_dv_dtau'
+  coordinate: moneyness
+  implemented_residual: u_tau - 0.5*v*m^2*u_mm - rho*gamma*v*m*u_mv - 0.5*gamma^2*v*u_vv
+    - r*m*u_m - kappa*(bar_v-v)*u_v + r*u
+  pde_feature_order_supported:
+  - - tau
+    - moneyness
+    - v
+    - rho
+    - kappa
+    - gamma
+    - bar_v
+    - r
+  - - tau
+    - log_moneyness
+    - v
+    - rho
+    - kappa
+    - gamma
+    - bar_v
+    - r
+  pde_residual_computed: true
+  derivative_residual_computed: false
+greek_definitions:
+  delta: dV/dmoneyness; converted to spot S with strike=1.0. For log_moneyness, Delta=e^-x
+    U_x / K.
+  gamma: d2V/dmoneyness2; converted to spot S with strike=1.0. For log_moneyness,
+    Gamma=e^-2x (U_xx-U_x) / K^2.
+  vega: dV/dv; current convention is sensitivity to variance v
+  theta: calendar-time theta = -dV/dtau
+  rho: dV/dr
+  multi_output_heads: head_delta/head_gamma/head_vega are reported when the model
+    exposes forward_all(); they are diagnostics only and are not COS-trained labels.
+regions:
+  epsilon_m: 0.03
+  epsilon_tau: 0.05
+  counts:
+    full: 32761
+    non_hard: 32626
+    short_maturity: 905
+    atm: 4887
+    hard: 135
+run:
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2
+  checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2/train/checkpoints/model_best.pt
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_warmstart_ablation_v01/resolved_configs/full/warm01_w_pde025_term2_low2/architecture.yaml
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  device: cpu
+  dtype: torch.float64
+  multi_output_heads_computed: false
+timing:
+  pinn_derivatives_seconds: 3.2690352090867236
+  reference_seconds: 9.085361375007778
+  pinn_points_per_second: 10021.611241425724
+  reference_points_per_second: 3605.9105023736
+reference:
+  option_type: put
+  failed_reference_points: 0
+  cf_integration:
+    u_min: 1.0e-06
+    u_max: 200.0
+    n_u: 1200
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2/greeks/baseline_diagnostics/points_baseline_diagnostics.csv
+  metrics_by_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2/greeks/baseline_diagnostics/metrics_by_region.csv
+  no_reference_diagnostics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2/greeks/baseline_diagnostics/no_reference_diagnostics.csv
+  finite_difference_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2/greeks/baseline_diagnostics/finite_difference_consistency.csv
+  finite_difference_metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2/greeks/baseline_diagnostics/finite_difference_metrics.csv
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm01_w_pde025_term2_low2/greeks/baseline_diagnostics/figures

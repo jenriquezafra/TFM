@@ -1,4 +1,4 @@
-timestamp: 2026-06-11_03-20-16
+timestamp: 2026-06-12_23-42-30
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl08_kink_band_sampling/pipeline.yaml
 run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling
 stages:

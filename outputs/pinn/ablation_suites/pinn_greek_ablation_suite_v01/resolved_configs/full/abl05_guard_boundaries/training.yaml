@@ -26,7 +26,7 @@ sampling:
     - 0.0
     - 3.0
     moneyness:
-    - 0.0
+    - 0.05
     - 2.0
     v:
     - 0.01
@@ -34,6 +34,7 @@ sampling:
     r:
     - 0.0
     - 0.05
+  coordinate_space: log_moneyness
   boundaries:
     lower_moneyness: 0.05
     right_moneyness: 3.0
@@ -52,9 +53,9 @@ loss:
   reduction: mean
   weights:
     pde: 1.0
-    term: 1.0
+    term: 5.0
     low: 1.0
-    no_arbitrage: 1.0
+    no_arbitrage: 0.0
     left_delta: 0.25
     left_gamma: 0.05
     right: 1.0

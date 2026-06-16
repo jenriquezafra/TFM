@@ -1,0 +1,77 @@
+collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/global_acv_pinn_smoke/collocation_sets_manifest.yaml
+device: cpu
+optimizer_mode: adam
+mix_half_switch_epoch: null
+epochs: 2
+batch_size_collocation: 16
+batch_size_boundary: 16
+initial_checkpoint: null
+initial_checkpoint_report: null
+val_fraction: 0.25
+n_train_interior: 72
+n_train_terminal: 24
+n_train_lower: 24
+n_val_interior: 24
+n_val_terminal: 8
+n_val_lower: 8
+input_scaling:
+  enabled: true
+  method: standardize_train
+  eps: 1.0e-08
+  feature_order:
+  - tau
+  - log_moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  a:
+  - -0.6989541053771973
+  - 0.5347707271575928
+  - -1.7430754899978638
+  - 1.8028905391693115
+  - -1.762595534324646
+  - -1.7172479629516602
+  - -1.9500024318695068
+  - -1.7711296081542969
+  b:
+  - 1.2313637733459473
+  - 0.5281075239181519
+  - 7.146109580993652
+  - 3.993926763534546
+  - 1.2041202783584595
+  - 4.497323989868164
+  - 7.404945373535156
+  - 66.55606079101562
+  mean_train:
+  - 0.5676260590553284
+  - -1.0126171112060547
+  - 0.2439195066690445
+  - -0.4514079988002777
+  - 1.4638035297393799
+  - 0.38183772563934326
+  - 0.2633378505706787
+  - 0.026611095294356346
+  std_train:
+  - 0.8121077418327332
+  - 1.8935537338256836
+  - 0.13993628323078156
+  - 0.25038015842437744
+  - 0.8304818272590637
+  - 0.2223544418811798
+  - 0.1350448876619339
+  - 0.015024928376078606
+  frozen_features: []
+best_val_total: 0.0033962600864470005
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/checkpoints/model_last.pt
+history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/metrics/train_history.csv
+figures:
+  loss_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/figures/loss_curve.png
+  loss_components_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/figures/loss_components_curve.png
+  learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/figures/learning_rate_curve.png
+  pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/figures/pde_residual_map_m_tau.png
+  pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/figures/pde_residual_map_m_tau_log.png
+total_training_seconds: 1.251870832988061

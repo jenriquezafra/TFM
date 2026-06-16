@@ -14,13 +14,17 @@ n_train_lower: 8000
 n_val_interior: 8000
 n_val_terminal: 2000
 n_val_lower: 2000
+n_train_right: 8000
+n_train_v_zero: 8000
+n_val_right: 2000
+n_val_v_zero: 2000
 input_scaling:
   enabled: true
   method: standardize_train
   eps: 1.0e-08
   feature_order:
   - tau
-  - moneyness
+  - log_moneyness
   - v
   - rho
   - kappa
@@ -28,47 +32,47 @@ input_scaling:
   - bar_v
   - r
   a:
-  - -0.9792621731758118
-  - -1.399817705154419
-  - -1.8047614097595215
+  - -1.115982174873352
+  - 0.291933536529541
+  - -1.422898769378662
   - 0.0
   - 0.0
   - 0.0
   - 0.0
-  - -1.7307813167572021
+  - -1.730844497680664
   b:
-  - 1.0136220455169678
-  - 1.6724859476089478
-  - 7.074011325836182
+  - 1.0147935152053833
+  - 0.8014100790023804
+  - 6.374054908752441
   - 1.0
   - 1.0
   - 1.0
   - 1.0
-  - 69.24742126464844
+  - 69.23743438720703
   mean_train:
-  - 0.9661018252372742
-  - 0.8369683027267456
-  - 0.25512561202049255
+  - 1.0997134447097778
+  - -0.3642748296260834
+  - 0.2232329100370407
   - -0.5241299867630005
   - 1.057623267173767
   - 0.2995682656764984
   - 0.19758449494838715
-  - 0.02499416097998619
+  - 0.024998679757118225
   std_train:
-  - 0.9865610003471375
-  - 0.5979123711585999
-  - 0.1413625180721283
+  - 0.9854220747947693
+  - 1.247800588607788
+  - 0.1568859964609146
   - 0.0
   - 0.0
   - 0.0
   - 0.0
-  - 0.014440970495343208
+  - 0.014443053863942623
   frozen_features:
   - rho
   - kappa
   - gamma
   - bar_v
-best_val_total: 6.481919765472412
+best_val_total: 427.21905517578125
 best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/checkpoints/model_best.pt
 last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/checkpoints/model_last.pt
 history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/metrics/train_history.csv
@@ -78,4 +82,4 @@ figures:
   learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/learning_rate_curve.png
   pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/pde_residual_map_m_tau.png
   pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/figures/pde_residual_map_m_tau_log.png
-total_training_seconds: 2991.1928347499343
+total_training_seconds: 5647.7832183749415

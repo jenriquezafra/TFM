@@ -1,0 +1,52 @@
+name: PINN_Heston_Price
+type: mlp_pinn
+input:
+  dim: 8
+  features:
+  - tau
+  - log_moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+hidden:
+  dims:
+  - 256
+  - 256
+  - 256
+  - 256
+  activation: tanh
+  initialization: xavier_uniform
+  dropout_rate: 0.0
+  batch_norm: false
+output:
+  dim: 1
+  name: price
+  activation: linear
+physics:
+  equation: heston_pde
+  requires_autograd: true
+  derivative_order: 2
+feature_map:
+  enabled: true
+  mode: kink_adapted
+  input_coordinate: log_moneyness
+  moneyness_floor: 1.0e-06
+  tau_epsilon: 1.0e-06
+  q_epsilon: 1.0e-08
+  q_clip: 10.0
+bounded_price:
+  enabled: true
+  option_type: put
+  strike: 1.0
+  tau_index: 0
+  spot_index: 1
+  r_index: 7
+  sigmoid_temperature: 2.0
+  payoff_smoothing: 0.0001
+  lower_smoothing: 0.0001
+  min_width: 1.0e-10
+  time_gate: rational_tau
+  time_gate_tau: 0.02

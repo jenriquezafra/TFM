@@ -30,5 +30,5 @@ pipeline:
     evaluate: false
 outputs:
   root_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn
-  run_name: pinn_greek_ablation_suite_v01/abl01_log_core_pdf
+  run_name: pinn_greek_ablation_suite_v01_smoke/abl01_log_core_pdf
   dump_plan_filename: pipeline_plan.yaml

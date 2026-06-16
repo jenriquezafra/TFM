@@ -1,0 +1,39 @@
+dataset_format: parquet
+datasets:
+  interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_right_vzero_hard_constraints_v01/rv02_hard_right_dynamic_pde_only/full/interior.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_right_vzero_hard_constraints_v01/rv02_hard_right_dynamic_pde_only/full/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_right_vzero_hard_constraints_v01/rv02_hard_right_dynamic_pde_only/full/lower.parquet
+  right: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_right_vzero_hard_constraints_v01/rv02_hard_right_dynamic_pde_only/full/right.parquet
+  v_zero: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_right_vzero_hard_constraints_v01/rv02_hard_right_dynamic_pde_only/full/v_zero.parquet
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+coordinate_space: moneyness
+sampling_strategy: lhs_static
+sampling_mode: fixed_theta
+seed: 42
+sizes:
+  n_interior: 24000
+  n_terminal: 5000
+  n_lower: 5000
+  n_right: 1024
+  n_v_zero: 10000
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.0
+  - 2.0
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05

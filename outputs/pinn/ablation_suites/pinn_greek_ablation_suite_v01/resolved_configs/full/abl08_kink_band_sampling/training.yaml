@@ -19,12 +19,14 @@ sampling:
     n_interior: 40000
     n_terminal: 10000
     n_lower: 10000
+    n_right: 10000
+    n_v_zero: 10000
   domain:
     tau:
     - 0.0
     - 3.0
     moneyness:
-    - 0.0
+    - 0.05
     - 2.0
     v:
     - 0.01
@@ -32,6 +34,11 @@ sampling:
     r:
     - 0.0
     - 0.05
+  coordinate_space: log_moneyness
+  boundaries:
+    lower_moneyness: 0.05
+    right_moneyness: 3.0
+    v_zero_value: 0.0
   kink_band:
     enabled: true
     fraction: 0.3
@@ -52,11 +59,29 @@ loss:
   reduction: mean
   weights:
     pde: 1.0
-    term: 1.0
+    term: 5.0
     low: 1.0
-    no_arbitrage: 1.0
+    no_arbitrage: 0.05
+    pde_bulk: 1.0
+    pde_kink: 3.0
+    left_delta: 0.25
+    left_gamma: 0.05
+    right: 1.0
+    right_delta: 0.25
+    right_gamma: 0.05
+    v_zero: 0.5
   pde:
     coordinate: log_moneyness
+  no_arbitrage:
+    beta_delta: 1.0
+    beta_gamma: 1.0
+  kink_bulk:
+    enabled: true
+    c: 2.0
+    tau_c: 0.15
+    delta_x: 0.05
+    delta_tau: 0.02
+    ell_epsilon: 1.0e-08
 loop:
   epochs: 4000
   mix_half_switch_epoch: 2001

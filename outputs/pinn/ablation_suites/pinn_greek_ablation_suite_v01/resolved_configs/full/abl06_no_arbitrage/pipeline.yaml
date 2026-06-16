@@ -1,7 +1,8 @@
 meta:
   experiment_name: abl06_no_arbitrage
   seed: 42
-  description: Penaliza bounds de precio, rango de Delta y convexidad del put.
+  description: Nucleo log y guards del PDF mas penalizaciones reales de bounds de
+    precio, rango de Delta y convexidad.
 inputs:
   cann:
     calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg

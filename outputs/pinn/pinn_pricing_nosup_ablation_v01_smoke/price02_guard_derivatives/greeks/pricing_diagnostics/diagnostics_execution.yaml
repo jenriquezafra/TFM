@@ -1,0 +1,81 @@
+timestamp: 2026-06-16_00-13-48
+config_source: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/smoke/price02_guard_derivatives/diagnostics.yaml
+global_config:
+  experiment_id: price02_guard_derivatives
+  run_dir: pinn_pricing_nosup_ablation_v01_smoke/price02_guard_derivatives
+  checkpoint_name: model_best.pt
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/smoke/price02_guard_derivatives/architecture.yaml
+  device: auto
+  dtype: float64
+  feature_order: null
+  spot_feature: moneyness
+  vol_feature: v
+  tau_feature: tau
+  rate_feature: r
+  theta_sign: minus_dv_dtau
+  strike: 1.0
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+diagnostics_config:
+  output_subdir: pricing_diagnostics
+  option_type: put
+  mape_floor: 0.0001
+  stabilized_relative_floor: 1.0
+  n_bins: 31
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+  surface_grid:
+    x_feature: moneyness
+    x_min: 0.8
+    x_max: 1.2
+    x_points: 31
+    y_feature: tau
+    y_min: 0.005
+    y_max: 2.0
+    y_points: 31
+  fixed_values:
+    tau: 1.0
+    moneyness: 1.0
+    v: 0.04
+    rho: -0.7
+    kappa: 2.0
+    gamma: 0.3
+    bar_v: 0.04
+    r: 0.01
+  finite_difference:
+    enabled: false
+    spot_step: 0.0001
+    vol_step: 0.0001
+    tau_step: 0.0001
+    rate_step: 0.0001
+    max_points: 2048
+    seed: 42
+  cf_integration:
+    u_min: 1.0e-06
+    u_max: 200.0
+    n_u: 240
+resolved:
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01_smoke/price02_guard_derivatives
+  checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01_smoke/price02_guard_derivatives/train/checkpoints/model_best.pt
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/smoke/price02_guard_derivatives/architecture.yaml
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  device: cpu
+  dtype: torch.float64
+  multi_output_heads_computed: false
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01_smoke/price02_guard_derivatives/greeks/pricing_diagnostics/points_baseline_diagnostics.csv
+  metrics_by_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01_smoke/price02_guard_derivatives/greeks/pricing_diagnostics/metrics_by_region.csv
+  no_reference_diagnostics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01_smoke/price02_guard_derivatives/greeks/pricing_diagnostics/no_reference_diagnostics.csv
+  finite_difference_csv: null
+  finite_difference_metrics_csv: null
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01_smoke/price02_guard_derivatives/greeks/pricing_diagnostics/figures

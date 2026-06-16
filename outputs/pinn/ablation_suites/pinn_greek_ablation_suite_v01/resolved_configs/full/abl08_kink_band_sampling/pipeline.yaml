@@ -1,8 +1,8 @@
 meta:
   experiment_name: abl08_kink_band_sampling
   seed: 42
-  description: Reserva una fraccion del interior para la banda |x| <= c sqrt(v tau
-    + eps), tau <= tau_c.
+  description: Ablacion incremental que anade muestreo focalizado en |x| <= c sqrt(v
+    tau + eps), tau <= tau_c.
 inputs:
   cann:
     calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg

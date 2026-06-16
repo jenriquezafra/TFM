@@ -38,6 +38,14 @@ def _list_available_run_dirs(project_root: Path) -> list[Path]:
 
 
 def _resolve_run_dir(project_root: Path, model_dir: str) -> Path:
+    model_path = Path(model_dir)
+    if model_path.is_absolute() and model_path.exists():
+        return model_path
+    if not model_path.is_absolute():
+        relative_candidate = project_root / model_path
+        if relative_candidate.exists():
+            return relative_candidate
+
     runs = _list_available_run_dirs(project_root)
     runs_dir = project_root / "outputs" / "runs"
     if not runs:

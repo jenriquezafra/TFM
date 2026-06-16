@@ -16,12 +16,12 @@ cann_inputs:
 pipeline:
   stages:
   - name: prepare_dataset
-    enabled: false
+    enabled: true
     description: Read calibrated parameters from CaNN and build supervised + physics
       datasets.
     owner_module: src.pinn.data_builder
   - name: train
-    enabled: true
+    enabled: false
     description: Train the PINN with data loss and PDE residual losses.
     owner_module: src.pinn.trainer
   - name: evaluate

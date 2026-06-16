@@ -1,0 +1,20 @@
+timestamp: 2026-06-15_23-43-33
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl14_acv_log_learned_weights/pipeline.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01_smoke/abl14_acv_log_learned_weights
+stages:
+  prepare_dataset:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/smoke/collocation_sets_manifest.yaml
+    collocation_output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/smoke
+    target_column_requested: price_market
+    feature_columns:
+    - moneyness
+    - tau
+    - r
+    dataset_file: null
+    dataset_status: skipped_target_missing
+    dataset_skip_reason: Target column 'price_market' not present in CaNN quotes.
+  train:
+    status: skipped
+  evaluate:
+    status: skipped

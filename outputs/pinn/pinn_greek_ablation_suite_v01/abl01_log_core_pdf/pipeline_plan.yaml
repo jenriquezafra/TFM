@@ -1,10 +1,10 @@
 project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
-config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl01_log_core_pdf/pipeline.yaml
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/pipeline.yaml
 experiment_name: abl01_log_core_pdf
 description: 'Ablacion individual fiel al PDF: coordenada x=log(m), PDE en x, features
   sqrt(tau) y q_clip, y Greeks con chain rule.'
-architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl01_log_core_pdf/architecture.yaml
-training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl01_log_core_pdf/training.yaml
+architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/architecture.yaml
+training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/training.yaml
 outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn
 run_name: pinn_greek_ablation_suite_v01/abl01_log_core_pdf
 plan_filename: pipeline_plan.yaml

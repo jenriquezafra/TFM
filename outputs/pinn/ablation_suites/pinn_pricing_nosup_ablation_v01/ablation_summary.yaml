@@ -1,0 +1,21 @@
+suite_id: pinn_pricing_nosup_ablation_v01
+manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/resolved_manifest.yaml
+baseline_key: price00_baseline
+outputs:
+  scores_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/tables/ablation_scores.csv
+  scores_markdown: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/tables/ablation_scores.md
+  score_scatter: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/score_scatter_hard_vs_global.png
+  pairwise_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise
+pairwise_figures:
+  price01_right_vzero: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price01_right_vzero_greek_error_maps_vs_baseline.png
+  price02_guard_derivatives: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price02_guard_derivatives_greek_error_maps_vs_baseline.png
+  price03_payoff_sqrt_time: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price03_payoff_sqrt_time_greek_error_maps_vs_baseline.png
+  price04_pde_normalized: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price04_pde_normalized_greek_error_maps_vs_baseline.png
+  price05_log_core: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price05_log_core_greek_error_maps_vs_baseline.png
+  price06_learned_weights: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price06_learned_weights_greek_error_maps_vs_baseline.png
+  price07_combo_guard_norm_learned: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price07_combo_guard_norm_learned_greek_error_maps_vs_baseline.png
+  price08_combo_payoff_guard_norm_learned: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price08_combo_payoff_guard_norm_learned_greek_error_maps_vs_baseline.png
+  price09_combo_log_guard_norm_learned: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/figures/pairwise/price09_combo_log_guard_norm_learned_greek_error_maps_vs_baseline.png
+best_global_score: price04_pde_normalized
+best_hard_score: price04_pde_normalized
+best_price_score: price08_combo_payoff_guard_norm_learned

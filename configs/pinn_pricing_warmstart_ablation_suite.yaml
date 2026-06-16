@@ -1,0 +1,275 @@
+suite_id: "pinn_pricing_warmstart_ablation_v01"
+seed: 42
+baseline_key: "warm00_identity"
+resolved_config_root: "outputs/pinn/ablation_suites/pinn_pricing_warmstart_ablation_v01/resolved_configs"
+
+base_configs:
+  pipeline: "configs/pinn_pipeline.yaml"
+  architecture: "configs/pinn_model_architecture.yaml"
+  training: "configs/pinn_training.yaml"
+  diagnostics: "configs/pinn_baseline_diagnostics.yaml"
+  adaptive: "configs/pinn_adaptive_collocation.yaml"
+
+diagnostics:
+  output_subdir: "baseline_diagnostics"
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+
+comparison:
+  output_dir: "outputs/pinn/ablation_suites/pinn_pricing_warmstart_ablation_v01"
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+
+modes:
+  smoke:
+    training_overrides:
+      sampling:
+        sizes:
+          n_interior: 512
+          n_terminal: 128
+          n_lower: 128
+      loop:
+        epochs: 2
+        batch_size_collocation: 128
+        batch_size_boundary: 64
+        log_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 1.0e-4
+          weight_decay: 0.0
+    diagnostics_overrides:
+      diagnostics:
+        n_bins: 31
+        surface_grid:
+          x_points: 31
+          y_points: 31
+        finite_difference:
+          enabled: false
+        cf_integration:
+          n_u: 240
+
+  full:
+    training_overrides:
+      meta:
+        device: "mps"
+
+variants:
+  - key: "warm00_identity"
+    label: "Warm-start identity fine-tune"
+    role: "baseline"
+    metric_focus: "pricing"
+    enabled: true
+    description: "Fine-tuning corto desde PINN_mix_scaled_param con pesos originales."
+    training_overrides:
+      meta:
+        optimizer: "adam"
+        initial_checkpoint: "outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt"
+        initial_checkpoint_strict: true
+      loop:
+        epochs: 600
+        log_every: 50
+        val_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 5.0e-5
+          weight_decay: 0.0
+      callbacks:
+        lr_scheduler:
+          enabled: false
+      loss:
+        weights:
+          pde: 1.0
+          term: 1.0
+          low: 1.0
+          no_arbitrage: 1.0
+
+  - key: "warm01_w_pde025_term2_low2"
+    label: "Warm static weights pde 0.25 term 2 low 2"
+    metric_focus: "pricing"
+    enabled: true
+    description: "Warm-start con menor peso PDE y mayor anclaje terminal/lower."
+    training_overrides:
+      meta:
+        optimizer: "adam"
+        initial_checkpoint: "outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt"
+        initial_checkpoint_strict: true
+      loop:
+        epochs: 600
+        log_every: 50
+        val_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 5.0e-5
+          weight_decay: 0.0
+      callbacks:
+        lr_scheduler:
+          enabled: false
+      loss:
+        weights:
+          pde: 0.25
+          term: 2.0
+          low: 2.0
+          no_arbitrage: 1.0
+
+  - key: "warm02_w_pde050_term2_low2"
+    label: "Warm static weights pde 0.5 term 2 low 2"
+    metric_focus: "pricing"
+    enabled: true
+    description: "Warm-start con PDE moderado y mayor anclaje terminal/lower."
+    training_overrides:
+      meta:
+        optimizer: "adam"
+        initial_checkpoint: "outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt"
+        initial_checkpoint_strict: true
+      loop:
+        epochs: 600
+        log_every: 50
+        val_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 5.0e-5
+          weight_decay: 0.0
+      callbacks:
+        lr_scheduler:
+          enabled: false
+      loss:
+        weights:
+          pde: 0.5
+          term: 2.0
+          low: 2.0
+          no_arbitrage: 1.0
+
+  - key: "warm03_w_pde025_term5_low2"
+    label: "Warm static weights pde 0.25 term 5 low 2"
+    metric_focus: "pricing"
+    enabled: true
+    description: "Warm-start con terminal fuerte y PDE reducido."
+    training_overrides:
+      meta:
+        optimizer: "adam"
+        initial_checkpoint: "outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt"
+        initial_checkpoint_strict: true
+      loop:
+        epochs: 600
+        log_every: 50
+        val_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 5.0e-5
+          weight_decay: 0.0
+      callbacks:
+        lr_scheduler:
+          enabled: false
+      loss:
+        weights:
+          pde: 0.25
+          term: 5.0
+          low: 2.0
+          no_arbitrage: 1.0
+
+  - key: "warm04_w_pde050_term5_low5"
+    label: "Warm static weights pde 0.5 term 5 low 5"
+    metric_focus: "pricing"
+    enabled: true
+    description: "Warm-start con terminal/lower fuertes y PDE moderado."
+    training_overrides:
+      meta:
+        optimizer: "adam"
+        initial_checkpoint: "outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt"
+        initial_checkpoint_strict: true
+      loop:
+        epochs: 600
+        log_every: 50
+        val_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 5.0e-5
+          weight_decay: 0.0
+      callbacks:
+        lr_scheduler:
+          enabled: false
+      loss:
+        weights:
+          pde: 0.5
+          term: 5.0
+          low: 5.0
+          no_arbitrage: 1.0
+
+  - key: "warm05_log_pde_guarded"
+    label: "Warm guarded log-adapted PDE"
+    metric_focus: "pricing"
+    enabled: true
+    description: "Warm-start con log-weight adaptativo solo para PDE, terminal/lower fijos."
+    training_overrides:
+      meta:
+        optimizer: "adam"
+        initial_checkpoint: "outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt"
+        initial_checkpoint_strict: true
+      loop:
+        epochs: 600
+        log_every: 50
+        val_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 5.0e-5
+          weight_decay: 0.0
+      callbacks:
+        lr_scheduler:
+          enabled: false
+      loss:
+        weights:
+          pde: 1.0
+          term: 1.0
+          low: 1.0
+          no_arbitrage: 1.0
+        learned_weights:
+          enabled: true
+          terms:
+            - "pde"
+          learn_rate: 5.0e-6
+          min_log_var: -1.0
+          max_log_var: 1.0
+          prior:
+            strength: 1.0
+            target: 0.0
+
+  - key: "warm06_log_pde_noarb_guarded"
+    label: "Warm guarded log-adapted PDE/no-arb"
+    metric_focus: "pricing"
+    enabled: true
+    description: "Warm-start con log-weights adaptativos para PDE y no-arbitrage, terminal/lower fijos."
+    training_overrides:
+      meta:
+        optimizer: "adam"
+        initial_checkpoint: "outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt"
+        initial_checkpoint_strict: true
+      loop:
+        epochs: 600
+        log_every: 50
+        val_every: 1
+      optimizers:
+        - name: "adam"
+          learn_rate: 5.0e-5
+          weight_decay: 0.0
+      callbacks:
+        lr_scheduler:
+          enabled: false
+      loss:
+        weights:
+          pde: 1.0
+          term: 1.0
+          low: 1.0
+          no_arbitrage: 1.0
+        learned_weights:
+          enabled: true
+          terms:
+            - "pde"
+            - "no_arbitrage"
+          learn_rate: 5.0e-6
+          min_log_var: -1.0
+          max_log_var: 1.0
+          prior:
+            strength: 1.0
+            target: 0.0

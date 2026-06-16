@@ -4,7 +4,7 @@ meta:
   description: Residual-based adaptive collocation fine-tuning from the stable boundary-layer
     PINN.
 base:
-  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling
   checkpoint: null
   train_summary: null
   collocation_manifest: null
@@ -33,25 +33,32 @@ adaptive:
       short: 0.15
       atm: 0.15
   selection:
-    adaptive_ratio: 0.4
+    adaptive_ratio: 0.2
     min_source_shares:
       hard: 0.25
       short: 0.15
       atm: 0.15
+    score:
+      residual_weight: 1.0
+      curvature_weight: 0.1
+      residual_dx_weight: 0.0
+      residual_dv_weight: 0.0
   sampling:
     strategy: lhs_static
-    mode: parametric_theta
+    mode: fixed_theta
     seed: 42
     sizes:
       n_interior: 40000
       n_terminal: 10000
       n_lower: 10000
+      n_right: 10000
+      n_v_zero: 10000
     domain:
       tau:
       - 0.0
       - 3.0
       moneyness:
-      - 0.0
+      - 0.05
       - 2.0
       v:
       - 0.01
@@ -72,3 +79,20 @@ adaptive:
         bar_v:
         - 0.01
         - 0.5
+    coordinate_space: log_moneyness
+    boundaries:
+      lower_moneyness: 0.05
+      right_moneyness: 3.0
+      v_zero_value: 0.0
+    kink_band:
+      enabled: true
+      fraction: 0.3
+      c: 2.0
+      tau_c: 0.15
+      epsilon: 1.0e-08
+inputs:
+  cann:
+    calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg
+    summary_file: summary.yaml
+    quotes_file: quotes_comparison.parquet
+    parameter_key: theta_star

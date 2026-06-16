@@ -1,0 +1,34 @@
+meta:
+  experiment_name: price03_payoff_sqrt_time
+  seed: 42
+  description: Ansatz payoff-aware con factor temporal sqrt(tau+eps)-sqrt(eps), sin
+    supervision COS.
+inputs:
+  cann:
+    calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg
+    summary_file: summary.yaml
+    quotes_file: quotes_comparison.parquet
+    parameter_key: theta_star
+    columns:
+      moneyness: moneyness
+      tau: tau
+      r: r
+      iv_market: iv_market
+      iv_pred: iv_pred
+  pricing_context:
+    target_name: price_market
+    spot: null
+    strike_column: null
+model:
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/architecture.yaml
+training:
+  training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/training.yaml
+pipeline:
+  stages:
+    prepare_dataset: true
+    train: true
+    evaluate: false
+outputs:
+  root_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn
+  run_name: pinn_pricing_nosup_ablation_v01/price03_payoff_sqrt_time
+  dump_plan_filename: pipeline_plan.yaml

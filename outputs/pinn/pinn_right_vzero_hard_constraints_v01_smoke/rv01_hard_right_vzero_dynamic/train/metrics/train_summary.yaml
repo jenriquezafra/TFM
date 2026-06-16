@@ -1,0 +1,175 @@
+collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/smoke/collocation_sets_manifest.yaml
+device: cpu
+optimizer_mode: mix_half
+mix_half_switch_epoch: 4
+epochs: 3
+batch_size_collocation: 128
+batch_size_boundary: 64
+val_every: 1
+initial_checkpoint: null
+initial_checkpoint_report: null
+val_fraction: 0.2
+n_train_interior: 512
+n_train_terminal: 102
+n_train_lower: 102
+n_val_interior: 102
+n_val_terminal: 26
+n_val_lower: 26
+n_train_right: 102
+n_train_v_zero: 102
+n_val_right: 26
+n_val_v_zero: 26
+input_scaling:
+  enabled: true
+  method: standardize_train
+  eps: 1.0e-08
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  a:
+  - -1.385431170463562
+  - -1.2245935201644897
+  - -1.4125995635986328
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - -1.7176976203918457
+  b:
+  - 1.0565744638442993
+  - 1.085449457168579
+  - 6.316437721252441
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 69.57539367675781
+  mean_train:
+  - 1.3112479448318481
+  - 1.1281901597976685
+  - 0.223638653755188
+  - -0.5241299867630005
+  - 1.057623267173767
+  - 0.2995682656764984
+  - 0.19758449494838715
+  - 0.024688290432095528
+  std_train:
+  - 0.9464548230171204
+  - 0.9212772846221924
+  - 0.15831708908081055
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.014372896403074265
+  frozen_features:
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+best_val_total: 0.000902160070836544
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/checkpoints/model_last.pt
+history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/metrics/train_history.csv
+figures:
+  loss_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/figures/loss_curve.png
+  loss_components_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/figures/loss_components_curve.png
+  learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/figures/learning_rate_curve.png
+  pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/figures/pde_residual_map_m_tau.png
+  pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic/train/figures/pde_residual_map_m_tau_log.png
+dynamic_collocation:
+  enabled: true
+  config:
+    enabled: true
+    start_epoch: 2
+    refresh_every: 1
+    stop_epoch: 2
+    max_refreshes: 1
+    n_interior: 512
+    fractions:
+      global: 0.35
+      kink: 0.35
+      adaptive: 0.3
+    hard_region:
+      epsilon_m: 0.03
+      epsilon_tau: 0.05
+    kink_band:
+      c: 2.0
+      tau_c: 0.2
+      epsilon: 1.0e-08
+    candidate_pool:
+      n_candidates: 768
+      batch_size: 256
+      region_shares:
+        global: 0.25
+        hard: 0.25
+        short: 0.15
+        atm: 0.15
+        kink: 0.2
+    score:
+      residual_weight: 1.0
+      curvature_weight: 0.01
+    selection:
+      method: rar-d
+      power: 1.0
+      floor: 0.05
+      min_source_shares:
+        hard: 0.2
+        kink: 0.2
+        atm: 0.1
+  refresh_count: 1
+  refreshes:
+  - epoch: 2
+    seed: 42
+    n_interior: 512
+    source_counts:
+      global: 179
+      kink: 179
+      adaptive: 154
+    candidate_counts:
+      global: 192
+      hard: 192
+      short: 115
+      atm: 115
+      kink: 154
+    selected_counts:
+      atm: 31
+      hard: 62
+      kink: 61
+    score_summary:
+      candidate_score_mean: 1.1342654631604698
+      candidate_score_p95: 4.407468986511229
+      candidate_score_p99: 17.40250759124777
+      selected_score_mean: 1.925260122067162
+      selected_score_min: 0.030999530106782913
+      selected_score_max: 8.008549690246582
+      selected_abs_residual_mean: 1.8770354850967597
+    domain:
+      tau:
+      - 0.0
+      - 3.0
+      moneyness:
+      - 0.0
+      - 2.0
+      v:
+      - 0.01
+      - 0.5
+      r:
+      - 0.0
+      - 0.05
+    realized:
+      tau_min: 0.00019327571499161422
+      tau_max: 2.995358943939209
+      moneyness_min: 0.0043876138515770435
+      moneyness_max: 1.9989330768585205
+learned_loss_weights:
+  enabled: false
+  config: {}
+  final: {}
+total_training_seconds: 0.9035704160341993

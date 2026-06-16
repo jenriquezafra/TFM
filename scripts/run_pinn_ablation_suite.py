@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from copy import deepcopy
@@ -12,9 +13,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import yaml
 
-from scripts.build_pinn_ablation_study import build_ablation_study
 from src.pinn.config import load_yaml
-from src.pinn.pipeline import run_pinn_pipeline_from_config
 
 
 DEFAULT_MANIFEST = PROJECT_ROOT / "configs" / "pinn_greek_ablation_suite.yaml"
@@ -73,8 +72,15 @@ def _mode_overrides(manifest: dict, mode: str) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _run_name(manifest: dict, variant: dict) -> str:
-    return f"{_suite_id(manifest)}/{variant['key']}"
+def _run_name_for_key(manifest: dict, key: str, mode: str) -> str:
+    suite_id = _suite_id(manifest)
+    if mode == "full":
+        return f"{suite_id}/{key}"
+    return f"{suite_id}_{mode}/{key}"
+
+
+def _run_name(manifest: dict, variant: dict, mode: str) -> str:
+    return _run_name_for_key(manifest, str(variant["key"]), mode)
 
 
 def _resolved_root(manifest: dict, mode: str) -> Path:
@@ -112,7 +118,7 @@ def _prepare_variant_configs(
     diagnostics = _deep_merge(diagnostics, mode_overrides.get("diagnostics_overrides", {}))
 
     key = str(variant["key"])
-    run_name = _run_name(manifest, variant)
+    run_name = _run_name(manifest, variant, mode)
     resolved_root = _resolved_root(manifest, mode) / key
     architecture_path = resolved_root / "architecture.yaml"
     training_path = resolved_root / "training.yaml"
@@ -161,7 +167,7 @@ def _prepare_variant_configs(
         adaptive = _deep_merge(adaptive, variant.get("adaptive_overrides", {}))
         adaptive = _deep_merge(adaptive, mode_overrides.get("adaptive_overrides", {}))
         adaptive.setdefault("base", {})
-        adaptive["base"]["run_dir"] = str(PROJECT_ROOT / "outputs" / "pinn" / _suite_id(manifest) / base_variant)
+        adaptive["base"]["run_dir"] = str(PROJECT_ROOT / "outputs" / "pinn" / _run_name_for_key(manifest, base_variant, mode))
         adaptive["base"]["checkpoint"] = None
         adaptive["base"]["train_summary"] = None
         adaptive["base"]["collocation_manifest"] = None
@@ -169,7 +175,7 @@ def _prepare_variant_configs(
         adaptive["model"]["architecture_config"] = str(architecture_path)
         adaptive.setdefault("training", {})
         adaptive["training"]["training_config"] = str(training_path)
-        adaptive["training"]["output_dir"] = str(PROJECT_ROOT / "outputs" / "pinn" / _suite_id(manifest) / key / "train")
+        adaptive["training"]["output_dir"] = str(PROJECT_ROOT / "outputs" / "pinn" / _run_name_for_key(manifest, key, mode) / "train")
         adaptive.setdefault("adaptive", {})
         adaptive["adaptive"]["output_dir"] = str(PROJECT_ROOT / "data" / "synth" / _suite_id(manifest) / key / f"{mode}_adaptive")
         adaptive["adaptive"]["seed"] = int(manifest.get("seed", adaptive["adaptive"].get("seed", 42)))
@@ -193,11 +199,22 @@ def _write_resolved_manifest(
 ) -> Path:
     resolved = deepcopy(manifest)
     resolved["mode"] = mode
+    if mode != "full":
+        resolved.setdefault("comparison", {})
+        if isinstance(resolved["comparison"], dict):
+            resolved["comparison"]["output_dir"] = str(
+                PROJECT_ROOT
+                / "outputs"
+                / "pinn"
+                / "ablation_suites"
+                / _suite_id(manifest)
+                / mode
+            )
     resolved["variants"] = []
     for variant in variants:
         item = deepcopy(variant)
         key = str(item["key"])
-        item["run_dir"] = str(PROJECT_ROOT / "outputs" / "pinn" / _run_name(manifest, item))
+        item["run_dir"] = str(PROJECT_ROOT / "outputs" / "pinn" / _run_name(manifest, item, mode))
         item["diagnostics_subdir"] = str(
             item.get("diagnostics_subdir", manifest.get("diagnostics", {}).get("output_subdir", "baseline_diagnostics"))
         )
@@ -211,6 +228,57 @@ def _write_resolved_manifest(
 def _run_diagnostics(config_path: Path) -> None:
     cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "run_pinn_baseline_diagnostics.py"), "--config", str(config_path)]
     subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
+
+
+def _run_pipeline_stage(config_path: Path, stage: str) -> None:
+    child_env = dict(os.environ)
+    child_env.pop("PYTHONUNBUFFERED", None)
+    if stage == "train":
+        code = (
+            "import sys, yaml; "
+            "from pathlib import Path; "
+            "from src.pinn.trainer import PINNTrainer; "
+            "project=Path('.').resolve(); "
+            "cfg_path=Path(sys.argv[1]); "
+            "cfg=yaml.safe_load(cfg_path.read_text()) or {}; "
+            "resolve=lambda raw: (Path(raw) if Path(raw).is_absolute() else project / Path(raw)); "
+            "arch_path=resolve(cfg.get('model', {}).get('architecture_config', 'configs/pinn_model_architecture.yaml')); "
+            "train_path=resolve(cfg.get('training', {}).get('training_config', 'configs/pinn_training.yaml')); "
+            "model_cfg=yaml.safe_load(arch_path.read_text()) or {}; "
+            "train_cfg=yaml.safe_load(train_path.read_text()) or {}; "
+            "outputs=cfg.get('outputs', {}); "
+            "run_dir=resolve(outputs.get('root_dir', 'outputs/pinn')) / str(outputs.get('run_name', 'PINN_v01')); "
+            "sampling=train_cfg.get('sampling', {}); "
+            "sampling_raw=sampling.get('output_dir'); "
+            "sampling_dir=resolve(sampling_raw) if sampling_raw else project / 'data' / 'synth' / str(outputs.get('run_name', 'PINN_v01')); "
+            "manifest=sampling_dir / 'collocation_sets_manifest.yaml'; "
+            "trainer=PINNTrainer(output_dir=run_dir / 'train', training_config=train_cfg); "
+            "trainer.train(model_config=model_cfg, dataset_manifest={'collocation_manifest_file': str(manifest)})"
+        )
+        cmd = [sys.executable, "-u", "-c", code, str(config_path)]
+        subprocess.run(cmd, cwd=PROJECT_ROOT, check=True, env=child_env)
+        return
+
+    code = (
+        "import sys; "
+        "from pathlib import Path; "
+        "from src.pinn.pipeline import run_pinn_pipeline_from_config; "
+        "run_pinn_pipeline_from_config("
+        "project_root=Path('.').resolve(), "
+        "config_path=Path(sys.argv[1]), "
+        "stage=sys.argv[2], "
+        "dry_run=False, "
+        "dump_plan=True)"
+    )
+    cmd = [
+        sys.executable,
+        "-u",
+        "-c",
+        code,
+        str(config_path),
+        stage,
+    ]
+    subprocess.run(cmd, cwd=PROJECT_ROOT, check=True, env=child_env)
 
 
 def _run_adaptive(config_path: Path, stage: str) -> None:
@@ -282,28 +350,18 @@ def main() -> None:
             if workflow == "adaptive_collocation":
                 _run_adaptive(config_paths[key]["adaptive"], "build_dataset")
             else:
-                run_pinn_pipeline_from_config(
-                    project_root=PROJECT_ROOT,
-                    config_path=config_paths[key]["pipeline"],
-                    stage="prepare_dataset",
-                    dry_run=False,
-                    dump_plan=True,
-                )
+                _run_pipeline_stage(config_paths[key]["pipeline"], "prepare_dataset")
         if "train" in steps:
             if workflow == "adaptive_collocation":
                 _run_adaptive(config_paths[key]["adaptive"], "train")
             else:
-                run_pinn_pipeline_from_config(
-                    project_root=PROJECT_ROOT,
-                    config_path=config_paths[key]["pipeline"],
-                    stage="train",
-                    dry_run=False,
-                    dump_plan=True,
-                )
+                _run_pipeline_stage(config_paths[key]["pipeline"], "train")
         if "diagnose" in steps:
             _run_diagnostics(config_paths[key]["diagnostics"])
 
     if "compare" in steps:
+        from scripts.build_pinn_ablation_study import build_ablation_study
+
         outputs = build_ablation_study(manifest_path=resolved_manifest)
         print(f"Scores CSV: {outputs['scores_csv']}")
         print(f"Pairwise figures: {outputs['pairwise_dir']}")

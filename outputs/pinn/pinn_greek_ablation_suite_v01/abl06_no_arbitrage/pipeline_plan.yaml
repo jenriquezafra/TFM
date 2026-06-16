@@ -1,7 +1,8 @@
 project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl06_no_arbitrage/pipeline.yaml
 experiment_name: abl06_no_arbitrage
-description: Penaliza bounds de precio, rango de Delta y convexidad del put.
+description: Nucleo log y guards del PDF mas penalizaciones reales de bounds de precio,
+  rango de Delta y convexidad.
 architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl06_no_arbitrage/architecture.yaml
 training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl06_no_arbitrage/training.yaml
 outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn

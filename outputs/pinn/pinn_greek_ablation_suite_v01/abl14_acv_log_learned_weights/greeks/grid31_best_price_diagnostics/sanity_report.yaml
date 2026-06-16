@@ -1,0 +1,81 @@
+timestamp: 2026-06-15_23-41-55
+experiment_id: abl14_acv_log_learned_weights
+pde_convention:
+  time_variable: tau = T - t
+  calendar_theta: theta = -dV/dtau when theta_sign='minus_dv_dtau'
+  coordinate: log_moneyness
+  implemented_residual: U_tau - 0.5*v*U_xx - (r-0.5*v)*U_x - rho*gamma*v*U_xv - 0.5*gamma^2*v*U_vv
+    - kappa*(bar_v-v)*U_v + r*U
+  pde_feature_order_supported:
+  - - tau
+    - moneyness
+    - v
+    - rho
+    - kappa
+    - gamma
+    - bar_v
+    - r
+  - - tau
+    - log_moneyness
+    - v
+    - rho
+    - kappa
+    - gamma
+    - bar_v
+    - r
+  pde_residual_computed: true
+  derivative_residual_computed: false
+greek_definitions:
+  delta: dV/dlog_moneyness; converted to spot S with strike=1.0. For log_moneyness,
+    Delta=e^-x U_x / K.
+  gamma: d2V/dlog_moneyness2; converted to spot S with strike=1.0. For log_moneyness,
+    Gamma=e^-2x (U_xx-U_x) / K^2.
+  vega: dV/dv; current convention is sensitivity to variance v
+  theta: calendar-time theta = -dV/dtau
+  rho: dV/dr
+  multi_output_heads: head_delta/head_gamma/head_vega are reported when the model
+    exposes forward_all(); they are diagnostics only and are not COS-trained labels.
+regions:
+  epsilon_m: 0.03
+  epsilon_tau: 0.05
+  counts:
+    full: 961
+    non_hard: 961
+    short_maturity: 0
+    atm: 155
+    hard: 0
+run:
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights
+  checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/train/checkpoints/model_best.pt
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl14_acv_log_learned_weights/architecture.yaml
+  feature_order:
+  - tau
+  - log_moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  device: cpu
+  dtype: torch.float64
+  multi_output_heads_computed: true
+timing:
+  pinn_derivatives_seconds: 0.9288417499046773
+  reference_seconds: 0.2801422089105472
+  pinn_points_per_second: 1034.621882681978
+  reference_points_per_second: 3430.400594531112
+reference:
+  option_type: put
+  failed_reference_points: 0
+  cf_integration:
+    u_min: 1.0e-06
+    u_max: 200.0
+    n_u: 1200
+artifacts:
+  points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/greeks/grid31_best_price_diagnostics/points_baseline_diagnostics.csv
+  metrics_by_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/greeks/grid31_best_price_diagnostics/metrics_by_region.csv
+  no_reference_diagnostics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/greeks/grid31_best_price_diagnostics/no_reference_diagnostics.csv
+  finite_difference_csv: null
+  finite_difference_metrics_csv: null
+  figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/greeks/grid31_best_price_diagnostics/figures

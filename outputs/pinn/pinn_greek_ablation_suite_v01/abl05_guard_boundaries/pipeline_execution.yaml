@@ -1,4 +1,4 @@
-timestamp: 2026-06-10_23-44-50
+timestamp: 2026-06-12_17-43-56
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl05_guard_boundaries/pipeline.yaml
 run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl05_guard_boundaries
 stages:

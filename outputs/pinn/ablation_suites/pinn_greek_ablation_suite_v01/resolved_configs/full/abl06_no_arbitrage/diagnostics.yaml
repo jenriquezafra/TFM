@@ -6,7 +6,7 @@ global:
   device: auto
   dtype: float64
   feature_order: null
-  spot_feature: moneyness
+  spot_feature: log_moneyness
   vol_feature: v
   tau_feature: tau
   rate_feature: r
@@ -54,3 +54,5 @@ diagnostics:
     u_min: 1.0e-06
     u_max: 200.0
     n_u: 1200
+  boundary_checks:
+    lower_moneyness: 0.05

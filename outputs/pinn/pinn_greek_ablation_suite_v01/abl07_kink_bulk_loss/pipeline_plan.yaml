@@ -1,7 +1,8 @@
 project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl07_kink_bulk_loss/pipeline.yaml
 experiment_name: abl07_kink_bulk_loss
-description: Separa el residual PDE en zona kink y zona bulk con un gate suave.
+description: Nucleo log, guards y no-arbitrage mas separacion L_PDE,kink / L_PDE,bulk
+  con gate suave.
 architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl07_kink_bulk_loss/architecture.yaml
 training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl07_kink_bulk_loss/training.yaml
 outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn

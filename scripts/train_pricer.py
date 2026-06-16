@@ -27,6 +27,12 @@ from src.models.normalization import (
     normalize_target,
     save_normalization_stats,
 )
+from src.sobolev.ann_iv import (
+    DEFAULT_ANN_IV_DERIVATIVE_COLUMNS,
+    derivative_columns_to_indices,
+    robust_derivative_scales,
+    sobolev_derivative_loss,
+)
 from src.utils.callbacks import save_checkpoints, EarlyStopping
 
 config_path = PROJECT_ROOT / "configs" / "model_training.yaml"
@@ -56,6 +62,17 @@ def _parse_cli_args() -> argparse.Namespace:
         default=None,
         help="Optional output folder name under outputs/runs. Defaults to a timestamp.",
     )
+    parser.add_argument(
+        "--runs-dir",
+        type=str,
+        default=None,
+        help="Optional output root for runs. Defaults to outputs/runs.",
+    )
+    parser.add_argument(
+        "--skip-post-actions",
+        action="store_true",
+        help="Skip automatic sensitivity plots, calibration, and experiment-log refresh.",
+    )
     return parser.parse_args()
 
 
@@ -79,7 +96,7 @@ DEFAULT_FEATURE_COLUMNS = ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", 
 TARGET_FALLBACK_CANDIDATES = ("iv_brent", "IV")
 
 # to save the run outputs
-RUNS_DIR = PROJECT_ROOT / "outputs" / "runs"
+RUNS_DIR = _resolve_config_path(cli_args.runs_dir) if cli_args.runs_dir else PROJECT_ROOT / "outputs" / "runs"
 run_id = cli_args.run_name.strip() if cli_args.run_name else datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 if not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
     raise ValueError(f"Invalid --run-name: {run_id!r}")
@@ -431,6 +448,126 @@ def _build_bin_metrics(
     return rows
 
 
+def _normalization_x_std(stats: dict, feature_cols: list[str]) -> np.ndarray:
+    if not bool(stats.get("enabled", False)):
+        return np.ones(len(feature_cols), dtype=np.float32)
+    raw = np.asarray(stats.get("x_std", []), dtype=np.float64)
+    if raw.size != len(feature_cols):
+        raise ValueError(
+            "normalization x_std size mismatch. "
+            f"Expected {len(feature_cols)}, got {raw.size}"
+        )
+    return np.maximum(raw, 1.0e-12).astype(np.float32, copy=False)
+
+
+def _normalization_y_std(stats: dict) -> float:
+    if not bool(stats.get("enabled", False)):
+        return 1.0
+    if not bool(stats.get("normalize_target", False)):
+        return 1.0
+    value = float(stats.get("y_std", 1.0))
+    if abs(value) < 1.0e-12:
+        return 1.0
+    return value
+
+
+def _load_sobolev_manifest(anchor_dir: Path) -> dict:
+    manifest_path = anchor_dir / "manifest.yaml"
+    if not manifest_path.exists():
+        return {}
+    return _load_yaml_dict(manifest_path)
+
+
+def _resolve_sobolev_scales(
+    *,
+    sob_cfg: dict,
+    sob_train_df: pd.DataFrame,
+    derivative_columns: list[str],
+    anchor_dir: Path,
+) -> list[float]:
+    configured = sob_cfg.get("scales", None)
+    if isinstance(configured, dict):
+        return [float(configured[col]) for col in derivative_columns]
+    if isinstance(configured, (list, tuple)):
+        values = [float(x) for x in configured]
+        if len(values) != len(derivative_columns):
+            raise ValueError(
+                "loss.sobolev.scales length must match derivative_columns. "
+                f"Got {len(values)} vs {len(derivative_columns)}."
+            )
+        return values
+
+    manifest = _load_sobolev_manifest(anchor_dir)
+    manifest_scales = manifest.get("derivative_scales", {}) if isinstance(manifest, dict) else {}
+    if isinstance(manifest_scales, dict) and all(col in manifest_scales for col in derivative_columns):
+        return [float(manifest_scales[col]) for col in derivative_columns]
+
+    computed = robust_derivative_scales(sob_train_df, derivative_columns)
+    return [float(computed[col]) for col in derivative_columns]
+
+
+def _load_sobolev_training_data(
+    *,
+    sob_cfg: dict,
+    feature_cols: list[str],
+    normalization_stats: dict,
+    project_root: Path,
+) -> tuple[TensorDataset, list[str], list[int], list[float]]:
+    anchor_raw = sob_cfg.get("anchor_dir")
+    if not anchor_raw:
+        raise ValueError("loss.sobolev.anchor_dir is required when Sobolev is enabled")
+    anchor_dir = _resolve_path(anchor_raw, base_dir=project_root)
+    train_path = anchor_dir / "train.parquet"
+    if not train_path.exists():
+        raise FileNotFoundError(f"Sobolev train anchors not found: {train_path}")
+
+    derivative_columns = [str(col) for col in sob_cfg.get(
+        "derivative_columns",
+        DEFAULT_ANN_IV_DERIVATIVE_COLUMNS,
+    )]
+    sob_train_df = pd.read_parquet(train_path)
+    if "valid" in sob_train_df.columns:
+        sob_train_df = sob_train_df.loc[sob_train_df["valid"]].copy()
+    if sob_train_df.empty:
+        raise ValueError(f"Sobolev train anchors are empty after filtering: {train_path}")
+
+    missing = [col for col in feature_cols + derivative_columns if col not in sob_train_df.columns]
+    if missing:
+        raise KeyError(f"Sobolev anchors are missing required columns: {missing}")
+
+    required_values = sob_train_df.loc[:, feature_cols + derivative_columns].to_numpy(dtype=np.float64)
+    finite_mask = np.all(np.isfinite(required_values), axis=1)
+    dropped = int((~finite_mask).sum())
+    if dropped > 0:
+        print(f"[sobolev] dropped non-finite anchor rows: {dropped}")
+    sob_train_df = sob_train_df.loc[finite_mask].reset_index(drop=True)
+    if sob_train_df.empty:
+        raise ValueError("All Sobolev anchors are non-finite")
+
+    x_anchor_norm = normalize_features(
+        sob_train_df.loc[:, feature_cols].to_numpy(dtype=np.float64),
+        normalization_stats,
+    )
+    y_deriv = sob_train_df.loc[:, derivative_columns].to_numpy(dtype=np.float64).astype(np.float32)
+    derivative_indices = derivative_columns_to_indices(feature_cols, derivative_columns)
+    derivative_scales = _resolve_sobolev_scales(
+        sob_cfg=sob_cfg,
+        sob_train_df=sob_train_df,
+        derivative_columns=derivative_columns,
+        anchor_dir=anchor_dir,
+    )
+    ds = TensorDataset(
+        torch.from_numpy(x_anchor_norm).float(),
+        torch.from_numpy(y_deriv).float(),
+    )
+    print(
+        "[sobolev] anchors loaded | "
+        f"rows={len(ds)} | derivative_columns={derivative_columns} | "
+        f"scales={derivative_scales}"
+    )
+    return ds, derivative_columns, derivative_indices, derivative_scales
+
+
 def _run_post_training_calibration(run_name: str) -> None:
     if not calibration_config_path.exists():
         print(f"Warning: calibration config not found at {calibration_config_path}")
@@ -750,6 +887,59 @@ if meta_opt_name not in supported_training_modes:
         "Use one of: 'adam', 'L-BFGS', 'mix', 'mix_half'"
     )
 
+loss_name = (config["loss"]["name"]).lower()
+sob_cfg = config.get("loss", {}).get("sobolev", {}) or {}
+sob_enabled = bool(sob_cfg.get("enabled", False))
+sob_weight = float(sob_cfg.get("weight", 0.0))
+sob_warmup_epochs = int(sob_cfg.get("warmup_epochs", 0))
+sob_train_loader = None
+sob_train_iter = None
+sob_derivative_columns: list[str] = []
+sob_derivative_indices: list[int] = []
+sob_derivative_scales: list[float] = []
+sob_x_std_np = _normalization_x_std(normalization_stats, feature_cols)
+sob_y_std = _normalization_y_std(normalization_stats)
+
+if sob_enabled:
+    if meta_opt_name != "adam":
+        raise ValueError(
+            "ANN-IV Sobolev training currently supports meta.optimizer='adam' only."
+        )
+    if loss_name != "mse":
+        raise ValueError("ANN-IV Sobolev training currently requires loss.name='mse'.")
+    if sob_weight < 0.0:
+        raise ValueError("loss.sobolev.weight must be >= 0")
+    if sob_warmup_epochs < 0:
+        raise ValueError("loss.sobolev.warmup_epochs must be >= 0")
+
+    sob_ds, sob_derivative_columns, sob_derivative_indices, sob_derivative_scales = (
+        _load_sobolev_training_data(
+            sob_cfg=sob_cfg,
+            feature_cols=feature_cols,
+            normalization_stats=normalization_stats,
+            project_root=PROJECT_ROOT,
+        )
+    )
+    sob_batch_raw = sob_cfg.get("batch_size", config["loop"]["batch_size_train"])
+    if sob_batch_raw == "all":
+        sob_batch_size = len(sob_ds)
+    else:
+        sob_batch_size = int(sob_batch_raw)
+    if sob_batch_size <= 0:
+        raise ValueError("loss.sobolev.batch_size must be > 0")
+    sob_train_loader = DataLoader(
+        sob_ds,
+        batch_size=min(sob_batch_size, len(sob_ds)),
+        shuffle=True,
+        generator=g,
+    )
+    sob_train_iter = iter(sob_train_loader)
+    print(
+        "[sobolev] enabled | "
+        f"weight={sob_weight} | warmup_epochs={sob_warmup_epochs} | "
+        f"batch_size={min(sob_batch_size, len(sob_ds))}"
+    )
+
 if batch_size_train == "all":
     batch_size_train_adam = n_train
 else:
@@ -810,6 +1000,9 @@ model = ANN(
     dropout_rate=model_cfg["hidden"]["dropout_rate"],
     initialization=model_cfg["hidden"]["initialization"],
 ).to(device)
+
+sob_x_std_t = torch.tensor(sob_x_std_np, dtype=torch.float32, device=device)
+sob_derivative_scales_t = torch.tensor(sob_derivative_scales, dtype=torch.float32, device=device) if sob_enabled else None
 
 ### loss 
 loss_name = (config["loss"]["name"]).lower()
@@ -980,7 +1173,11 @@ for epoch in range(1, epochs+1): # each epoch
     # train
     model.train()
     train_sum = 0.0
+    train_base_sum = 0.0
+    train_sobolev_sum = 0.0
+    train_sobolev_count = 0
     train_loader = train_loaders_by_name[active_opt_name]
+    sobolev_active = sob_enabled and sob_weight > 0.0 and epoch > sob_warmup_epochs
 
     for xb, yb in train_loader: # each batch
         xb, yb = xb.to(device), yb.to(device)
@@ -994,16 +1191,51 @@ for epoch in range(1, epochs+1): # each epoch
                 return loss_local
 
             loss = optimizer.step(closure)
+            base_loss_value = float(loss.item())
+            sobolev_loss_value = 0.0
         else:
             optimizer.zero_grad()
             pred = model(xb)
-            loss = loss_fn(pred, yb)
+            base_loss = loss_fn(pred, yb)
+            loss = base_loss
+            sobolev_loss_value = 0.0
+
+            if sobolev_active:
+                if sob_train_loader is None or sob_train_iter is None or sob_derivative_scales_t is None:
+                    raise RuntimeError("Sobolev training state was not initialized")
+                try:
+                    x_sob, y_sob_deriv = next(sob_train_iter)
+                except StopIteration:
+                    sob_train_iter = iter(sob_train_loader)
+                    x_sob, y_sob_deriv = next(sob_train_iter)
+                x_sob = x_sob.to(device)
+                y_sob_deriv = y_sob_deriv.to(device)
+                sob_loss, _ = sobolev_derivative_loss(
+                    model=model,
+                    x_model=x_sob,
+                    target_derivatives_raw=y_sob_deriv,
+                    derivative_indices=sob_derivative_indices,
+                    x_std=sob_x_std_t,
+                    y_std=sob_y_std,
+                    derivative_scales=sob_derivative_scales_t,
+                )
+                loss = base_loss + sob_weight * sob_loss
+                sobolev_loss_value = float(sob_loss.detach().item())
+                train_sobolev_sum += sobolev_loss_value * x_sob.size(0)
+                train_sobolev_count += x_sob.size(0)
+
             loss.backward()
             optimizer.step()
+            base_loss_value = float(base_loss.detach().item())
 
         train_sum += loss.item() * xb.size(0) # loss.item() es una media del escalar de loss para una epoch
+        train_base_sum += base_loss_value * xb.size(0)
 
     train_loss = train_sum / n_train 
+    train_base_loss = train_base_sum / n_train
+    train_sobolev_loss = (
+        train_sobolev_sum / train_sobolev_count if train_sobolev_count > 0 else None
+    )
 
     # validation
     model.eval()
@@ -1043,6 +1275,9 @@ for epoch in range(1, epochs+1): # each epoch
         "epoch": epoch,
         "optimizer": active_opt_name,
         "train_loss": train_loss,
+        "train_base_loss": train_base_loss,
+        "train_sobolev_loss": train_sobolev_loss,
+        "sobolev_active": bool(sobolev_active),
         "val_loss": val_loss,
         "val_loss_trimmed": val_loss_trimmed,
         "monitor_name": best_monitor_name,
@@ -1100,13 +1335,18 @@ for epoch in range(1, epochs+1): # each epoch
         trimmed_str = ""
         if val_loss_trimmed is not None:
             trimmed_str = f" | val_trim {loss_name}: {val_loss_trimmed:.6f}"
+        sob_str = ""
+        if sob_enabled:
+            sob_value = "n/a" if train_sobolev_loss is None else f"{train_sobolev_loss:.6f}"
+            sob_str = f" | base {loss_name}: {train_base_loss:.6f} | sob: {sob_value}"
         print(
             f"Epoch {epoch:3d}/{epochs} | "
             f"opt: {active_opt_name} | "
             f"train {loss_name}: {train_loss:.6f} | "
             f"val {loss_name}: {val_loss:.6f} | "
             f"monitor ({best_monitor_name}): {monitor_value:.6f}"
-            f"{trimmed_str} | "
+            f"{trimmed_str}"
+            f"{sob_str} | "
             f"ETA {_format_seconds(eta_sec)}"
         )
     
@@ -1188,6 +1428,14 @@ if eval_enabled:
             "enabled": norm_enabled,
             "normalize_target": norm_target_enabled,
             "stats_file": str(norm_stats_path),
+        },
+        "sobolev": {
+            "enabled": bool(sob_enabled),
+            "weight": float(sob_weight),
+            "warmup_epochs": int(sob_warmup_epochs),
+            "derivative_columns": list(sob_derivative_columns),
+            "derivative_indices": [int(i) for i in sob_derivative_indices],
+            "derivative_scales": [float(x) for x in sob_derivative_scales],
         },
         "global": {
             row["split"]: {
@@ -1278,33 +1526,36 @@ if plots_cfg["lr_curve"]:
     plt.close()
     print(f"Saved learning rate curve figure on {fig_dir}")
 
-# run sensitivity plots automatically for this run
-sensitivity_cfg_path = PROJECT_ROOT / "configs" / "sensitivity_config.yaml"
-if sensitivity_cfg_path.exists():
-    cmd = [
-        sys.executable,
-        str(PROJECT_ROOT / "scripts" / "sensitivity_pricer.py"),
-        "--config",
-        str(sensitivity_cfg_path),
-        "--model-dir",
-        run_dir.name,
-    ]
-    print("Running sensitivity_pricer.py to generate 3x2 grid...")
-    proc = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
-    if proc.returncode == 0:
-        print(f"Sensitivity plots generated in {fig_dir}")
-    else:
-        print("Warning: sensitivity_pricer.py failed")
-        if proc.stdout:
-            print(proc.stdout)
-        if proc.stderr:
-            print(proc.stderr)
+if cli_args.skip_post_actions:
+    print("Post-training sensitivity/calibration/log refresh skipped (--skip-post-actions).")
 else:
-    print(f"Warning: sensitivity config not found at {sensitivity_cfg_path}")
+    # run sensitivity plots automatically for this run
+    sensitivity_cfg_path = PROJECT_ROOT / "configs" / "sensitivity_config.yaml"
+    if sensitivity_cfg_path.exists():
+        cmd = [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "sensitivity_pricer.py"),
+            "--config",
+            str(sensitivity_cfg_path),
+            "--model-dir",
+            run_dir.name,
+        ]
+        print("Running sensitivity_pricer.py to generate 3x2 grid...")
+        proc = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+        if proc.returncode == 0:
+            print(f"Sensitivity plots generated in {fig_dir}")
+        else:
+            print("Warning: sensitivity_pricer.py failed")
+            if proc.stdout:
+                print(proc.stdout)
+            if proc.stderr:
+                print(proc.stderr)
+    else:
+        print(f"Warning: sensitivity config not found at {sensitivity_cfg_path}")
 
-# run calibration automatically for this run
-_run_post_training_calibration(run_name=run_dir.name)
+    # run calibration automatically for this run
+    _run_post_training_calibration(run_name=run_dir.name)
 
-# refresh logs and show comparison against historical best
-if _refresh_optimizer_logs():
-    _print_run_vs_best_history(run_name=run_dir.name, optimizer_mode=meta_opt_name)
+    # refresh logs and show comparison against historical best
+    if _refresh_optimizer_logs():
+        _print_run_vs_best_history(run_name=run_dir.name, optimizer_mode=meta_opt_name)

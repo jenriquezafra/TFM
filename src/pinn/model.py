@@ -356,6 +356,177 @@ class FeatureMapPINNPricer(PINNPricer):
         return self.backbone(self._feature_map(raw))
 
 
+class BoundedPricePINNPricer(FeatureMapPINNPricer):
+    """
+    Pricing-only PINN with kink-adapted inputs and hard no-arbitrage price bounds.
+
+    For a normalized put with m=S/K, the model outputs
+      L(tau,m,r) + (U(tau,r)-L(tau,m,r)) y(tau,m,...),
+    where y is constrained to [0,1]. This enforces non-negativity and the
+    standard put upper/lower price bounds by construction, while a temporal
+    gate anchors tau=0 to the payoff.
+    """
+
+    def __init__(self, architecture_config: dict):
+        bounded_cfg = architecture_config.get("bounded_price", {})
+        if not isinstance(bounded_cfg, dict):
+            raise ValueError("architecture.bounded_price must be a dictionary when provided.")
+        if not bool(bounded_cfg.get("enabled", False)):
+            raise ValueError("BoundedPricePINNPricer requires bounded_price.enabled=true")
+
+        super().__init__(architecture_config=architecture_config)
+
+        input_dim = int(architecture_config.get("input", {}).get("dim", 8))
+        self.tau_index = int(bounded_cfg.get("tau_index", 0))
+        self.spot_index = int(bounded_cfg.get("spot_index", 1))
+        self.r_index = int(bounded_cfg.get("r_index", 7))
+        for name, value in (
+            ("bounded_price.tau_index", self.tau_index),
+            ("bounded_price.spot_index", self.spot_index),
+            ("bounded_price.r_index", self.r_index),
+        ):
+            if not (0 <= value < input_dim):
+                raise ValueError(f"{name} must be in [0,{input_dim - 1}]")
+
+        self.option_type = str(bounded_cfg.get("option_type", "put")).strip().lower()
+        if self.option_type not in {"put", "call"}:
+            raise ValueError("bounded_price.option_type must be one of {'put', 'call'}")
+
+        self.strike = float(bounded_cfg.get("strike", 1.0))
+        if self.strike <= 0.0:
+            raise ValueError("bounded_price.strike must be > 0")
+
+        self.sigmoid_temperature = float(bounded_cfg.get("sigmoid_temperature", 2.0))
+        if self.sigmoid_temperature <= 0.0:
+            raise ValueError("bounded_price.sigmoid_temperature must be > 0")
+
+        self.payoff_smoothing = float(bounded_cfg.get("payoff_smoothing", 1.0e-4))
+        if self.payoff_smoothing < 0.0:
+            raise ValueError("bounded_price.payoff_smoothing must be >= 0")
+
+        self.lower_smoothing = float(bounded_cfg.get("lower_smoothing", self.payoff_smoothing))
+        if self.lower_smoothing < 0.0:
+            raise ValueError("bounded_price.lower_smoothing must be >= 0")
+
+        self.min_width = float(bounded_cfg.get("min_width", 1.0e-10))
+        if self.min_width <= 0.0:
+            raise ValueError("bounded_price.min_width must be > 0")
+
+        self.time_gate = str(bounded_cfg.get("time_gate", "rational_tau")).strip().lower()
+        if self.time_gate not in {"rational_tau", "one_minus_exp"}:
+            raise ValueError("bounded_price.time_gate must be 'rational_tau' or 'one_minus_exp'")
+
+        self.time_gate_tau = float(bounded_cfg.get("time_gate_tau", 2.0e-2))
+        if self.time_gate_tau <= 0.0:
+            raise ValueError("bounded_price.time_gate_tau must be > 0")
+
+        right_cfg = bounded_cfg.get("right_boundary", {})
+        if not isinstance(right_cfg, dict):
+            raise ValueError("bounded_price.right_boundary must be a dictionary when provided.")
+        self.right_boundary_enabled = bool(right_cfg.get("enabled", False))
+        self.right_boundary_moneyness = float(
+            right_cfg.get("moneyness", right_cfg.get("right_moneyness", 3.0))
+        )
+        if self.right_boundary_enabled and self.right_boundary_moneyness <= 0.0:
+            raise ValueError("bounded_price.right_boundary.moneyness must be > 0")
+        self.right_boundary_start = float(
+            right_cfg.get("start_moneyness", max(0.0, self.right_boundary_moneyness - 1.0))
+        )
+        if self.right_boundary_enabled and self.right_boundary_start >= self.right_boundary_moneyness:
+            raise ValueError(
+                "bounded_price.right_boundary.start_moneyness must be smaller than moneyness"
+            )
+        self.right_boundary_power = float(right_cfg.get("power", 2.0))
+        if self.right_boundary_enabled and self.right_boundary_power <= 0.0:
+            raise ValueError("bounded_price.right_boundary.power must be > 0")
+        self.right_boundary_mode = str(right_cfg.get("mode", "smoothstep")).strip().lower()
+        if self.right_boundary_mode not in {"linear", "smoothstep"}:
+            raise ValueError("bounded_price.right_boundary.mode must be 'linear' or 'smoothstep'")
+
+    def _positive_part(self, signed: torch.Tensor, smoothing: float) -> torch.Tensor:
+        if smoothing <= 0.0:
+            return torch.clamp(signed, min=0.0)
+        eps = torch.as_tensor(smoothing, dtype=signed.dtype, device=signed.device)
+        eps = torch.clamp(eps, min=torch.finfo(signed.dtype).eps)
+        return eps * F.softplus(signed / eps)
+
+    def _time_gate(self, tau: torch.Tensor) -> torch.Tensor:
+        tau_nonnegative = torch.clamp(tau, min=0.0)
+        tau0 = torch.as_tensor(self.time_gate_tau, dtype=tau.dtype, device=tau.device)
+        if self.time_gate == "one_minus_exp":
+            return 1.0 - torch.exp(-tau_nonnegative / tau0)
+        return tau_nonnegative / (tau_nonnegative + tau0)
+
+    def _moneyness_from_raw(self, raw: torch.Tensor) -> torch.Tensor:
+        spot = raw[:, self.spot_index : self.spot_index + 1]
+        if self.input_coordinate in {"log_moneyness", "log-moneyness", "x"}:
+            return torch.exp(spot)
+        return torch.clamp(spot, min=0.0)
+
+    def _right_boundary_gate(self, moneyness: torch.Tensor) -> torch.Tensor:
+        if not self.right_boundary_enabled:
+            return torch.ones_like(moneyness)
+        start = torch.as_tensor(
+            self.right_boundary_start,
+            dtype=moneyness.dtype,
+            device=moneyness.device,
+        )
+        right = torch.as_tensor(
+            self.right_boundary_moneyness,
+            dtype=moneyness.dtype,
+            device=moneyness.device,
+        )
+        width = torch.clamp(right - start, min=torch.finfo(moneyness.dtype).eps)
+        t = torch.clamp((right - moneyness) / width, min=0.0, max=1.0)
+        if self.right_boundary_mode == "smoothstep":
+            t = t * t * (3.0 - 2.0 * t)
+        return t**self.right_boundary_power
+
+    def _bounds_and_payoff(self, raw: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        tau = torch.clamp(raw[:, self.tau_index : self.tau_index + 1], min=0.0)
+        r = raw[:, self.r_index : self.r_index + 1]
+        m = self._moneyness_from_raw(raw)
+        spot = self.strike * m
+        discounted_strike = self.strike * torch.exp(-r * tau)
+
+        if self.option_type == "call":
+            lower_signed = spot - discounted_strike
+            payoff_signed = spot - self.strike
+            upper = spot
+        else:
+            lower_signed = discounted_strike - spot
+            payoff_signed = self.strike - spot
+            upper = discounted_strike
+
+        lower = self._positive_part(lower_signed, self.lower_smoothing)
+        payoff = self._positive_part(payoff_signed, self.payoff_smoothing)
+        lower = torch.minimum(lower, upper)
+        return lower, upper, payoff
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 2:
+            raise ValueError(f"Expected 2D tensor [batch, features], got shape {tuple(x.shape)}")
+        raw = self._raw_inputs(x)
+        raw_price = self.backbone(self._feature_map(raw))
+        if raw_price.ndim != 2 or raw_price.shape[1] != 1:
+            raise ValueError(f"Expected backbone output shape [N,1], got {tuple(raw_price.shape)}")
+
+        lower, upper, payoff = self._bounds_and_payoff(raw)
+        width = torch.clamp(upper - lower, min=0.0)
+        width_safe = torch.clamp(
+            width,
+            min=torch.as_tensor(self.min_width, dtype=raw.dtype, device=raw.device),
+        )
+
+        y_terminal = torch.clamp((payoff - lower) / width_safe, min=0.0, max=1.0)
+        y_model = torch.sigmoid(raw_price / self.sigmoid_temperature)
+        tau = raw[:, self.tau_index : self.tau_index + 1]
+        gate = self._time_gate(tau)
+        right_gate = self._right_boundary_gate(self._moneyness_from_raw(raw))
+        y = right_gate * ((1.0 - gate) * y_terminal + gate * y_model)
+        return lower + width * y
+
+
 class PayoffAwarePINNPricer(PINNPricer):
     """
     PINN ansatz:
@@ -593,9 +764,17 @@ def build_pinn_model(architecture_config: dict) -> PINNPricer:
     """
     Helper used by trainer/pipeline to instantiate the model.
     """
+    global_acv_cfg = architecture_config.get("global_acv", {})
+    if isinstance(global_acv_cfg, dict) and bool(global_acv_cfg.get("enabled", False)):
+        from src.pinn.global_acv_pinn import GlobalACVResidualPINN
+
+        return GlobalACVResidualPINN(architecture_config=architecture_config)
     greek_cfg = architecture_config.get("greek_consistency", {})
     if isinstance(greek_cfg, dict) and bool(greek_cfg.get("enabled", False)):
         return MultiOutputGreekPINNPricer(architecture_config=architecture_config)
+    bounded_cfg = architecture_config.get("bounded_price", {})
+    if isinstance(bounded_cfg, dict) and bool(bounded_cfg.get("enabled", False)):
+        return BoundedPricePINNPricer(architecture_config=architecture_config)
     ansatz_cfg = architecture_config.get("payoff_aware", {})
     if isinstance(ansatz_cfg, dict) and bool(ansatz_cfg.get("enabled", False)):
         return PayoffAwarePINNPricer(architecture_config=architecture_config)

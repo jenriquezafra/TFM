@@ -1,4 +1,4 @@
-timestamp: 2026-06-11_15-16-57
+timestamp: 2026-06-14_18-29-40
 experiment_id: abl01_log_core_pdf
 pde_convention:
   time_variable: tau = T - t
@@ -39,14 +39,14 @@ regions:
   epsilon_m: 0.03
   epsilon_tau: 0.05
   counts:
-    full: 32761
-    short_maturity: 905
-    atm: 4887
-    hard: 135
+    full: 961
+    short_maturity: 31
+    atm: 155
+    hard: 5
 run:
   run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf
   checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/train/checkpoints/model_best.pt
-  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl01_log_core_pdf/architecture.yaml
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/architecture.yaml
   feature_order:
   - tau
   - log_moneyness
@@ -60,21 +60,21 @@ run:
   dtype: torch.float64
   multi_output_heads_computed: false
 timing:
-  pinn_derivatives_seconds: 4.215292374952696
-  reference_seconds: 8.874510957975872
-  pinn_points_per_second: 7771.940137454319
-  reference_points_per_second: 3691.583700232676
+  pinn_derivatives_seconds: 0.5174771250458434
+  reference_seconds: 0.1311798751121387
+  pinn_points_per_second: 1857.086919378059
+  reference_points_per_second: 7325.818835995173
 reference:
   option_type: put
   failed_reference_points: 0
   cf_integration:
     u_min: 1.0e-06
     u_max: 200.0
-    n_u: 1200
+    n_u: 240
 artifacts:
   points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/greeks/baseline_diagnostics/points_baseline_diagnostics.csv
   metrics_by_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/greeks/baseline_diagnostics/metrics_by_region.csv
   no_reference_diagnostics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/greeks/baseline_diagnostics/no_reference_diagnostics.csv
-  finite_difference_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/greeks/baseline_diagnostics/finite_difference_consistency.csv
-  finite_difference_metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/greeks/baseline_diagnostics/finite_difference_metrics.csv
+  finite_difference_csv: null
+  finite_difference_metrics_csv: null
   figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl01_log_core_pdf/greeks/baseline_diagnostics/figures

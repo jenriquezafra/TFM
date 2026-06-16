@@ -1,0 +1,3 @@
+model,selection,price,delta,gamma,vega,theta,rho,n,source
+PINN_ACV_log_learned_weights,best_pinn_price,0.0444313911583811,0.068001168356759,2.089764338060722,0.096485953746643,0.0401051192593427,0.0407687368013873,961,outputs/pinn/pinn_greek_ablation_suite_v01/abl14_acv_log_learned_weights/greeks/grid31_best_price_diagnostics/metrics_by_region.csv
+ANN_IV_Sobolev_v01,best_ann_greeks,0.0001908180316039,0.0007741052240017,0.0128084588581812,0.0049084464134953,0.0003726258259215,0.0008857944844072,961,outputs/ann_iv_greeks/ANN_IV_Sobolev_v01_grid31/metrics_ann_iv_greeks.csv

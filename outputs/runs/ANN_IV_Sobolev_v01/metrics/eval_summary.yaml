@@ -1,0 +1,69 @@
+normalization:
+  enabled: false
+  normalize_target: false
+  stats_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ANN_IV_Sobolev_v01/metrics/normalization_stats.yaml
+sobolev:
+  enabled: true
+  weight: 0.1
+  warmup_epochs: 500
+  derivative_columns:
+  - d_iv_dm
+  - d_iv_dtau
+  - d_iv_dr
+  - d_iv_dv0
+  derivative_indices:
+  - 5
+  - 6
+  - 7
+  - 4
+  derivative_scales:
+  - 0.10316919174247823
+  - 0.08827386368603274
+  - 0.1330135483341385
+  - 0.8292708730017209
+global:
+  train:
+    n_samples: 800000
+    mse: 3.725909323777037e-06
+    rmse: 0.001930261465132907
+    mae: 0.00028117629105831634
+    abs_err_p50: 0.0002091252168066049
+    abs_err_p90: 0.0005297807750306887
+    abs_err_p99: 0.000985001416513666
+  val:
+    n_samples: 100000
+    mse: 4.373031058326247e-06
+    rmse: 0.0020911793462843513
+    mae: 0.0002884246272489286
+    abs_err_p50: 0.00020895101348383793
+    abs_err_p90: 0.0005287876150943726
+    abs_err_p99: 0.000986443912033636
+  test:
+    n_samples: 100000
+    mse: 6.490221988555354e-06
+    rmse: 0.0025475914092639254
+    mae: 0.00030094688860422353
+    abs_err_p50: 0.00020923392796662332
+    abs_err_p90: 0.0005283787182517321
+    abs_err_p99: 0.000990661103551736
+bins:
+  moneyness:
+  - 0.6
+  - 0.8
+  - 0.9
+  - 1.0
+  - 1.1
+  - 1.2
+  - 1.4
+  tau:
+  - 0.05
+  - 0.25
+  - 0.5
+  - 1.0
+  - 2.0
+  - 3.0
+artifacts:
+  global_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ANN_IV_Sobolev_v01/metrics/eval_global.parquet
+  global_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ANN_IV_Sobolev_v01/metrics/eval_global.csv
+  region_parquet: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ANN_IV_Sobolev_v01/metrics/eval_by_region.parquet
+  region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ANN_IV_Sobolev_v01/metrics/eval_by_region.csv

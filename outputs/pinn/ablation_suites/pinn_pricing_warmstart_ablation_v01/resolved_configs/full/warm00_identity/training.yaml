@@ -1,0 +1,90 @@
+meta:
+  seed: 42
+  device: mps
+  optimizer: adam
+  initial_checkpoint: outputs/pinn/PINN_mix_scaled_param/train/checkpoints/model_best.pt
+  initial_checkpoint_strict: true
+data:
+  supervised_source: cann_quotes_comparison
+  target_column: price_market
+  val_fraction: 0.2
+  input_scaling:
+    enabled: true
+    method: standardize_train
+    eps: 1.0e-08
+sampling:
+  strategy: lhs_static
+  mode: parametric_theta
+  seed: 42
+  output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_warmstart_ablation_v01/warm00_identity/full
+  sizes:
+    n_interior: 40000
+    n_terminal: 10000
+    n_lower: 10000
+  domain:
+    tau:
+    - 0.0
+    - 3.0
+    moneyness:
+    - 0.0
+    - 2.0
+    v:
+    - 0.01
+    - 0.5
+    r:
+    - 0.0
+    - 0.05
+    heston_params:
+      rho:
+      - -0.9
+      - 0.0
+      kappa:
+      - 0.0
+      - 3.0
+      gamma:
+      - 0.01
+      - 0.8
+      bar_v:
+      - 0.01
+      - 0.5
+optimizers:
+- name: adam
+  learn_rate: 5.0e-05
+  weight_decay: 0.0
+loss:
+  reduction: mean
+  weights:
+    pde: 1.0
+    term: 1.0
+    low: 1.0
+    no_arbitrage: 1.0
+loop:
+  epochs: 600
+  mix_half_switch_epoch: 2001
+  batch_size_collocation: 2048
+  batch_size_boundary: 512
+  log_every: 50
+  val_every: 1
+callbacks:
+  checkpoint:
+    enabled: true
+    filename_best: model_best.pt
+    filename_last: model_last.pt
+  early_stopping:
+    enabled: false
+    monitor: val_total_loss
+    patience: 300
+    min_delta: 1.0e-07
+  lr_scheduler:
+    enabled: false
+    name: step
+    step_size: 500
+    gamma: 0.5
+evaluation:
+  enabled: true
+  batch_size: 8192
+  metrics:
+  - mse
+  - mae
+  - rmse
+  - pde_residual_l2

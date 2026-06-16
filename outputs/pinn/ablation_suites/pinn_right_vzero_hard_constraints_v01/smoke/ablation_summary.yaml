@@ -1,0 +1,12 @@
+suite_id: pinn_right_vzero_hard_constraints_v01
+manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/resolved_configs/smoke/resolved_manifest.yaml
+baseline_key: rv01_hard_right_vzero_dynamic
+outputs:
+  scores_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/smoke/tables/ablation_scores.csv
+  scores_markdown: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/smoke/tables/ablation_scores.md
+  score_scatter: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/smoke/figures/score_scatter_hard_vs_global.png
+  pairwise_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/smoke/figures/pairwise
+pairwise_figures: {}
+best_global_score: rv01_hard_right_vzero_dynamic
+best_hard_score: rv01_hard_right_vzero_dynamic
+best_price_score: rv01_hard_right_vzero_dynamic

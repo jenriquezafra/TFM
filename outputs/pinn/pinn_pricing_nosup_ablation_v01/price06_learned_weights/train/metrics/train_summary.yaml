@@ -1,0 +1,119 @@
+collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_nosup_ablation_v01/price06_learned_weights/full/collocation_sets_manifest.yaml
+device: cpu
+optimizer_mode: adam
+mix_half_switch_epoch: null
+epochs: 1200
+batch_size_collocation: 2048
+batch_size_boundary: 512
+val_every: 25
+initial_checkpoint: null
+initial_checkpoint_report: null
+val_fraction: 0.2
+n_train_interior: 16000
+n_train_terminal: 4000
+n_train_lower: 4000
+n_val_interior: 4000
+n_val_terminal: 1000
+n_val_lower: 1000
+input_scaling:
+  enabled: true
+  method: standardize_train
+  eps: 1.0e-08
+  feature_order:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+  a:
+  - -1.296380639076233
+  - -1.294066071510315
+  - -1.7983418703079224
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - -1.7285208702087402
+  b:
+  - 1.0333613157272339
+  - 1.5481314659118652
+  - 7.072187900543213
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 69.28265380859375
+  mean_train:
+  - 1.2545279264450073
+  - 0.8358890414237976
+  - 0.2542836666107178
+  - -0.5241299867630005
+  - 1.057623267173767
+  - 0.2995682656764984
+  - 0.19758449494838715
+  - 0.02494882605969906
+  std_train:
+  - 0.9677157402038574
+  - 0.6459400057792664
+  - 0.14139896631240845
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.01443362794816494
+  frozen_features:
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+best_val_total: -4.998799800872803
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/checkpoints/model_best.pt
+last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/checkpoints/model_last.pt
+history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/metrics/train_history.csv
+figures:
+  loss_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/figures/loss_curve.png
+  loss_components_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/figures/loss_components_curve.png
+  learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/figures/learning_rate_curve.png
+  pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/figures/pde_residual_map_m_tau.png
+  pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights/train/figures/pde_residual_map_m_tau_log.png
+dynamic_collocation:
+  enabled: false
+  config: {}
+  refresh_count: 0
+  refreshes: []
+learned_loss_weights:
+  enabled: true
+  config:
+    enabled: true
+    terms:
+    - pde
+    - term
+    - low
+    - no_arbitrage
+    init:
+      pde: 0.0
+      term: 0.0
+      low: 0.0
+      no_arbitrage: 0.0
+    min_log_var: -3.0
+    max_log_var: 3.0
+    prior:
+      strength: 0.2
+      target: 0.0
+  final:
+    loss_log_var_pde: -2.498835802078247
+    loss_log_var_clamped_pde: -2.498835802078247
+    loss_weight_pde: 12.168319379162808
+    loss_log_var_term: -2.498415946960449
+    loss_log_var_clamped_term: -2.498415946960449
+    loss_weight_term: 12.163211520351833
+    loss_log_var_low: -2.4992434978485107
+    loss_log_var_clamped_low: -2.4992434978485107
+    loss_weight_low: 12.173281362926076
+    loss_log_var_no_arbitrage: -2.4997718334198
+    loss_log_var_clamped_no_arbitrage: -2.4997718334198
+    loss_weight_no_arbitrage: 12.17971463980428
+total_training_seconds: 369.63258112501353

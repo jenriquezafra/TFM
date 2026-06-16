@@ -1,0 +1,34 @@
+meta:
+  experiment_name: rv01_hard_right_vzero_dynamic
+  seed: 42
+  description: Right-vzero no supervisada con payoff/lower/right/no-arbitraje impuestos
+    por construccion y refresco adaptativo por residual.
+inputs:
+  cann:
+    calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg
+    summary_file: summary.yaml
+    quotes_file: quotes_comparison.parquet
+    parameter_key: theta_star
+    columns:
+      moneyness: moneyness
+      tau: tau
+      r: r
+      iv_market: iv_market
+      iv_pred: iv_pred
+  pricing_context:
+    target_name: price_market
+    spot: null
+    strike_column: null
+model:
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/resolved_configs/smoke/rv01_hard_right_vzero_dynamic/architecture.yaml
+training:
+  training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_right_vzero_hard_constraints_v01/resolved_configs/smoke/rv01_hard_right_vzero_dynamic/training.yaml
+pipeline:
+  stages:
+    prepare_dataset: true
+    train: true
+    evaluate: false
+outputs:
+  root_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn
+  run_name: pinn_right_vzero_hard_constraints_v01_smoke/rv01_hard_right_vzero_dynamic
+  dump_plan_filename: pipeline_plan.yaml

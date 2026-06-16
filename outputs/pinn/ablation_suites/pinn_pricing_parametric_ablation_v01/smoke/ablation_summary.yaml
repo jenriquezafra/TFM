@@ -1,0 +1,13 @@
+suite_id: pinn_pricing_parametric_ablation_v01
+manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/resolved_configs/smoke/resolved_manifest.yaml
+baseline_key: pbase00_repro_baseline
+outputs:
+  scores_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/smoke/tables/ablation_scores.csv
+  scores_markdown: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/smoke/tables/ablation_scores.md
+  score_scatter: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/smoke/figures/score_scatter_hard_vs_global.png
+  pairwise_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/smoke/figures/pairwise
+pairwise_figures:
+  pbase01_right_vzero: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/smoke/figures/pairwise/pbase01_right_vzero_greek_error_maps_vs_baseline.png
+best_global_score: pbase01_right_vzero
+best_hard_score: pbase00_repro_baseline
+best_price_score: pbase00_repro_baseline

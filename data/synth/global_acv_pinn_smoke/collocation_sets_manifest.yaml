@@ -1,0 +1,37 @@
+dataset_format: parquet
+datasets:
+  interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/global_acv_pinn_smoke/interior.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/global_acv_pinn_smoke/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/global_acv_pinn_smoke/lower.parquet
+feature_order:
+- tau
+- log_moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+coordinate_space: log_moneyness
+sampling_strategy: global_acv_mixed
+seed: 42
+sizes:
+  n_interior: 96
+  n_terminal: 32
+  n_lower: 32
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.01
+  - 2.0
+  log_moneyness:
+  - -4.605170185988091
+  - 0.6931471805599453
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05

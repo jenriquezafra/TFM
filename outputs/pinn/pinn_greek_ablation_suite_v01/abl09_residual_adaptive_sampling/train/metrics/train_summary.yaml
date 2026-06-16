@@ -5,7 +5,7 @@ mix_half_switch_epoch: 2001
 epochs: 4000
 batch_size_collocation: 2048
 batch_size_boundary: 512
-initial_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/checkpoints/model_best.pt
+initial_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/checkpoints/model_best.pt
 initial_checkpoint_report:
   strict: true
   copied:
@@ -19,6 +19,8 @@ initial_checkpoint_report:
   - backbone.6.weight
   - backbone.8.bias
   - backbone.8.weight
+  - input_affine_a
+  - input_affine_b
   partial: []
   skipped: []
 val_fraction: 0.2
@@ -28,13 +30,17 @@ n_train_lower: 8000
 n_val_interior: 8000
 n_val_terminal: 2000
 n_val_lower: 2000
+n_train_right: 8000
+n_train_v_zero: 8000
+n_val_right: 2000
+n_val_v_zero: 2000
 input_scaling:
   enabled: true
   method: from_train_summary
   eps: 1.0e-08
   feature_order:
   - tau
-  - moneyness
+  - log_moneyness
   - v
   - rho
   - kappa
@@ -42,48 +48,48 @@ input_scaling:
   - bar_v
   - r
   a:
-  - -1.2903227806091309
-  - -1.290091872215271
-  - -1.8067958354949951
+  - -1.115982174873352
+  - 0.291933536529541
+  - -1.422898769378662
   - 0.0
   - 0.0
   - 0.0
   - 0.0
-  - -1.7328290939331055
+  - -1.730844497680664
   b:
-  - 1.0319334268569946
-  - 1.5472521781921387
-  - 7.079763889312744
+  - 1.0147935152053833
+  - 0.8014100790023804
+  - 6.374054908752441
   - 1.0
   - 1.0
   - 1.0
   - 1.0
-  - 69.23895263671875
+  - 69.23743438720703
   mean_train:
-  - 1.2503935098648071
-  - 0.8337954878807068
-  - 0.2552056908607483
+  - 1.0997134447097778
+  - -0.3642748296260834
+  - 0.2232329100370407
   - -0.5241299867630005
   - 1.057623267173767
   - 0.2995682656764984
   - 0.19758449494838715
-  - 0.025026794523000717
+  - 0.024998679757118225
   std_train:
-  - 0.9690548181533813
-  - 0.6463070511817932
-  - 0.14124764502048492
+  - 0.9854220747947693
+  - 1.247800588607788
+  - 0.1568859964609146
   - 0.0
   - 0.0
   - 0.0
   - 0.0
-  - 0.01444273628294468
+  - 0.014443053863942623
   frozen_features:
   - rho
   - kappa
   - gamma
   - bar_v
-  source_summary_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/metrics/train_summary.yaml
-best_val_total: 2.3323244022321887e-05
+  source_summary_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/metrics/train_summary.yaml
+best_val_total: 2864.056640625
 best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/train/checkpoints/model_best.pt
 last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/train/checkpoints/model_last.pt
 history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/train/metrics/train_history.csv
@@ -93,4 +99,4 @@ figures:
   learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/train/figures/learning_rate_curve.png
   pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/train/figures/pde_residual_map_m_tau.png
   pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/train/figures/pde_residual_map_m_tau_log.png
-total_training_seconds: 1583.373044667067
+total_training_seconds: 6602.067658749991

@@ -1,0 +1,87 @@
+timestamp: 2026-06-15_13-03-09
+model_bucket: ANN_IV_Sobolev_v01
+calibration_id: 1
+run_tag: ''
+quotes_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.csv
+market_quotes_copy: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/market_quotes_input.csv
+model_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ANN_IV_Sobolev_v01
+checkpoint: model_best.pt
+device: mps
+n_quotes: 35
+parameter_order:
+- rho
+- kappa
+- gamma
+- bar_v
+- v0
+theta_star:
+- -0.45178618592615516
+- 0.9916424907160697
+- 0.34759541696503193
+- 0.200030791802354
+- 0.2200803003963199
+objective_fun: 1.2920086835162276e-09
+success: false
+message: Maximum number of iterations has been exceeded.
+nit: 1000
+nfev: 1127
+residual_rmse: 6.07573319153741e-06
+weighted_mse: 3.691453381474936e-11
+de_settings:
+  maxiter: 1000
+  popsize: 20
+  tol: 0.0001
+  mutation:
+  - 0.5
+  - 1.0
+  recombination: 0.7
+  seed: null
+  polish: true
+regularization:
+  type: none
+  lambda: 0.0
+bounds:
+  rho:
+  - -0.9
+  - 0.0
+  kappa:
+  - 0.0
+  - 3.0
+  gamma:
+  - 0.01
+  - 0.8
+  bar_v:
+  - 0.01
+  - 0.5
+  v0:
+  - 0.05
+  - 0.5
+theta_true:
+- -0.45
+- 1.0
+- 0.35
+- 0.2
+- 0.22
+theta_true_source: quotes_sidecar:/Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/market/market_quotes_liu_35.truth.yaml
+parameter_abs_error:
+  rho: 0.0017861859261551483
+  kappa: 0.008357509283930309
+  gamma: 0.002404583034968044
+  bar_v: 3.079180235399104e-05
+  v0: 8.030039631989894e-05
+parameter_rel_error:
+  rho: 0.003969302058122552
+  kappa: 0.008357509283930309
+  gamma: 0.006870237242765841
+  bar_v: 0.0001539590117699552
+  v0: 0.0003650018014540861
+parameter_error_artifacts:
+  table_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/parameter_errors.csv
+  abs_bar_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/parameter_error_abs_bar.png
+  abs_heatmap_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/parameter_error_abs_heatmap.png
+  rel_heatmap_png: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/parameter_error_rel_heatmap.png
+curvature_theta_star_artifacts:
+  json: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/curvature_theta_star.json
+  hessian_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/hessian_theta_star.csv
+  jacobian_plot: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/jacobian_theta_star.png
+  hessian_plot: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/calibration/ANN_IV_Sobolev_v01/Calibration_1/hessian_theta_star.png

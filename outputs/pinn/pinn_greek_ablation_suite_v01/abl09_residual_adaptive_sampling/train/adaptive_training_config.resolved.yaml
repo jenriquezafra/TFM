@@ -2,7 +2,7 @@ meta:
   seed: 42
   device: auto
   optimizer: mix_half
-  initial_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/checkpoints/model_best.pt
+  initial_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/checkpoints/model_best.pt
 data:
   supervised_source: cann_quotes_comparison
   target_column: price_market
@@ -10,7 +10,7 @@ data:
   input_scaling:
     enabled: true
     method: from_train_summary
-    summary_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/metrics/train_summary.yaml
+    summary_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/metrics/train_summary.yaml
 sampling:
   strategy: lhs_static
   mode: fixed_theta
@@ -20,12 +20,14 @@ sampling:
     n_interior: 40000
     n_terminal: 10000
     n_lower: 10000
+    n_right: 10000
+    n_v_zero: 10000
   domain:
     tau:
     - 0.0
     - 3.0
     moneyness:
-    - 0.0
+    - 0.05
     - 2.0
     v:
     - 0.01
@@ -33,6 +35,17 @@ sampling:
     r:
     - 0.0
     - 0.05
+  coordinate_space: log_moneyness
+  boundaries:
+    lower_moneyness: 0.05
+    right_moneyness: 3.0
+    v_zero_value: 0.0
+  kink_band:
+    enabled: true
+    fraction: 0.3
+    c: 2.0
+    tau_c: 0.15
+    epsilon: 1.0e-08
 optimizers:
 - name: adam
   learn_rate: 0.001
@@ -47,9 +60,29 @@ loss:
   reduction: mean
   weights:
     pde: 1.0
-    term: 1.0
+    term: 5.0
     low: 1.0
-    no_arbitrage: 1.0
+    no_arbitrage: 0.05
+    pde_bulk: 1.0
+    pde_kink: 3.0
+    left_delta: 0.25
+    left_gamma: 0.05
+    right: 1.0
+    right_delta: 0.25
+    right_gamma: 0.05
+    v_zero: 0.5
+  pde:
+    coordinate: log_moneyness
+  no_arbitrage:
+    beta_delta: 1.0
+    beta_gamma: 1.0
+  kink_bulk:
+    enabled: true
+    c: 2.0
+    tau_c: 0.15
+    delta_x: 0.05
+    delta_tau: 0.02
+    ell_epsilon: 1.0e-08
 loop:
   epochs: 4000
   mix_half_switch_epoch: 2001

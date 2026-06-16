@@ -1,6 +1,6 @@
 global:
   experiment_id: abl01_log_core_pdf
-  run_dir: pinn_greek_ablation_suite_v01/abl01_log_core_pdf
+  run_dir: pinn_greek_ablation_suite_v01_smoke/abl01_log_core_pdf
   checkpoint_name: model_best.pt
   architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl01_log_core_pdf/architecture.yaml
   device: auto

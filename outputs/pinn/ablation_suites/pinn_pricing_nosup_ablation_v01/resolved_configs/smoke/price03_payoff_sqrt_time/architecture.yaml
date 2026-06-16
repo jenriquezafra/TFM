@@ -1,0 +1,42 @@
+name: PINN_Heston_Price
+type: mlp_pinn_payoff_aware
+input:
+  dim: 8
+  features:
+  - tau
+  - moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+hidden:
+  dims:
+  - 256
+  - 256
+  - 256
+  - 256
+  activation: tanh
+  initialization: xavier_uniform
+  dropout_rate: 0.0
+  batch_norm: false
+output:
+  dim: 1
+  name: price
+  activation: linear
+physics:
+  equation: heston_pde
+  requires_autograd: true
+  derivative_order: 2
+payoff_aware:
+  enabled: true
+  option_type: put
+  tau_index: 0
+  spot_index: 1
+  vol_index: 2
+  strike: 1.0
+  payoff_smoothing: 0.001
+  payoff_smoothing_mode: fixed
+  time_factor: sqrt_tau_eps
+  time_epsilon: 1.0e-06

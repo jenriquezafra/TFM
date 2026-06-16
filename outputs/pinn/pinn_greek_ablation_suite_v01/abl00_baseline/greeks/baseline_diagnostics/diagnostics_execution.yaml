@@ -1,10 +1,10 @@
-timestamp: 2026-06-11_14-55-28
-config_source: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl00_baseline/diagnostics.yaml
+timestamp: 2026-06-14_18-29-35
+config_source: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/diagnostics.yaml
 global_config:
   experiment_id: abl00_baseline
   run_dir: pinn_greek_ablation_suite_v01/abl00_baseline
   checkpoint_name: model_best.pt
-  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl00_baseline/architecture.yaml
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/architecture.yaml
   device: auto
   dtype: float64
   feature_order: null
@@ -22,7 +22,7 @@ diagnostics_config:
   option_type: put
   mape_floor: 0.0001
   stabilized_relative_floor: 1.0
-  n_bins: 181
+  n_bins: 31
   hard_region:
     epsilon_m: 0.03
     epsilon_tau: 0.05
@@ -30,11 +30,11 @@ diagnostics_config:
     x_feature: moneyness
     x_min: 0.8
     x_max: 1.2
-    x_points: 181
+    x_points: 31
     y_feature: tau
     y_min: 0.005
     y_max: 2.0
-    y_points: 181
+    y_points: 31
   fixed_values:
     tau: 1.0
     moneyness: 1.0
@@ -45,7 +45,7 @@ diagnostics_config:
     bar_v: 0.04
     r: 0.01
   finite_difference:
-    enabled: true
+    enabled: false
     spot_step: 0.0001
     vol_step: 0.0001
     tau_step: 0.0001
@@ -55,11 +55,11 @@ diagnostics_config:
   cf_integration:
     u_min: 1.0e-06
     u_max: 200.0
-    n_u: 1200
+    n_u: 240
 resolved:
   run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline
   checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/checkpoints/model_best.pt
-  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl00_baseline/architecture.yaml
+  architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl00_baseline/architecture.yaml
   feature_order:
   - tau
   - moneyness
@@ -76,6 +76,6 @@ artifacts:
   points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/greeks/baseline_diagnostics/points_baseline_diagnostics.csv
   metrics_by_region_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/greeks/baseline_diagnostics/metrics_by_region.csv
   no_reference_diagnostics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/greeks/baseline_diagnostics/no_reference_diagnostics.csv
-  finite_difference_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/greeks/baseline_diagnostics/finite_difference_consistency.csv
-  finite_difference_metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/greeks/baseline_diagnostics/finite_difference_metrics.csv
+  finite_difference_csv: null
+  finite_difference_metrics_csv: null
   figures_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/greeks/baseline_diagnostics/figures

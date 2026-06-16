@@ -1,0 +1,20 @@
+timestamp: 2026-06-16_18-54-14
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_warmstart_ablation_v01/resolved_configs/full/warm00_identity/pipeline.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_warmstart_ablation_v01/warm00_identity
+stages:
+  prepare_dataset:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_warmstart_ablation_v01/warm00_identity/full/collocation_sets_manifest.yaml
+    collocation_output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_warmstart_ablation_v01/warm00_identity/full
+    target_column_requested: price_market
+    feature_columns:
+    - moneyness
+    - tau
+    - r
+    dataset_file: null
+    dataset_status: skipped_target_missing
+    dataset_skip_reason: Target column 'price_market' not present in CaNN quotes.
+  train:
+    status: skipped
+  evaluate:
+    status: skipped

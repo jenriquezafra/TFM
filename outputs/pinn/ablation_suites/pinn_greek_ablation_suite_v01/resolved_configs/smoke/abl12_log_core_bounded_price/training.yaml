@@ -1,0 +1,97 @@
+meta:
+  seed: 42
+  device: auto
+  optimizer: mix_half
+data:
+  supervised_source: cann_quotes_comparison
+  target_column: price_market
+  val_fraction: 0.2
+  input_scaling:
+    enabled: true
+    method: standardize_train
+    eps: 1.0e-08
+sampling:
+  strategy: lhs_static
+  mode: fixed_theta
+  seed: 42
+  output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl12_log_core_bounded_price/smoke
+  sizes:
+    n_interior: 512
+    n_terminal: 128
+    n_lower: 128
+    n_right: 128
+    n_v_zero: 128
+  domain:
+    tau:
+    - 0.0
+    - 3.0
+    moneyness:
+    - 0.05
+    - 2.0
+    v:
+    - 0.01
+    - 0.5
+    r:
+    - 0.0
+    - 0.05
+  coordinate_space: log_moneyness
+  boundaries:
+    lower_moneyness: 0.05
+  dynamic_collocation:
+    start_epoch: 1
+    refresh_every: 1
+    stop_epoch: 1
+    max_refreshes: 1
+    n_interior: 512
+    n_candidates: 512
+    candidate_pool:
+      n_candidates: 512
+      batch_size: 128
+optimizers:
+- name: adam
+  learn_rate: 0.001
+  weight_decay: 0.0
+- name: L-BFGS
+  learn_rate: 1.0
+  max_iter: 2
+  line_search_fn: strong_wolfe
+  historic_size: 20
+  full_batch: true
+loss:
+  reduction: mean
+  weights:
+    pde: 1.0
+    term: 5.0
+    low: 1.0
+    no_arbitrage: 0.0
+  pde:
+    coordinate: log_moneyness
+loop:
+  epochs: 2
+  mix_half_switch_epoch: 999999
+  batch_size_collocation: 128
+  batch_size_boundary: 64
+  log_every: 1
+callbacks:
+  checkpoint:
+    enabled: true
+    filename_best: model_best.pt
+    filename_last: model_last.pt
+  early_stopping:
+    enabled: false
+    monitor: val_total_loss
+    patience: 300
+    min_delta: 1.0e-07
+  lr_scheduler:
+    enabled: true
+    name: step
+    step_size: 500
+    gamma: 0.5
+evaluation:
+  enabled: true
+  batch_size: 8192
+  metrics:
+  - mse
+  - mae
+  - rmse
+  - pde_residual_l2

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 import time
+from collections.abc import Iterable
 
-import matplotlib
 import numpy as np
 import pandas as pd
 import torch
@@ -11,10 +11,7 @@ import torch.nn as nn
 import yaml
 from torch.utils.data import DataLoader, TensorDataset
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-
+from src.pinn.dynamic_collocation import refresh_dynamic_collocation_interior
 from src.pinn.losses import (
     PINNLossTerms,
     compute_heston_pde_residual,
@@ -22,6 +19,16 @@ from src.pinn.losses import (
 )
 from src.pinn.model import build_pinn_model
 from src.utils.callbacks import build_step_lr
+
+
+def _load_matplotlib():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LogNorm
+
+    return plt, LogNorm
 
 
 def _resolve_device(device_pref: str) -> torch.device:
@@ -77,17 +84,32 @@ def _build_optimizer(
     model: nn.Module,
     optimizer_name: str,
     optimizer_cfg: dict,
+    extra_parameters: Iterable[nn.Parameter] | None = None,
+    extra_learn_rate: float | None = None,
 ) -> torch.optim.Optimizer:
+    model_parameters = list(model.parameters())
+    parameters: list[nn.Parameter] | list[dict] = model_parameters
+    if extra_parameters is not None:
+        extra = list(extra_parameters)
+        if extra:
+            if extra_learn_rate is None or optimizer_name == "lbfgs":
+                parameters = [*model_parameters, *extra]
+            else:
+                parameters = [
+                    {"params": model_parameters},
+                    {"params": extra, "lr": float(extra_learn_rate)},
+                ]
+
     if optimizer_name == "adam":
         return torch.optim.Adam(
-            model.parameters(),
+            parameters,
             lr=float(optimizer_cfg.get("learn_rate", 1.0e-3)),
             weight_decay=float(optimizer_cfg.get("weight_decay", 0.0)),
         )
 
     if optimizer_name == "sgd":
         return torch.optim.SGD(
-            model.parameters(),
+            parameters,
             lr=float(optimizer_cfg.get("learn_rate", 1.0e-3)),
             momentum=float(optimizer_cfg.get("momentum", 0.0)),
             weight_decay=float(optimizer_cfg.get("weight_decay", 0.0)),
@@ -95,7 +117,7 @@ def _build_optimizer(
 
     if optimizer_name == "lbfgs":
         return torch.optim.LBFGS(
-            model.parameters(),
+            parameters,
             lr=float(optimizer_cfg.get("learn_rate", 1.0)),
             max_iter=int(optimizer_cfg.get("max_iter", 20)),
             line_search_fn=optimizer_cfg.get("line_search_fn", "strong_wolfe"),
@@ -464,6 +486,63 @@ def _safe_torch_save(*, obj: object, path: Path) -> None:
     torch.save(obj, path)
 
 
+def _build_learned_loss_log_vars(
+    *,
+    loss_config: dict,
+    device: torch.device,
+) -> nn.ParameterDict | None:
+    cfg = loss_config.get("learned_weights", {})
+    if not isinstance(cfg, dict) or not bool(cfg.get("enabled", False)):
+        return None
+
+    terms = list(cfg.get("terms", []))
+    if not terms:
+        terms = ["pde", "term", "low"]
+    init_cfg = cfg.get("init", {})
+    if not isinstance(init_cfg, dict):
+        init_cfg = {}
+
+    params = nn.ParameterDict()
+    for term in terms:
+        key = str(term).strip()
+        if not key:
+            continue
+        params[key] = nn.Parameter(
+            torch.tensor(float(init_cfg.get(key, 0.0)), dtype=torch.float32, device=device)
+        )
+    return params if len(params) else None
+
+
+def _learned_loss_log_var_lr(loss_config: dict) -> float | None:
+    cfg = loss_config.get("learned_weights", {})
+    if not isinstance(cfg, dict) or not bool(cfg.get("enabled", False)):
+        return None
+    raw = cfg.get("learn_rate", cfg.get("lr"))
+    return None if raw is None else float(raw)
+
+
+def _learned_loss_weight_state(
+    *,
+    learned_log_vars: nn.ParameterDict | None,
+    loss_config: dict,
+) -> dict[str, float]:
+    if learned_log_vars is None:
+        return {}
+    cfg = loss_config.get("learned_weights", {})
+    cfg = cfg if isinstance(cfg, dict) else {}
+    min_log_var = float(cfg.get("min_log_var", cfg.get("min_log_weight", -6.0)))
+    max_log_var = float(cfg.get("max_log_var", cfg.get("max_log_weight", 6.0)))
+    out: dict[str, float] = {}
+    with torch.no_grad():
+        for name, param in learned_log_vars.items():
+            raw = float(param.detach().cpu().item())
+            clamped = min(max(raw, min_log_var), max_log_var)
+            out[f"loss_log_var_{name}"] = raw
+            out[f"loss_log_var_clamped_{name}"] = clamped
+            out[f"loss_weight_{name}"] = float(np.exp(-clamped))
+    return out
+
+
 def _evaluate_epoch_loss(
     *,
     model: nn.Module,
@@ -471,6 +550,7 @@ def _evaluate_epoch_loss(
     device: torch.device,
     x_val: dict[str, np.ndarray],
     input_affine: dict[str, torch.Tensor] | None,
+    learned_log_vars: nn.ParameterDict | None = None,
 ) -> tuple[float, PINNLossTerms]:
     model.eval()
     with torch.enable_grad():
@@ -487,6 +567,7 @@ def _evaluate_epoch_loss(
             loss_config=loss_config,
             batch_payload=batch_payload,
             input_affine=input_affine,
+            learned_log_vars=learned_log_vars,
         )
     return float(total.detach().item()), terms
 
@@ -495,14 +576,25 @@ def _save_loss_curves(*, history_df: pd.DataFrame, figures_dir: Path) -> dict[st
     outputs: dict[str, str] = {}
     if history_df.empty:
         return outputs
+    plt, _ = _load_matplotlib()
 
     epochs = history_df["epoch"].to_numpy()
 
+    def _set_loss_scale(ax, *series: np.ndarray) -> None:
+        values = np.concatenate([np.asarray(item, dtype=np.float64).reshape(-1) for item in series])
+        finite = values[np.isfinite(values)]
+        if finite.size == 0 or np.nanmin(finite) <= 0.0:
+            ax.set_yscale("symlog", linthresh=1.0e-8)
+        else:
+            ax.set_yscale("log")
+
     fig_total = figures_dir / "loss_curve.png"
     plt.figure(figsize=(7.2, 4.6))
-    plt.plot(epochs, history_df["train_total"].to_numpy(), label="train_total")
-    plt.plot(epochs, history_df["val_total"].to_numpy(), label="val_total")
-    plt.yscale("log")
+    train_total_values = history_df["train_total"].to_numpy()
+    val_total_values = history_df["val_total"].to_numpy()
+    plt.plot(epochs, train_total_values, label="train_total")
+    plt.plot(epochs, val_total_values, label="val_total")
+    _set_loss_scale(plt.gca(), train_total_values, val_total_values)
     plt.xlabel("epoch")
     plt.ylabel("weighted loss (log)")
     plt.grid(True, which="major")
@@ -546,9 +638,11 @@ def _save_loss_curves(*, history_df: pd.DataFrame, figures_dir: Path) -> dict[st
     _, axes = plt.subplots(1, len(component_specs), figsize=(4.8 * len(component_specs), 4.3), sharex=True)
     axes = np.atleast_1d(axes)
     for ax, (key, label) in zip(axes, component_specs):
-        ax.plot(epochs, history_df[f"train_{key}"].to_numpy(), label=f"train_{key}")
-        ax.plot(epochs, history_df[f"val_{key}"].to_numpy(), label=f"val_{key}")
-        ax.set_yscale("log")
+        train_values = history_df[f"train_{key}"].to_numpy()
+        val_values = history_df[f"val_{key}"].to_numpy()
+        ax.plot(epochs, train_values, label=f"train_{key}")
+        ax.plot(epochs, val_values, label=f"val_{key}")
+        _set_loss_scale(ax, train_values, val_values)
         ax.set_xlabel("epoch")
         ax.set_ylabel(f"{label} loss (log)")
         ax.grid(True, which="major")
@@ -585,6 +679,7 @@ def _save_pde_residual_zone_map(
     n_bins_m: int = 24,
     n_bins_tau: int = 24,
 ) -> dict[str, str]:
+    plt, LogNorm = _load_matplotlib()
     if x_val_interior.shape[0] == 0:
         raise ValueError("Cannot build PDE residual map with empty validation interior set.")
 
@@ -690,6 +785,14 @@ class PINNTrainer:
 
     def train(self, *, model_config: dict, dataset_manifest: dict) -> Path:
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        early_meta_cfg = self.training_config.get("meta", {})
+        early_device = _resolve_device(early_meta_cfg.get("device", "auto"))
+        if early_device.type == "mps":
+            # Initialize MPS before PyArrow/parquet reads. On this macOS sandbox,
+            # PyArrow's sysctl probes can otherwise make torch's later MPS
+            # version check fail inside Module.to("mps").
+            torch.empty((), device=early_device)
+
         collocation_manifest_file = dataset_manifest.get("collocation_manifest_file")
         if collocation_manifest_file is None:
             raise KeyError("dataset_manifest must include key 'collocation_manifest_file'")
@@ -740,6 +843,11 @@ class PINNTrainer:
         loop_cfg = self.training_config.get("loop", {})
         data_cfg = self.training_config.get("data", {})
         loss_cfg = self.training_config.get("loss", {})
+        sampling_cfg = self.training_config.get("sampling", {})
+        sampling_cfg = sampling_cfg if isinstance(sampling_cfg, dict) else {}
+        dynamic_cfg = sampling_cfg.get("dynamic_collocation", {})
+        dynamic_cfg = dynamic_cfg if isinstance(dynamic_cfg, dict) else {}
+        dynamic_enabled = bool(dynamic_cfg.get("enabled", False))
         cb_ckpt_cfg = self.training_config.get("callbacks", {}).get("checkpoint", {})
 
         seed = int(meta_cfg.get("seed", 42))
@@ -747,6 +855,7 @@ class PINNTrainer:
         np.random.seed(seed)
 
         device = _resolve_device(meta_cfg.get("device", "auto"))
+        print(f"[PINN] device={device}")
         epochs = int(loop_cfg.get("epochs", 200))
         batch_size_collocation = int(loop_cfg.get("batch_size_collocation", 2048))
         batch_size_boundary = int(loop_cfg.get("batch_size_boundary", 512))
@@ -757,6 +866,9 @@ class PINNTrainer:
         log_every = int(loop_cfg.get("log_every", 50))
         if log_every <= 0:
             log_every = 1
+        val_every = int(loop_cfg.get("val_every", 1))
+        if val_every <= 0:
+            val_every = 1
 
         mode = _normalize_training_mode(meta_cfg.get("optimizer", "adam"))
         supported_modes = {"adam", "sgd", "lbfgs", "mix_half"}
@@ -799,7 +911,6 @@ class PINNTrainer:
             scaling_cfg=input_scaling_cfg,
             output_dir=self.output_dir,
         )
-
         model = build_pinn_model(model_config).to(device)
         configure_input_affine = getattr(model, "configure_input_affine", None)
         if callable(configure_input_affine):
@@ -808,6 +919,11 @@ class PINNTrainer:
             input_affine=input_affine_np,
             device=device,
         )
+        learned_log_vars = _build_learned_loss_log_vars(
+            loss_config=loss_cfg,
+            device=device,
+        )
+        learned_log_var_lr = _learned_loss_log_var_lr(loss_cfg)
 
         initial_checkpoint_raw = (
             meta_cfg.get("initial_checkpoint")
@@ -861,11 +977,15 @@ class PINNTrainer:
                 model=model,
                 optimizer_name="adam",
                 optimizer_cfg=adam_cfg,
+                extra_parameters=learned_log_vars.parameters() if learned_log_vars is not None else None,
+                extra_learn_rate=learned_log_var_lr,
             )
             optimizers_by_name["lbfgs"] = _build_optimizer(
                 model=model,
                 optimizer_name="lbfgs",
                 optimizer_cfg=lbfgs_cfg,
+                extra_parameters=learned_log_vars.parameters() if learned_log_vars is not None else None,
+                extra_learn_rate=learned_log_var_lr,
             )
             schedulers_by_name["adam"] = _build_scheduler(
                 training_config=self.training_config,
@@ -930,6 +1050,8 @@ class PINNTrainer:
                 model=model,
                 optimizer_name=opt_name,
                 optimizer_cfg=opt_cfg,
+                extra_parameters=learned_log_vars.parameters() if learned_log_vars is not None else None,
+                extra_learn_rate=learned_log_var_lr,
             )
             schedulers_by_name[opt_name] = _build_scheduler(
                 training_config=self.training_config,
@@ -981,6 +1103,39 @@ class PINNTrainer:
 
             active_optimizer_name = opt_name
 
+        def _rebuild_train_loaders() -> None:
+            train_loaders_by_name.clear()
+            optional_loaders_by_name.clear()
+            for opt_name in optimizers_by_name:
+                if opt_name == "lbfgs":
+                    opt_cfg = _get_optimizer_cfg(self.training_config, "lbfgs")
+                    full_batch = bool(opt_cfg.get("full_batch", True))
+                    opt_batch_size = int(
+                        opt_cfg.get(
+                            "batch_size",
+                            max(batch_size_collocation, min(8192, batch_size_collocation * 4)),
+                        )
+                    )
+                    interior_bs = len(x_train["interior"]) if full_batch else opt_batch_size
+                    boundary_bs = len(x_train["terminal"]) if full_batch else opt_batch_size
+                    shuffle = not full_batch
+                else:
+                    interior_bs = batch_size_collocation
+                    boundary_bs = batch_size_boundary
+                    shuffle = True
+                train_loaders_by_name[opt_name] = (
+                    _build_loader(x_train["interior"], batch_size=interior_bs, shuffle=shuffle),
+                    _build_loader(x_train["terminal"], batch_size=boundary_bs, shuffle=shuffle),
+                    _build_loader(x_train["lower"], batch_size=boundary_bs, shuffle=shuffle),
+                )
+                optional_loaders_by_name[opt_name] = _build_optional_loaders(
+                    x_train,
+                    batch_size=boundary_bs,
+                    shuffle=shuffle,
+                )
+
+        _rebuild_train_loaders()
+
         optimizer = optimizers_by_name[active_optimizer_name]
         lr_scheduler = schedulers_by_name[active_optimizer_name]
 
@@ -995,7 +1150,23 @@ class PINNTrainer:
         last_ckpt = ckpt_dir / filename_last
 
         history_rows: list[dict] = []
+        dynamic_refresh_reports: list[dict] = []
+        dynamic_refresh_count = 0
         best_val_loss = float("inf")
+        last_val_total = float("nan")
+        last_val_terms = PINNLossTerms(
+            pde=float("nan"),
+            term=float("nan"),
+            low=float("nan"),
+            no_arbitrage=float("nan"),
+            right=float("nan"),
+            v_zero=float("nan"),
+            dpde=float("nan"),
+            greek_delta=float("nan"),
+            greek_gamma=float("nan"),
+            greek_vega=float("nan"),
+            curvature_bulk=float("nan"),
+        )
         t0 = time.perf_counter()
 
         for epoch in range(1, epochs + 1):
@@ -1006,6 +1177,56 @@ class PINNTrainer:
                     active_optimizer_name = desired
                     optimizer = optimizers_by_name[active_optimizer_name]
                     lr_scheduler = schedulers_by_name[active_optimizer_name]
+
+            dynamic_refreshed = False
+            if dynamic_enabled and active_optimizer_name != "lbfgs":
+                start_epoch = int(dynamic_cfg.get("start_epoch", 250))
+                refresh_every = int(dynamic_cfg.get("refresh_every", 250))
+                stop_default = (
+                    (mix_half_switch_epoch - 1)
+                    if mix_half_switch_epoch is not None
+                    else epochs
+                )
+                stop_epoch = int(dynamic_cfg.get("stop_epoch", stop_default))
+                max_refreshes_raw = dynamic_cfg.get("max_refreshes")
+                max_refreshes = None if max_refreshes_raw is None else int(max_refreshes_raw)
+                should_refresh = (
+                    refresh_every > 0
+                    and epoch >= start_epoch
+                    and epoch <= stop_epoch
+                    and ((epoch - start_epoch) % refresh_every == 0)
+                    and (max_refreshes is None or dynamic_refresh_count < max_refreshes)
+                )
+                if should_refresh:
+                    refresh = refresh_dynamic_collocation_interior(
+                        model=model,
+                        input_affine=input_affine,
+                        device=device,
+                        current_interior=x_train["interior"],
+                        reference_blocks=[
+                            x_train["interior"],
+                            x_val["interior"],
+                            x_train["terminal"],
+                            x_train["lower"],
+                        ],
+                        sampling_config=sampling_cfg,
+                        manifest_domain=collocation_manifest.get("domain", {}),
+                        coordinate_space=str(collocation_manifest.get("coordinate_space", "moneyness")),
+                        dynamic_config=dynamic_cfg,
+                        seed=seed,
+                        epoch=epoch,
+                    )
+                    x_train["interior"] = refresh.interior
+                    dynamic_refresh_reports.append(refresh.report)
+                    dynamic_refresh_count += 1
+                    dynamic_refreshed = True
+                    _rebuild_train_loaders()
+                    print(
+                        "[PINN] dynamic collocation refresh "
+                        f"{dynamic_refresh_count} at epoch {epoch}: "
+                        f"n={refresh.report['n_interior']} "
+                        f"sources={refresh.report['source_counts']}"
+                    )
 
             model.train()
             loader_interior, loader_terminal, loader_lower = train_loaders_by_name[active_optimizer_name]
@@ -1059,6 +1280,7 @@ class PINNTrainer:
                             loss_config=loss_cfg,
                             batch_payload=batch_payload,
                             input_affine=input_affine,
+                            learned_log_vars=learned_log_vars,
                         )
                         total_local.backward()
                         terms_holder["value"] = terms_local
@@ -1074,6 +1296,7 @@ class PINNTrainer:
                         loss_config=loss_cfg,
                         batch_payload=batch_payload,
                         input_affine=input_affine,
+                        learned_log_vars=learned_log_vars,
                     )
                     loss_tensor.backward()
                     optimizer.step()
@@ -1107,18 +1330,27 @@ class PINNTrainer:
                 curvature_bulk=train_curvature_bulk_sum / max(n_steps, 1),
             )
 
-            val_total, val_terms = _evaluate_epoch_loss(
-                model=model,
-                loss_config=loss_cfg,
-                device=device,
-                x_val=x_val,
-                input_affine=input_affine,
-            )
+            val_evaluated = epoch == 1 or (epoch % val_every == 0) or (epoch == epochs)
+            if val_evaluated:
+                last_val_total, last_val_terms = _evaluate_epoch_loss(
+                    model=model,
+                    loss_config=loss_cfg,
+                    device=device,
+                    x_val=x_val,
+                    input_affine=input_affine,
+                    learned_log_vars=learned_log_vars,
+                )
+            val_total = last_val_total
+            val_terms = last_val_terms
 
             if lr_scheduler is not None:
                 lr_scheduler.step()
             current_lr = float(optimizer.param_groups[0]["lr"])
 
+            learned_state = _learned_loss_weight_state(
+                learned_log_vars=learned_log_vars,
+                loss_config=loss_cfg,
+            )
             history_rows.append(
                 {
                     "epoch": epoch,
@@ -1148,10 +1380,14 @@ class PINNTrainer:
                     "val_v_zero": float(val_terms.v_zero),
                     "val_no_arbitrage": float(val_terms.no_arbitrage),
                     "val_curvature_bulk": float(val_terms.curvature_bulk),
+                    "val_evaluated": int(val_evaluated),
+                    "dynamic_refresh": int(dynamic_refreshed),
+                    "dynamic_refresh_count": int(dynamic_refresh_count),
+                    **learned_state,
                 }
             )
 
-            if val_total < best_val_loss:
+            if val_evaluated and val_total < best_val_loss:
                 best_val_loss = val_total
                 _safe_torch_save(obj=model.state_dict(), path=best_ckpt)
 
@@ -1210,6 +1446,7 @@ class PINNTrainer:
             "epochs": epochs,
             "batch_size_collocation": batch_size_collocation,
             "batch_size_boundary": batch_size_boundary,
+            "val_every": val_every,
             "initial_checkpoint": (
                 str(initial_checkpoint_path) if initial_checkpoint_path is not None else None
             ),
@@ -1242,6 +1479,20 @@ class PINNTrainer:
             "last_checkpoint": str(last_ckpt),
             "history_file": str(history_path),
             "figures": figure_paths,
+            "dynamic_collocation": {
+                "enabled": bool(dynamic_enabled),
+                "config": dynamic_cfg if dynamic_enabled else {},
+                "refresh_count": int(dynamic_refresh_count),
+                "refreshes": dynamic_refresh_reports,
+            },
+            "learned_loss_weights": {
+                "enabled": learned_log_vars is not None,
+                "config": loss_cfg.get("learned_weights", {}) if learned_log_vars is not None else {},
+                "final": _learned_loss_weight_state(
+                    learned_log_vars=learned_log_vars,
+                    loss_config=loss_cfg,
+                ),
+            },
             "total_training_seconds": float(time.perf_counter() - t0),
         }
         summary_path = metrics_dir / "train_summary.yaml"

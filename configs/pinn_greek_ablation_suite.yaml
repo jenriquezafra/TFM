@@ -31,6 +31,13 @@ comparison:
       hard_score_max: 0.90
       price_score_max: 1.10
       global_score_max: 1.10
+    pricing_specialist:
+      full_price_ratio_max: 0.95
+      hard_price_ratio_max: 1.10
+      hard_price_specialist_ratio_max: 0.90
+      full_price_guard_ratio_max: 1.10
+      neutral_full_price_ratio_max: 1.10
+      neutral_hard_price_ratio_max: 1.25
 
 modes:
   smoke:
@@ -42,6 +49,16 @@ modes:
           n_lower: 128
           n_right: 128
           n_v_zero: 128
+        dynamic_collocation:
+          start_epoch: 1
+          refresh_every: 1
+          stop_epoch: 1
+          max_refreshes: 1
+          n_interior: 512
+          n_candidates: 512
+          candidate_pool:
+            n_candidates: 512
+            batch_size: 128
       loop:
         epochs: 2
         mix_half_switch_epoch: 999999
@@ -92,6 +109,32 @@ variants:
     enabled: true
     description: "PINN actual reentrenada con protocolo comun."
 
+  - key: "abl16_baseline_log_learned_weights"
+    label: "Baseline log-learned loss weights"
+    enabled: true
+    metric_focus: "pricing"
+    description: "PINN baseline sin ACV ni log-moneyness, con pesos log-var aprendibles y regularizados sobre los terminos activos de la loss."
+    training_overrides:
+      loss:
+        weights:
+          pde: 1.0
+          term: 1.0
+          low: 1.0
+          no_arbitrage: 1.0
+        learned_weights:
+          enabled: true
+          terms: ["pde", "term", "low", "no_arbitrage"]
+          init:
+            pde: 0.0
+            term: 0.0
+            low: 0.0
+            no_arbitrage: 0.0
+          min_log_var: -3.0
+          max_log_var: 3.0
+          prior:
+            strength: 0.2
+            target: 0.0
+
   - key: "abl01_log_core_pdf"
     label: "Log core PDF"
     enabled: true
@@ -122,6 +165,311 @@ variants:
           term: 5.0
           low: 1.0
           no_arbitrage: 0.0
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
+
+  - key: "abl11_log_core_dynamic_collocation"
+    label: "Log core + dynamic collocation"
+    enabled: true
+    description: "Nucleo log/features del PDF con dynamic residual-adaptive collocation para escanear mejor el kink durante Adam."
+    architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+      feature_map:
+        enabled: true
+        mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
+        moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
+    training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+        dynamic_collocation:
+          enabled: true
+          start_epoch: 250
+          refresh_every: 250
+          stop_epoch: 2000
+          max_refreshes: 8
+          n_interior: 40000
+          fractions:
+            global: 0.40
+            kink: 0.35
+            adaptive: 0.25
+          hard_region:
+            epsilon_m: 0.03
+            epsilon_tau: 0.05
+          kink_band:
+            c: 2.0
+            tau_c: 0.15
+            epsilon: 1.0e-8
+          candidate_pool:
+            n_candidates: 80000
+            batch_size: 4096
+            region_shares:
+              global: 0.35
+              hard: 0.25
+              short: 0.15
+              atm: 0.10
+              kink: 0.15
+          score:
+            residual_weight: 1.0
+            curvature_weight: 0.05
+          selection:
+            method: "weighted_without_replacement"
+            power: 1.0
+            floor: 0.05
+            min_source_shares:
+              hard: 0.20
+              kink: 0.20
+              atm: 0.10
+      loss:
+        pde:
+          coordinate: "log_moneyness"
+        weights:
+          pde: 1.0
+          term: 5.0
+          low: 1.0
+          no_arbitrage: 0.0
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
+
+  - key: "abl12_log_core_bounded_price"
+    label: "Log core bounded price"
+    enabled: false
+    metric_focus: "pricing"
+    description: "Desactivada: la salida acotada elimina violaciones de positividad, pero degrada demasiado el pricing global."
+    architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+      feature_map:
+        enabled: true
+        mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
+        moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
+      bounded_price:
+        enabled: true
+        option_type: "put"
+        strike: 1.0
+        tau_index: 0
+        spot_index: 1
+        r_index: 7
+        sigmoid_temperature: 2.0
+        payoff_smoothing: 1.0e-4
+        lower_smoothing: 1.0e-4
+        min_width: 1.0e-10
+        time_gate: "rational_tau"
+        time_gate_tau: 2.0e-2
+    training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+      loss:
+        pde:
+          coordinate: "log_moneyness"
+        weights:
+          pde: 1.0
+          term: 5.0
+          low: 1.0
+          no_arbitrage: 0.0
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
+
+  - key: "abl13_log_core_acv_pricing"
+    label: "Log core ACV pricing"
+    enabled: true
+    metric_focus: "pricing"
+    description: "PINN solo pricing con control variate Black-Scholes local y residual Heston en coordenada log."
+    architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+      output:
+        dim: 4
+        names: ["residual_price", "residual_x", "residual_xx", "residual_v"]
+        activation: "linear"
+      global_acv:
+        enabled: true
+        option_type: "put"
+        strike: 1.0
+        q_epsilon: 1.0e-8
+        bs_epsilon: 1.0e-12
+        terminal_tau: 0.0
+        z_clip: 50.0
+        time_factor: "linear_tau"
+        time_lambda: 1.0
+        final_init_scale: 0.0
+        fourier:
+          frequencies: 6
+    training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+      loss:
+        pde:
+          coordinate: "log_moneyness"
+        weights:
+          pde: 1.0
+          term: 0.1
+          low: 1.0
+          no_arbitrage: 0.0
+          greek_delta: 0.0
+          greek_gamma: 0.0
+          greek_vega: 0.0
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
+
+  - key: "abl14_acv_log_learned_weights"
+    label: "ACV log-learned loss weights"
+    enabled: true
+    metric_focus: "pricing"
+    description: "PINN ACV de pricing con pesos log-var aprendibles para balancear PDE y borde inferior."
+    architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+      output:
+        dim: 4
+        names: ["residual_price", "residual_x", "residual_xx", "residual_v"]
+        activation: "linear"
+      global_acv:
+        enabled: true
+        option_type: "put"
+        strike: 1.0
+        q_epsilon: 1.0e-8
+        bs_epsilon: 1.0e-12
+        terminal_tau: 0.0
+        z_clip: 50.0
+        time_factor: "linear_tau"
+        time_lambda: 1.0
+        final_init_scale: 0.0
+        fourier:
+          frequencies: 6
+    training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+      loss:
+        pde:
+          coordinate: "log_moneyness"
+        weights:
+          pde: 1.0
+          term: 0.1
+          low: 1.0
+          no_arbitrage: 0.0
+          greek_delta: 0.0
+          greek_gamma: 0.0
+          greek_vega: 0.0
+        learned_weights:
+          enabled: true
+          terms: ["pde", "low"]
+          init:
+            pde: 0.0
+            low: 0.0
+          min_log_var: -6.0
+          max_log_var: 6.0
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
+
+  - key: "abl15_acv_log_learned_weights_prior"
+    label: "ACV regularized log-learned weights"
+    enabled: true
+    metric_focus: "pricing"
+    description: "PINN ACV de pricing con pesos log-var aprendibles, clamp mas estrecho y prior cuadratico para evitar saturacion."
+    architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+      output:
+        dim: 4
+        names: ["residual_price", "residual_x", "residual_xx", "residual_v"]
+        activation: "linear"
+      global_acv:
+        enabled: true
+        option_type: "put"
+        strike: 1.0
+        q_epsilon: 1.0e-8
+        bs_epsilon: 1.0e-12
+        terminal_tau: 0.0
+        z_clip: 50.0
+        time_factor: "linear_tau"
+        time_lambda: 1.0
+        final_init_scale: 0.0
+        fourier:
+          frequencies: 6
+    training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+      loss:
+        pde:
+          coordinate: "log_moneyness"
+        weights:
+          pde: 1.0
+          term: 0.1
+          low: 1.0
+          no_arbitrage: 0.0
+          greek_delta: 0.0
+          greek_gamma: 0.0
+          greek_vega: 0.0
+        learned_weights:
+          enabled: true
+          terms: ["pde", "low"]
+          init:
+            pde: 0.0
+            low: 0.0
+          min_log_var: -3.0
+          max_log_var: 3.0
+          prior:
+            strength: 0.2
+            target: 0.0
     diagnostics_overrides:
       global:
         spot_feature: "log_moneyness"
@@ -193,19 +541,28 @@ variants:
           coordinate: "log_moneyness"
 
   - key: "abl05_guard_boundaries"
-    label: "Guard boundaries"
-    enabled: false
-    description: "Borde izquierdo deep ITM, borde derecho OTM y residual degenerado en v=0."
+    label: "PDF guards"
+    enabled: true
+    description: "Nucleo log del PDF mas borde izquierdo deep ITM, borde derecho far-field OTM y residual degenerado en v=0."
     architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
       feature_map:
         enabled: true
         mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
         moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
     training_overrides:
       sampling:
+        coordinate_space: "log_moneyness"
         sizes:
           n_right: 10000
           n_v_zero: 10000
+        domain:
+          moneyness: [0.05, 2.0]
         boundaries:
           lower_moneyness: 0.05
           right_moneyness: 3.0
@@ -215,7 +572,7 @@ variants:
           coordinate: "log_moneyness"
         weights:
           pde: 1.0
-          term: 1.0
+          term: 5.0
           low: 1.0
           left_delta: 0.25
           left_gamma: 0.05
@@ -223,17 +580,43 @@ variants:
           right_delta: 0.25
           right_gamma: 0.05
           v_zero: 0.5
+          no_arbitrage: 0.0
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
 
   - key: "abl06_no_arbitrage"
-    label: "No-arbitrage"
-    enabled: false
-    description: "Penaliza bounds de precio, rango de Delta y convexidad del put."
+    label: "PDF no-arbitrage"
+    enabled: true
+    description: "Nucleo log y guards del PDF mas penalizaciones reales de bounds de precio, rango de Delta y convexidad."
     architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
       feature_map:
         enabled: true
         mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
         moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
     training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        sizes:
+          n_right: 10000
+          n_v_zero: 10000
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+          right_moneyness: 3.0
+          v_zero_value: 0.0
       loss:
         pde:
           coordinate: "log_moneyness"
@@ -241,21 +624,58 @@ variants:
           beta_delta: 1.0
           beta_gamma: 1.0
         weights:
+          pde: 1.0
+          term: 5.0
+          low: 1.0
+          left_delta: 0.25
+          left_gamma: 0.05
+          right: 1.0
+          right_delta: 0.25
+          right_gamma: 0.05
+          v_zero: 0.5
           no_arbitrage: 0.05
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
 
   - key: "abl07_kink_bulk_loss"
-    label: "Kink/bulk PDE loss"
-    enabled: false
-    description: "Separa el residual PDE en zona kink y zona bulk con un gate suave."
+    label: "PDF kink/bulk loss"
+    enabled: true
+    description: "Nucleo log, guards y no-arbitrage mas separacion L_PDE,kink / L_PDE,bulk con gate suave."
     architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
       feature_map:
         enabled: true
         mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
         moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
     training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        sizes:
+          n_right: 10000
+          n_v_zero: 10000
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+          right_moneyness: 3.0
+          v_zero_value: 0.0
       loss:
         pde:
           coordinate: "log_moneyness"
+        no_arbitrage:
+          beta_delta: 1.0
+          beta_gamma: 1.0
         kink_bulk:
           enabled: true
           c: 2.0
@@ -263,18 +683,55 @@ variants:
           delta_x: 0.05
           delta_tau: 0.02
           ell_epsilon: 1.0e-8
+        weights:
+          pde: 1.0
+          pde_bulk: 1.0
+          pde_kink: 3.0
+          term: 5.0
+          low: 1.0
+          left_delta: 0.25
+          left_gamma: 0.05
+          right: 1.0
+          right_delta: 0.25
+          right_gamma: 0.05
+          v_zero: 0.5
+          no_arbitrage: 0.05
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
 
   - key: "abl08_kink_band_sampling"
-    label: "Kink-band sampling"
-    enabled: false
-    description: "Reserva una fraccion del interior para la banda |x| <= c sqrt(v tau + eps), tau <= tau_c."
+    label: "PDF kink-band sampling"
+    enabled: true
+    description: "Ablacion incremental que anade muestreo focalizado en |x| <= c sqrt(v tau + eps), tau <= tau_c."
     architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
       feature_map:
         enabled: true
         mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
         moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
     training_overrides:
       sampling:
+        coordinate_space: "log_moneyness"
+        sizes:
+          n_right: 10000
+          n_v_zero: 10000
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+          right_moneyness: 3.0
+          v_zero_value: 0.0
         kink_band:
           enabled: true
           fraction: 0.30
@@ -284,35 +741,9 @@ variants:
       loss:
         pde:
           coordinate: "log_moneyness"
-
-  - key: "abl09_residual_adaptive_sampling"
-    label: "Residual-adaptive sampling"
-    enabled: false
-    workflow: "adaptive_collocation"
-    base_variant: "abl00_baseline"
-    description: "Construye collocation adaptativo desde la PINN baseline usando residual y regiones dificiles."
-    adaptive_overrides:
-      adaptive:
-        selection:
-          adaptive_ratio: 0.40
-          min_source_shares:
-            hard: 0.25
-            short: 0.15
-            atm: 0.15
-
-  - key: "abl10_curvature_bulk_optional"
-    label: "Curvature bulk"
-    enabled: false
-    description: "Regularizacion opcional de curvatura de tercer orden solo fuera del kink."
-    architecture_overrides:
-      feature_map:
-        enabled: true
-        mode: "kink_adapted"
-        moneyness_floor: 1.0e-6
-    training_overrides:
-      loss:
-        pde:
-          coordinate: "log_moneyness"
+        no_arbitrage:
+          beta_delta: 1.0
+          beta_gamma: 1.0
         kink_bulk:
           enabled: true
           c: 2.0
@@ -321,4 +752,212 @@ variants:
           delta_tau: 0.02
           ell_epsilon: 1.0e-8
         weights:
+          pde: 1.0
+          pde_bulk: 1.0
+          pde_kink: 3.0
+          term: 5.0
+          low: 1.0
+          left_delta: 0.25
+          left_gamma: 0.05
+          right: 1.0
+          right_delta: 0.25
+          right_gamma: 0.05
+          v_zero: 0.5
+          no_arbitrage: 0.05
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
+
+  - key: "abl09_residual_adaptive_sampling"
+    label: "PDF residual-adaptive sampling"
+    enabled: true
+    workflow: "adaptive_collocation"
+    base_variant: "abl08_kink_band_sampling"
+    description: "Fine-tuning adaptativo desde abl08 con mezcla 50% global, 30% kink-band y 20% adaptive por |R| + c|G|."
+    architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+      feature_map:
+        enabled: true
+        mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
+        moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
+    training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        sizes:
+          n_right: 10000
+          n_v_zero: 10000
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+          right_moneyness: 3.0
+          v_zero_value: 0.0
+        kink_band:
+          enabled: true
+          fraction: 0.30
+          c: 2.0
+          tau_c: 0.15
+          epsilon: 1.0e-8
+      loss:
+        pde:
+          coordinate: "log_moneyness"
+        no_arbitrage:
+          beta_delta: 1.0
+          beta_gamma: 1.0
+        kink_bulk:
+          enabled: true
+          c: 2.0
+          tau_c: 0.15
+          delta_x: 0.05
+          delta_tau: 0.02
+          ell_epsilon: 1.0e-8
+        weights:
+          pde: 1.0
+          pde_bulk: 1.0
+          pde_kink: 3.0
+          term: 5.0
+          low: 1.0
+          left_delta: 0.25
+          left_gamma: 0.05
+          right: 1.0
+          right_delta: 0.25
+          right_gamma: 0.05
+          v_zero: 0.5
+          no_arbitrage: 0.05
+    adaptive_overrides:
+      inputs:
+        cann:
+          calibration_dir: "outputs/calibration/Liu_like_v01/Calibration_no_reg"
+          summary_file: "summary.yaml"
+          quotes_file: "quotes_comparison.parquet"
+          parameter_key: "theta_star"
+      adaptive:
+        sizes:
+          n_interior: 40000
+        hard_region:
+          epsilon_m: 0.03
+          epsilon_tau: 0.05
+        selection:
+          adaptive_ratio: 0.20
+          score:
+            residual_weight: 1.0
+            curvature_weight: 0.1
+            residual_dx_weight: 0.0
+            residual_dv_weight: 0.0
+          min_source_shares:
+            hard: 0.25
+            short: 0.15
+            atm: 0.15
+        sampling:
+          coordinate_space: "log_moneyness"
+          strategy: "lhs_static"
+          mode: "fixed_theta"
+          seed: 42
+          sizes:
+            n_interior: 40000
+            n_terminal: 10000
+            n_lower: 10000
+            n_right: 10000
+            n_v_zero: 10000
+          domain:
+            tau: [0.0, 3.0]
+            moneyness: [0.05, 2.0]
+            v: [0.01, 0.5]
+            r: [0.0, 0.05]
+          boundaries:
+            lower_moneyness: 0.05
+            right_moneyness: 3.0
+            v_zero_value: 0.0
+          kink_band:
+            enabled: true
+            fraction: 0.30
+            c: 2.0
+            tau_c: 0.15
+            epsilon: 1.0e-8
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05
+
+  - key: "abl10_curvature_bulk_optional"
+    label: "PDF curvature bulk optional"
+    enabled: true
+    description: "Regularizacion opcional de curvatura solo en bulk: penaliza d_x(U_xx-U_x) fuera del kink con peso pequeno."
+    architecture_overrides:
+      input:
+        features: ["tau", "log_moneyness", "v", "rho", "kappa", "gamma", "bar_v", "r"]
+      feature_map:
+        enabled: true
+        mode: "kink_adapted"
+        input_coordinate: "log_moneyness"
+        moneyness_floor: 1.0e-6
+        tau_epsilon: 1.0e-6
+        q_epsilon: 1.0e-8
+        q_clip: 10.0
+    training_overrides:
+      sampling:
+        coordinate_space: "log_moneyness"
+        sizes:
+          n_right: 10000
+          n_v_zero: 10000
+        domain:
+          moneyness: [0.05, 2.0]
+        boundaries:
+          lower_moneyness: 0.05
+          right_moneyness: 3.0
+          v_zero_value: 0.0
+        kink_band:
+          enabled: true
+          fraction: 0.30
+          c: 2.0
+          tau_c: 0.15
+          epsilon: 1.0e-8
+      loss:
+        pde:
+          coordinate: "log_moneyness"
+        no_arbitrage:
+          beta_delta: 1.0
+          beta_gamma: 1.0
+        kink_bulk:
+          enabled: true
+          c: 2.0
+          tau_c: 0.15
+          delta_x: 0.05
+          delta_tau: 0.02
+          ell_epsilon: 1.0e-8
+        weights:
+          pde: 1.0
+          pde_bulk: 1.0
+          pde_kink: 3.0
+          term: 5.0
+          low: 1.0
+          left_delta: 0.25
+          left_gamma: 0.05
+          right: 1.0
+          right_delta: 0.25
+          right_gamma: 0.05
+          v_zero: 0.5
+          no_arbitrage: 0.05
           curvature_bulk: 1.0e-4
+    diagnostics_overrides:
+      global:
+        spot_feature: "log_moneyness"
+      diagnostics:
+        surface_grid:
+          x_feature: "moneyness"
+        boundary_checks:
+          lower_moneyness: 0.05

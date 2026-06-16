@@ -1,8 +1,8 @@
 project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl08_kink_band_sampling/pipeline.yaml
 experiment_name: abl08_kink_band_sampling
-description: Reserva una fraccion del interior para la banda |x| <= c sqrt(v tau +
-  eps), tau <= tau_c.
+description: Ablacion incremental que anade muestreo focalizado en |x| <= c sqrt(v
+  tau + eps), tau <= tau_c.
 architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl08_kink_band_sampling/architecture.yaml
 training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl08_kink_band_sampling/training.yaml
 outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn

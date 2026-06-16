@@ -1,0 +1,20 @@
+model_run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/runs/ANN_IV_Sobolev_v01
+rows: 961
+feature_order:
+- rho
+- kappa
+- gamma
+- bar_v
+- v0
+- moneyness
+- tau
+- r
+primary_quantities:
+- delta
+- price
+- rho
+- theta
+- vega
+gamma_note: Gamma is diagnostic only in the first ANN-IV Sobolev experiment.
+points_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/ann_iv_greeks/ANN_IV_Sobolev_v01_grid31/points_ann_iv_greeks.csv
+metrics_csv: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/ann_iv_greeks/ANN_IV_Sobolev_v01_grid31/metrics_ann_iv_greeks.csv

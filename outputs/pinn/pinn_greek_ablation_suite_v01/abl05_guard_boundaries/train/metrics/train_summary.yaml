@@ -24,7 +24,7 @@ input_scaling:
   eps: 1.0e-08
   feature_order:
   - tau
-  - moneyness
+  - log_moneyness
   - v
   - rho
   - kappa
@@ -33,7 +33,7 @@ input_scaling:
   - r
   a:
   - -1.3812251091003418
-  - -1.229979395866394
+  - 0.31052595376968384
   - -1.423875093460083
   - 0.0
   - 0.0
@@ -42,7 +42,7 @@ input_scaling:
   - -1.7323802709579468
   b:
   - 1.0520155429840088
-  - 1.087201476097107
+  - 0.7826834321022034
   - 6.376712799072266
   - 1.0
   - 1.0
@@ -51,7 +51,7 @@ input_scaling:
   - 69.23108673095703
   mean_train:
   - 1.3129322528839111
-  - 1.1313260793685913
+  - -0.3967452943325043
   - 0.22329296171665192
   - -0.5241299867630005
   - 1.057623267173767
@@ -60,7 +60,7 @@ input_scaling:
   - 0.02502315491437912
   std_train:
   - 0.9505562782287598
-  - 0.9197927117347717
+  - 1.2776557207107544
   - 0.156820610165596
   - 0.0
   - 0.0
@@ -72,7 +72,7 @@ input_scaling:
   - kappa
   - gamma
   - bar_v
-best_val_total: 3763.610107421875
+best_val_total: 13.047335624694824
 best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/train/checkpoints/model_best.pt
 last_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/train/checkpoints/model_last.pt
 history_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/train/metrics/train_history.csv
@@ -82,4 +82,4 @@ figures:
   learning_rate_curve: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/train/figures/learning_rate_curve.png
   pde_residual_map_m_tau: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/train/figures/pde_residual_map_m_tau.png
   pde_residual_map_m_tau_log: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl05_guard_boundaries/train/figures/pde_residual_map_m_tau_log.png
-total_training_seconds: 7023.931468416937
+total_training_seconds: 5668.999322916963

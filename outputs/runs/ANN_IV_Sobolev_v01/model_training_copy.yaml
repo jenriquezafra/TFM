@@ -1,0 +1,82 @@
+meta:
+  seed: 42
+  optimizer: "adam"
+
+data:
+  dir: "data/synth/1M_Feller"
+  shuffle: true
+  feature_columns: ["rho", "kappa", "gamma", "bar_v", "v0", "moneyness", "tau", "r"]
+  target_column: "IV"
+  row_filters:
+    enabled: true
+    finite_columns: ["IV"]
+  splits:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+
+preprocessing:
+  normalization:
+    enabled: false
+    normalize_target: false
+    eps: 1.0e-12
+
+optimizers:
+  - name: "adam"
+    learn_rate: 1.0e-3
+    weight_decay: 0.0
+
+  - name: "L-BFGS"
+    learn_rate: 3.0e-3
+    max_iter: 8
+    line_search_fn: "strong_wolfe"
+    historic_size: 100
+    full_batch: true
+
+loss:
+  name: "mse"
+  sobolev:
+    enabled: true
+    anchor_dir: "data/sobolev/ann_iv_v01"
+    weight: 0.10
+    warmup_epochs: 500
+    batch_size: 512
+    derivative_columns: ["d_iv_dm", "d_iv_dtau", "d_iv_dr", "d_iv_dv0"]
+
+loop:
+  epochs: 8000
+  batch_size_train: 1024
+  batch_size_val: "all"
+
+callbacks:
+  early_stopping:
+    enabled: false
+    monitor: "val_loss"
+    trim_top_fraction: 0.01
+    patience: 800
+    min_delta: 1.0e-8
+    warmup_epochs: 2200
+    mode: "min"
+
+  checkpoint:
+    enabled: true
+    filename_best: "model_best.pt"
+    filename_last: "model_last.pt"
+
+  lr_scheduler:
+    enabled: true
+    name: "step"
+    step_size: 500
+    gamma: 0.50
+
+outputs:
+  loss_curve: true
+  gap_curve: true
+  lr_curve: true
+
+evaluation:
+  enabled: true
+  batch_size: 8192
+  bins:
+    moneyness: [0.6, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4]
+    tau: [0.05, 0.25, 0.5, 1.0, 2.0, 3.0]

@@ -1,8 +1,8 @@
 project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl05_guard_boundaries/pipeline.yaml
 experiment_name: abl05_guard_boundaries
-description: Borde izquierdo deep ITM, borde derecho OTM y residual degenerado en
-  v=0.
+description: Nucleo log del PDF mas borde izquierdo deep ITM, borde derecho far-field
+  OTM y residual degenerado en v=0.
 architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl05_guard_boundaries/architecture.yaml
 training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl05_guard_boundaries/training.yaml
 outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn

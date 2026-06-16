@@ -34,6 +34,16 @@ sampling:
     r:
     - 0.0
     - 0.05
+  dynamic_collocation:
+    start_epoch: 1
+    refresh_every: 1
+    stop_epoch: 1
+    max_refreshes: 1
+    n_interior: 512
+    n_candidates: 512
+    candidate_pool:
+      n_candidates: 512
+      batch_size: 128
 optimizers:
 - name: adam
   learn_rate: 0.001

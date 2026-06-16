@@ -1,8 +1,8 @@
 meta:
   experiment_name: abl09_residual_adaptive_sampling
   seed: 42
-  description: Construye collocation adaptativo desde la PINN baseline usando residual
-    y regiones dificiles.
+  description: Fine-tuning adaptativo desde abl08 con mezcla 50% global, 30% kink-band
+    y 20% adaptive por |R| + c|G|.
 inputs:
   cann:
     calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg

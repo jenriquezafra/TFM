@@ -1,7 +1,8 @@
 project_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM
 config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl10_curvature_bulk_optional/pipeline.yaml
 experiment_name: abl10_curvature_bulk_optional
-description: Regularizacion opcional de curvatura de tercer orden solo fuera del kink.
+description: 'Regularizacion opcional de curvatura solo en bulk: penaliza d_x(U_xx-U_x)
+  fuera del kink con peso pequeno.'
 architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl10_curvature_bulk_optional/architecture.yaml
 training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/full/abl10_curvature_bulk_optional/training.yaml
 outputs_root: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn

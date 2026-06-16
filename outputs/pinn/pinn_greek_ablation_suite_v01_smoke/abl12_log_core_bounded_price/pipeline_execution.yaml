@@ -1,0 +1,12 @@
+timestamp: 2026-06-14_19-33-24
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_greek_ablation_suite_v01/resolved_configs/smoke/abl12_log_core_bounded_price/pipeline.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01_smoke/abl12_log_core_bounded_price
+stages:
+  prepare_dataset:
+    status: skipped
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl12_log_core_bounded_price/smoke/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01_smoke/abl12_log_core_bounded_price/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped

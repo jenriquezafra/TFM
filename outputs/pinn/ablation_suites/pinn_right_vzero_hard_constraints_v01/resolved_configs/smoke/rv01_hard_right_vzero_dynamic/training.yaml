@@ -1,0 +1,129 @@
+meta:
+  seed: 42
+  device: auto
+  optimizer: mix_half
+data:
+  supervised_source: cann_quotes_comparison
+  target_column: price_market
+  val_fraction: 0.2
+  input_scaling:
+    enabled: true
+    method: standardize_train
+    eps: 1.0e-08
+sampling:
+  strategy: lhs_static
+  mode: fixed_theta
+  seed: 42
+  output_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_right_vzero_hard_constraints_v01/rv01_hard_right_vzero_dynamic/smoke
+  sizes:
+    n_interior: 512
+    n_terminal: 128
+    n_lower: 128
+    n_right: 128
+    n_v_zero: 128
+  domain:
+    tau:
+    - 0.0
+    - 3.0
+    moneyness:
+    - 0.0
+    - 2.0
+    v:
+    - 0.01
+    - 0.5
+    r:
+    - 0.0
+    - 0.05
+  boundaries:
+    lower_moneyness: 0.0
+    right_moneyness: 3.0
+    v_zero_value: 0.0
+  dynamic_collocation:
+    enabled: true
+    start_epoch: 2
+    refresh_every: 1
+    stop_epoch: 2
+    max_refreshes: 1
+    n_interior: 512
+    fractions:
+      global: 0.35
+      kink: 0.35
+      adaptive: 0.3
+    hard_region:
+      epsilon_m: 0.03
+      epsilon_tau: 0.05
+    kink_band:
+      c: 2.0
+      tau_c: 0.2
+      epsilon: 1.0e-08
+    candidate_pool:
+      n_candidates: 768
+      batch_size: 256
+      region_shares:
+        global: 0.25
+        hard: 0.25
+        short: 0.15
+        atm: 0.15
+        kink: 0.2
+    score:
+      residual_weight: 1.0
+      curvature_weight: 0.01
+    selection:
+      method: rar-d
+      power: 1.0
+      floor: 0.05
+      min_source_shares:
+        hard: 0.2
+        kink: 0.2
+        atm: 0.1
+optimizers:
+- name: adam
+  learn_rate: 0.001
+  weight_decay: 0.0
+- name: L-BFGS
+  learn_rate: 1.0
+  max_iter: 2
+  line_search_fn: strong_wolfe
+  historic_size: 20
+  full_batch: true
+loss:
+  reduction: mean
+  weights:
+    pde: 1.0
+    term: 0.0
+    low: 0.0
+    no_arbitrage: 0.0
+    right: 0.0
+    v_zero: 0.5
+  pde:
+    coordinate: moneyness
+loop:
+  epochs: 3
+  mix_half_switch_epoch: 999999
+  batch_size_collocation: 128
+  batch_size_boundary: 64
+  log_every: 1
+  val_every: 1
+callbacks:
+  checkpoint:
+    enabled: true
+    filename_best: model_best.pt
+    filename_last: model_last.pt
+  early_stopping:
+    enabled: false
+    monitor: val_total_loss
+    patience: 300
+    min_delta: 1.0e-07
+  lr_scheduler:
+    enabled: true
+    name: step
+    step_size: 500
+    gamma: 0.5
+evaluation:
+  enabled: true
+  batch_size: 8192
+  metrics:
+  - mse
+  - mae
+  - rmse
+  - pde_residual_l2

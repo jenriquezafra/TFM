@@ -1,0 +1,10 @@
+timestamp: 2026-06-14_17-54-52
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/configs/global_acv_pinn_experimental.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke
+smoke: true
+dry_run: false
+architecture_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/configs/architecture.yaml
+training_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/configs/training.yaml
+collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/global_acv_pinn_smoke/collocation_sets_manifest.yaml
+best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/global_acv_pinn_experimental_smoke/train/checkpoints/model_best.pt
+status: completed

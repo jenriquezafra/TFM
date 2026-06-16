@@ -109,6 +109,15 @@ def _metric(df: pd.DataFrame, *, region: str, variable: str, column: str) -> flo
     return float(row.iloc[0][column])
 
 
+def _same_metric_grid(row: pd.Series, baseline: pd.Series, columns: list[str]) -> bool:
+    for col in columns:
+        value = float(row.get(col, float("nan")))
+        base_value = float(baseline.get(col, float("nan")))
+        if np.isfinite(value) and np.isfinite(base_value) and int(value) != int(base_value):
+            return False
+    return True
+
+
 def _load_train_summary(path: Path) -> dict:
     if not path.exists():
         return {}
@@ -124,9 +133,15 @@ def _build_comparison_table(manifest: dict) -> pd.DataFrame:
             "key": _variant_key(variant),
             "label": str(variant.get("label", _variant_key(variant))),
             "role": str(variant.get("role", "ablation")),
+            "metric_focus": str(variant.get("metric_focus", "greeks")),
             "run_dir": str(_run_dir(manifest, variant)),
+            "price_n_points": _metric(metrics, region="full", variable="price", column="n_points"),
+            "hard_price_n_points": _metric(metrics, region="hard", variable="price", column="n_points"),
             "price_rmse": _metric(metrics, region="full", variable="price", column="rmse"),
             "hard_price_rmse": _metric(metrics, region="hard", variable="price", column="rmse"),
+            "non_hard_price_rmse": _metric(metrics, region="non_hard", variable="price", column="rmse"),
+            "short_maturity_price_rmse": _metric(metrics, region="short_maturity", variable="price", column="rmse"),
+            "atm_price_rmse": _metric(metrics, region="atm", variable="price", column="rmse"),
             "hard_p99_gamma_error": _metric(metrics, region="hard", variable="gamma", column="p99_abs_error"),
             "pde_residual_rmse": _metric(metrics, region="full", variable="pde_residual", column="rmse"),
             "hard_pde_residual_rmse": _metric(metrics, region="hard", variable="pde_residual", column="rmse"),
@@ -170,11 +185,17 @@ def _add_scores(*, table: pd.DataFrame, manifest: dict) -> pd.DataFrame:
     global_cols = [f"{g}_rmse" for g in GREEKS]
     hard_cols = ["hard_delta_rmse", "hard_gamma_rmse", "hard_p99_gamma_error"]
     price_cols = ["price_rmse", "hard_price_rmse"]
+    optional_ratio_cols = ["non_hard_price_rmse", "short_maturity_price_rmse", "atm_price_rmse"]
+    grid_cols = ["price_n_points", "hard_price_n_points"]
+    out["comparison_grid_ok"] = [
+        _same_metric_grid(row, b, grid_cols)
+        for _, row in out.iterrows()
+    ]
 
-    for col in global_cols + hard_cols + price_cols:
+    for col in global_cols + hard_cols + price_cols + optional_ratio_cols:
         out[f"ratio_{col}"] = [
-            _safe_ratio(float(value), float(b[col]))
-            for value in out[col].to_numpy(dtype=np.float64)
+            _safe_ratio(float(row[col]), float(b[col])) if bool(row["comparison_grid_ok"]) else float("nan")
+            for _, row in out.iterrows()
         ]
 
     out["global_score"] = [
@@ -194,6 +215,7 @@ def _add_scores(*, table: pd.DataFrame, manifest: dict) -> pd.DataFrame:
     thresholds = comparison.get("thresholds", {}) if isinstance(comparison, dict) else {}
     global_cfg = thresholds.get("global_improvement", {}) if isinstance(thresholds, dict) else {}
     hard_cfg = thresholds.get("hard_specialist", {}) if isinstance(thresholds, dict) else {}
+    pricing_cfg = thresholds.get("pricing_specialist", {}) if isinstance(thresholds, dict) else {}
     global_score_max = float(global_cfg.get("global_score_max", 0.95))
     price_guard_max = float(global_cfg.get("price_score_max", 1.10))
     hard_guard_max = float(global_cfg.get("hard_score_max", 1.25))
@@ -201,11 +223,42 @@ def _add_scores(*, table: pd.DataFrame, manifest: dict) -> pd.DataFrame:
     specialist_hard_max = float(hard_cfg.get("hard_score_max", 0.90))
     specialist_price_max = float(hard_cfg.get("price_score_max", 1.10))
     specialist_global_max = float(hard_cfg.get("global_score_max", 1.10))
+    pricing_full_improvement_max = float(pricing_cfg.get("full_price_ratio_max", 0.95))
+    pricing_hard_guard_max = float(pricing_cfg.get("hard_price_ratio_max", 1.10))
+    pricing_hard_specialist_max = float(pricing_cfg.get("hard_price_specialist_ratio_max", 0.90))
+    pricing_full_guard_max = float(pricing_cfg.get("full_price_guard_ratio_max", 1.10))
+    pricing_neutral_full_max = float(pricing_cfg.get("neutral_full_price_ratio_max", 1.10))
+    pricing_neutral_hard_max = float(pricing_cfg.get("neutral_hard_price_ratio_max", 1.25))
 
     statuses: list[str] = []
     for _, row in out.iterrows():
         if row["key"] == baseline_key:
             statuses.append("baseline")
+            continue
+        if not bool(row["comparison_grid_ok"]):
+            statuses.append("incompatible_grid")
+            continue
+        metric_focus = str(row.get("metric_focus", "greeks")).strip().lower()
+        if metric_focus in {"price", "pricing", "pricing_only", "price_only"}:
+            full_price_ratio = float(row["ratio_price_rmse"])
+            hard_price_ratio = float(row["ratio_hard_price_rmse"])
+            if (
+                full_price_ratio <= pricing_full_improvement_max
+                and hard_price_ratio <= pricing_hard_guard_max
+            ):
+                statuses.append("pricing_improvement")
+            elif (
+                hard_price_ratio <= pricing_hard_specialist_max
+                and full_price_ratio <= pricing_full_guard_max
+            ):
+                statuses.append("pricing_hard_specialist")
+            elif (
+                full_price_ratio <= pricing_neutral_full_max
+                and hard_price_ratio <= pricing_neutral_hard_max
+            ):
+                statuses.append("pricing_neutral")
+            else:
+                statuses.append("pricing_regression")
             continue
         global_ok = float(row["global_score"]) <= global_score_max
         price_ok = float(row["price_score"]) <= price_guard_max
@@ -232,9 +285,13 @@ def _format_markdown_table(df: pd.DataFrame) -> str:
     cols = [
         ("key", "Experiment"),
         ("status", "Status"),
+        ("comparison_grid_ok", "Grid OK"),
         ("global_score", "Global"),
         ("hard_score", "Hard"),
         ("price_score", "Price"),
+        ("price_rmse", "Price RMSE"),
+        ("non_hard_price_rmse", "Non-Hard Price RMSE"),
+        ("hard_price_rmse", "Hard Price RMSE"),
         ("gamma_rmse", "Gamma RMSE"),
         ("hard_gamma_rmse", "Hard Gamma RMSE"),
         ("training_time_seconds", "Train s"),
@@ -249,6 +306,8 @@ def _format_markdown_table(df: pd.DataFrame) -> str:
             value = row[key]
             if key in {"key", "status"}:
                 cells.append(str(value))
+            elif key == "comparison_grid_ok":
+                cells.append("yes" if bool(value) else "no")
             else:
                 cells.append("" if pd.isna(value) else f"{float(value):.6g}")
         lines.append("| " + " | ".join(cells) + " |")
@@ -410,11 +469,18 @@ def _save_score_scatter(*, table: pd.DataFrame, output_path: Path) -> None:
         "baseline": "#333333",
         "global_improvement": "#2E7D32",
         "hard_specialist": "#1565C0",
+        "pricing_improvement": "#00897B",
+        "pricing_hard_specialist": "#00796B",
+        "pricing_neutral": "#607D8B",
+        "pricing_regression": "#C62828",
+        "incompatible_grid": "#6D4C41",
         "neutral": "#777777",
         "regression": "#B71C1C",
     }
     for _, row in table.iterrows():
         color = colors.get(str(row["status"]), "#777777")
+        if not np.isfinite(float(row["global_score"])) or not np.isfinite(float(row["hard_score"])):
+            continue
         ax.scatter(float(row["global_score"]), float(row["hard_score"]), s=58, color=color)
         ax.annotate(str(row["key"]), (float(row["global_score"]), float(row["hard_score"])), fontsize=8, xytext=(4, 4), textcoords="offset points")
     ax.axvline(1.0, color="black", linewidth=1.0, linestyle="--")

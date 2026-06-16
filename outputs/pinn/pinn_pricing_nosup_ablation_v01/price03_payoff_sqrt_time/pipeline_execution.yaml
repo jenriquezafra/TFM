@@ -1,0 +1,12 @@
+timestamp: 2026-06-16_09-54-18
+config_path: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/pipeline.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price03_payoff_sqrt_time
+stages:
+  prepare_dataset:
+    status: skipped
+  train:
+    status: completed
+    collocation_manifest_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_nosup_ablation_v01/price03_payoff_sqrt_time/full/collocation_sets_manifest.yaml
+    best_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price03_payoff_sqrt_time/train/checkpoints/model_best.pt
+  evaluate:
+    status: skipped

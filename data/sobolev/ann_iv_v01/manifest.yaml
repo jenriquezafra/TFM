@@ -1,0 +1,38 @@
+builder: scripts/build_ann_sobolev_targets.py
+iv_column: IV
+feature_columns:
+- rho
+- kappa
+- gamma
+- bar_v
+- v0
+- moneyness
+- tau
+- r
+option_type: put
+strike: 1.0
+vega_floor: 1.0e-08
+cf_settings:
+  u_min: 1.0e-06
+  u_max: 200.0
+  n_u: 1200
+summaries:
+- input: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/1M_Feller/train.parquet
+  output: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/sobolev/ann_iv_v01/train.parquet
+  source_rows: 800000
+  sampled_rows: 50000
+  written_rows: 49973
+  valid_rows: 49973
+  invalid_rows: 0
+- input: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/1M_Feller/val.parquet
+  output: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/sobolev/ann_iv_v01/val.parquet
+  source_rows: 100000
+  sampled_rows: 50000
+  written_rows: 49982
+  valid_rows: 49982
+  invalid_rows: 0
+derivative_scales:
+  d_iv_dm: 0.10316919174247823
+  d_iv_dtau: 0.08827386368603274
+  d_iv_dr: 0.1330135483341385
+  d_iv_dv0: 0.8292708730017209

@@ -1,0 +1,49 @@
+name: PINN_Heston_Price
+type: mlp_pinn
+input:
+  dim: 8
+  features:
+  - tau
+  - log_moneyness
+  - v
+  - rho
+  - kappa
+  - gamma
+  - bar_v
+  - r
+hidden:
+  dims:
+  - 256
+  - 256
+  - 256
+  - 256
+  activation: tanh
+  initialization: xavier_uniform
+  dropout_rate: 0.0
+  batch_norm: false
+output:
+  dim: 4
+  name: price
+  activation: linear
+  names:
+  - residual_price
+  - residual_x
+  - residual_xx
+  - residual_v
+physics:
+  equation: heston_pde
+  requires_autograd: true
+  derivative_order: 2
+global_acv:
+  enabled: true
+  option_type: put
+  strike: 1.0
+  q_epsilon: 1.0e-08
+  bs_epsilon: 1.0e-12
+  terminal_tau: 0.0
+  z_clip: 50.0
+  time_factor: linear_tau
+  time_lambda: 1.0
+  final_init_scale: 0.0
+  fourier:
+    frequencies: 6

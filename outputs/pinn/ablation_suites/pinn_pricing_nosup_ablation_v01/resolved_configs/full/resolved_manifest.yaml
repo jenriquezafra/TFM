@@ -1,0 +1,552 @@
+suite_id: pinn_pricing_nosup_ablation_v01
+seed: 42
+baseline_key: price00_baseline
+resolved_config_root: outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs
+base_configs:
+  pipeline: configs/pinn_pipeline_fixed_theta.yaml
+  architecture: configs/pinn_model_architecture.yaml
+  training: configs/pinn_training_fixed_theta.yaml
+  diagnostics: configs/pinn_baseline_diagnostics.yaml
+  adaptive: configs/pinn_adaptive_collocation.yaml
+diagnostics:
+  output_subdir: pricing_diagnostics
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+comparison:
+  output_dir: outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+  thresholds:
+    pricing_specialist:
+      full_price_ratio_max: 0.98
+      hard_price_ratio_max: 1.1
+      hard_price_specialist_ratio_max: 0.9
+      full_price_guard_ratio_max: 1.1
+      neutral_full_price_ratio_max: 1.05
+      neutral_hard_price_ratio_max: 1.2
+modes:
+  smoke:
+    training_overrides:
+      sampling:
+        sizes:
+          n_interior: 512
+          n_terminal: 128
+          n_lower: 128
+          n_right: 128
+          n_v_zero: 128
+      loop:
+        epochs: 2
+        mix_half_switch_epoch: 999999
+        batch_size_collocation: 128
+        batch_size_boundary: 64
+        log_every: 1
+      optimizers:
+      - name: adam
+        learn_rate: 0.001
+        weight_decay: 0.0
+      - name: L-BFGS
+        learn_rate: 1.0
+        max_iter: 2
+        line_search_fn: strong_wolfe
+        historic_size: 20
+        full_batch: true
+    diagnostics_overrides:
+      diagnostics:
+        n_bins: 31
+        surface_grid:
+          x_points: 31
+          y_points: 31
+        finite_difference:
+          enabled: false
+        cf_integration:
+          n_u: 240
+  full:
+    training_overrides:
+      meta:
+        optimizer: adam
+      sampling:
+        sizes:
+          n_interior: 20000
+          n_terminal: 5000
+          n_lower: 5000
+      optimizers:
+      - name: adam
+        learn_rate: 0.001
+        weight_decay: 0.0
+      - name: L-BFGS
+        learn_rate: 1.0
+        max_iter: 30
+        line_search_fn: strong_wolfe
+        historic_size: 100
+        full_batch: true
+      loop:
+        epochs: 1200
+        mix_half_switch_epoch: 999999
+        batch_size_collocation: 2048
+        batch_size_boundary: 512
+        val_every: 25
+        log_every: 100
+      callbacks:
+        lr_scheduler:
+          enabled: true
+          name: step
+          step_size: 300
+          gamma: 0.7
+    diagnostics_overrides:
+      diagnostics:
+        n_bins: 181
+        surface_grid:
+          x_points: 181
+          y_points: 181
+variants:
+- key: price00_baseline
+  label: Baseline
+  role: baseline
+  metric_focus: pricing
+  enabled: true
+  description: 'PINN fixed-theta baseline no supervisada: PDE, terminal, lower y no-arbitraje.'
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price00_baseline
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price00_baseline/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price00_baseline/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price00_baseline/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price00_baseline/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price00_baseline/adaptive.yaml
+- key: price01_right_vzero
+  label: Right and v=0 boundaries
+  metric_focus: pricing
+  enabled: true
+  description: Baseline con frontera derecha del put y frontera degenerada v=0, sin
+    labels de precio.
+  training_overrides:
+    sampling:
+      sizes:
+        n_right: 10000
+        n_v_zero: 10000
+      boundaries:
+        lower_moneyness: 0.0
+        right_moneyness: 3.0
+        v_zero_value: 0.0
+    loss:
+      weights:
+        pde: 1.0
+        term: 1.0
+        low: 1.0
+        right: 1.0
+        v_zero: 0.5
+        no_arbitrage: 1.0
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price01_right_vzero
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price01_right_vzero/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price01_right_vzero/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price01_right_vzero/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price01_right_vzero/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price01_right_vzero/adaptive.yaml
+- key: price02_guard_derivatives
+  label: Guard boundary derivatives
+  metric_focus: pricing
+  enabled: true
+  description: Frontera derecha y v=0, mas derivadas analiticas en el borde derecho
+    para estabilizar el nivel de precio.
+  training_overrides:
+    sampling:
+      sizes:
+        n_right: 10000
+        n_v_zero: 10000
+      boundaries:
+        lower_moneyness: 0.0
+        right_moneyness: 3.0
+        v_zero_value: 0.0
+    loss:
+      weights:
+        pde: 1.0
+        term: 1.0
+        low: 1.0
+        right: 1.0
+        right_delta: 0.25
+        right_gamma: 0.05
+        v_zero: 0.5
+        no_arbitrage: 1.0
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price02_guard_derivatives
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price02_guard_derivatives/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price02_guard_derivatives/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price02_guard_derivatives/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price02_guard_derivatives/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price02_guard_derivatives/adaptive.yaml
+- key: price03_payoff_sqrt_time
+  label: Payoff ansatz sqrt time
+  metric_focus: pricing
+  enabled: true
+  description: Ansatz payoff-aware con factor temporal sqrt(tau+eps)-sqrt(eps), sin
+    supervision COS.
+  architecture_overrides:
+    type: mlp_pinn_payoff_aware
+    payoff_aware:
+      enabled: true
+      option_type: put
+      tau_index: 0
+      spot_index: 1
+      vol_index: 2
+      strike: 1.0
+      payoff_smoothing: 0.001
+      payoff_smoothing_mode: fixed
+      time_factor: sqrt_tau_eps
+      time_epsilon: 1.0e-06
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price03_payoff_sqrt_time
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price03_payoff_sqrt_time/adaptive.yaml
+- key: price04_pde_normalized
+  label: Normalized PDE residual
+  metric_focus: pricing
+  enabled: true
+  description: Residual PDE dividido por la escala local de sus terminos, manteniendo
+    las mismas fronteras.
+  training_overrides:
+    loss:
+      pde:
+        normalization:
+          enabled: true
+          mode: sum_abs_terms
+          floor: 0.01
+      weights:
+        pde: 1.0
+        term: 1.0
+        low: 1.0
+        no_arbitrage: 1.0
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price04_pde_normalized
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price04_pde_normalized/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price04_pde_normalized/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price04_pde_normalized/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price04_pde_normalized/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price04_pde_normalized/adaptive.yaml
+- key: price05_log_core
+  label: Log core
+  metric_focus: pricing
+  enabled: true
+  description: Coordenada x=log(m), PDE en x y features adaptadas al kink, sin supervision
+    de precios.
+  architecture_overrides:
+    input:
+      features:
+      - tau
+      - log_moneyness
+      - v
+      - rho
+      - kappa
+      - gamma
+      - bar_v
+      - r
+    feature_map:
+      enabled: true
+      mode: kink_adapted
+      input_coordinate: log_moneyness
+      moneyness_floor: 1.0e-06
+      tau_epsilon: 1.0e-06
+      q_epsilon: 1.0e-08
+      q_clip: 10.0
+  training_overrides:
+    sampling:
+      coordinate_space: log_moneyness
+      domain:
+        moneyness:
+        - 0.05
+        - 2.0
+      boundaries:
+        lower_moneyness: 0.05
+    loss:
+      pde:
+        coordinate: log_moneyness
+      weights:
+        pde: 1.0
+        term: 5.0
+        low: 1.0
+        no_arbitrage: 0.0
+  diagnostics_overrides:
+    global:
+      spot_feature: log_moneyness
+    diagnostics:
+      surface_grid:
+        x_feature: moneyness
+      boundary_checks:
+        lower_moneyness: 0.05
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price05_log_core
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price05_log_core/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price05_log_core/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price05_log_core/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price05_log_core/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price05_log_core/adaptive.yaml
+- key: price06_learned_weights
+  label: Learned log loss weights
+  metric_focus: pricing
+  enabled: true
+  description: Baseline con pesos log-var aprendibles y regularizados para balancear
+    PDE/fronteras/no-arbitraje.
+  training_overrides:
+    loss:
+      weights:
+        pde: 1.0
+        term: 1.0
+        low: 1.0
+        no_arbitrage: 1.0
+      learned_weights:
+        enabled: true
+        terms:
+        - pde
+        - term
+        - low
+        - no_arbitrage
+        init:
+          pde: 0.0
+          term: 0.0
+          low: 0.0
+          no_arbitrage: 0.0
+        min_log_var: -3.0
+        max_log_var: 3.0
+        prior:
+          strength: 0.2
+          target: 0.0
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price06_learned_weights
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price06_learned_weights/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price06_learned_weights/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price06_learned_weights/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price06_learned_weights/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price06_learned_weights/adaptive.yaml
+- key: price07_combo_guard_norm_learned
+  label: Combo guard + normalized PDE + learned weights
+  metric_focus: pricing
+  enabled: true
+  description: Combinacion compatible de fronteras guard, residual PDE normalizado
+    y pesos log-var aprendibles.
+  training_overrides:
+    sampling:
+      sizes:
+        n_right: 10000
+        n_v_zero: 10000
+      boundaries:
+        lower_moneyness: 0.0
+        right_moneyness: 3.0
+        v_zero_value: 0.0
+    loss:
+      pde:
+        normalization:
+          enabled: true
+          mode: sum_abs_terms
+          floor: 0.01
+      weights:
+        pde: 1.0
+        term: 1.0
+        low: 1.0
+        right: 1.0
+        right_delta: 0.25
+        right_gamma: 0.05
+        v_zero: 0.5
+        no_arbitrage: 1.0
+      learned_weights:
+        enabled: true
+        terms:
+        - pde
+        - term
+        - low
+        - right
+        - v_zero
+        - no_arbitrage
+        init:
+          pde: 0.0
+          term: 0.0
+          low: 0.0
+          right: 0.0
+          v_zero: 0.0
+          no_arbitrage: 0.0
+        min_log_var: -3.0
+        max_log_var: 3.0
+        prior:
+          strength: 0.2
+          target: 0.0
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price07_combo_guard_norm_learned
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price07_combo_guard_norm_learned/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price07_combo_guard_norm_learned/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price07_combo_guard_norm_learned/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price07_combo_guard_norm_learned/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price07_combo_guard_norm_learned/adaptive.yaml
+- key: price08_combo_payoff_guard_norm_learned
+  label: Combo payoff + guard + normalized PDE + learned weights
+  metric_focus: pricing
+  enabled: true
+  description: Payoff-aware sqrt-time combinado con fronteras guard, residual normalizado
+    y pesos aprendidos.
+  architecture_overrides:
+    type: mlp_pinn_payoff_aware
+    payoff_aware:
+      enabled: true
+      option_type: put
+      tau_index: 0
+      spot_index: 1
+      vol_index: 2
+      strike: 1.0
+      payoff_smoothing: 0.001
+      payoff_smoothing_mode: fixed
+      time_factor: sqrt_tau_eps
+      time_epsilon: 1.0e-06
+  training_overrides:
+    sampling:
+      sizes:
+        n_right: 10000
+        n_v_zero: 10000
+      boundaries:
+        lower_moneyness: 0.0
+        right_moneyness: 3.0
+        v_zero_value: 0.0
+    loss:
+      pde:
+        normalization:
+          enabled: true
+          mode: sum_abs_terms
+          floor: 0.01
+      weights:
+        pde: 1.0
+        term: 1.0
+        low: 1.0
+        right: 1.0
+        right_delta: 0.25
+        right_gamma: 0.05
+        v_zero: 0.5
+        no_arbitrage: 1.0
+      learned_weights:
+        enabled: true
+        terms:
+        - pde
+        - term
+        - low
+        - right
+        - v_zero
+        - no_arbitrage
+        init:
+          pde: 0.0
+          term: 0.0
+          low: 0.0
+          right: 0.0
+          v_zero: 0.0
+          no_arbitrage: 0.0
+        min_log_var: -3.0
+        max_log_var: 3.0
+        prior:
+          strength: 0.2
+          target: 0.0
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price08_combo_payoff_guard_norm_learned
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price08_combo_payoff_guard_norm_learned/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price08_combo_payoff_guard_norm_learned/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price08_combo_payoff_guard_norm_learned/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price08_combo_payoff_guard_norm_learned/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price08_combo_payoff_guard_norm_learned/adaptive.yaml
+- key: price09_combo_log_guard_norm_learned
+  label: Combo log core + guard + normalized PDE + learned weights
+  metric_focus: pricing
+  enabled: true
+  description: Log-core combinado con fronteras guard, residual normalizado y pesos
+    aprendidos, manteniendo entrenamiento no supervisado.
+  architecture_overrides:
+    input:
+      features:
+      - tau
+      - log_moneyness
+      - v
+      - rho
+      - kappa
+      - gamma
+      - bar_v
+      - r
+    feature_map:
+      enabled: true
+      mode: kink_adapted
+      input_coordinate: log_moneyness
+      moneyness_floor: 1.0e-06
+      tau_epsilon: 1.0e-06
+      q_epsilon: 1.0e-08
+      q_clip: 10.0
+  training_overrides:
+    sampling:
+      coordinate_space: log_moneyness
+      sizes:
+        n_right: 10000
+        n_v_zero: 10000
+      domain:
+        moneyness:
+        - 0.05
+        - 2.0
+      boundaries:
+        lower_moneyness: 0.05
+        right_moneyness: 3.0
+        v_zero_value: 0.0
+    loss:
+      pde:
+        coordinate: log_moneyness
+        normalization:
+          enabled: true
+          mode: sum_abs_terms
+          floor: 0.01
+      weights:
+        pde: 1.0
+        term: 5.0
+        low: 1.0
+        right: 1.0
+        right_delta: 0.25
+        right_gamma: 0.05
+        v_zero: 0.5
+        no_arbitrage: 0.0
+      learned_weights:
+        enabled: true
+        terms:
+        - pde
+        - term
+        - low
+        - right
+        - v_zero
+        init:
+          pde: 0.0
+          term: 0.0
+          low: 0.0
+          right: 0.0
+          v_zero: 0.0
+        min_log_var: -3.0
+        max_log_var: 3.0
+        prior:
+          strength: 0.2
+          target: 0.0
+  diagnostics_overrides:
+    global:
+      spot_feature: log_moneyness
+    diagnostics:
+      surface_grid:
+        x_feature: moneyness
+      boundary_checks:
+        lower_moneyness: 0.05
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_nosup_ablation_v01/price09_combo_log_guard_norm_learned
+  diagnostics_subdir: pricing_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price09_combo_log_guard_norm_learned/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price09_combo_log_guard_norm_learned/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price09_combo_log_guard_norm_learned/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price09_combo_log_guard_norm_learned/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_nosup_ablation_v01/resolved_configs/full/price09_combo_log_guard_norm_learned/adaptive.yaml
+mode: full

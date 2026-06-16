@@ -1,32 +1,38 @@
 dataset_format: parquet
 datasets:
   interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl09_residual_adaptive_sampling/full_adaptive/interior.parquet
-  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl00_baseline/full/terminal.parquet
-  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl00_baseline/full/lower.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/full/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/full/lower.parquet
+  right: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/full/right.parquet
+  v_zero: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/full/v_zero.parquet
 feature_order:
 - tau
-- moneyness
+- log_moneyness
 - v
 - rho
 - kappa
 - gamma
 - bar_v
 - r
+coordinate_space: log_moneyness
 sampling_strategy: adaptive_residual
-sampling_mode: parametric_theta
+sampling_mode: fixed_theta
 seed: 42
 sizes:
   n_interior: 40000
   n_terminal: 10000
   n_lower: 10000
-  n_interior_uniform: 24000
-  n_interior_adaptive: 16000
+  n_interior_uniform: 20000
+  n_interior_kink: 12000
+  n_interior_adaptive: 8000
+  n_right: 10000
+  n_v_zero: 10000
 domain:
   tau:
   - 0.0
   - 3.0
   moneyness:
-  - 0.0
+  - 0.05
   - 2.0
   v:
   - 0.01
@@ -35,11 +41,17 @@ domain:
   - 0.0
   - 0.05
 adaptive:
-  base_collocation_manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl00_baseline/full/collocation_sets_manifest.yaml
-  base_train_summary: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/metrics/train_summary.yaml
-  base_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl00_baseline/train/checkpoints/model_best.pt
+  base_collocation_manifest: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/full/collocation_sets_manifest.yaml
+  base_train_summary: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/metrics/train_summary.yaml
+  base_checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_greek_ablation_suite_v01/abl08_kink_band_sampling/train/checkpoints/model_best.pt
   candidate_pool_size: 120000
-  adaptive_ratio: 0.4
+  adaptive_ratio: 0.2
+  kink_fraction: 0.3
+  score:
+    residual_weight: 1.0
+    curvature_weight: 0.1
+    residual_dx_weight: 0.0
+    residual_dv_weight: 0.0
   hard_region:
     epsilon_m: 0.03
     epsilon_tau: 0.05

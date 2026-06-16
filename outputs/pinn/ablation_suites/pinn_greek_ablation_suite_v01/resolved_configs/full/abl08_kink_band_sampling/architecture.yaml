@@ -4,7 +4,7 @@ input:
   dim: 8
   features:
   - tau
-  - moneyness
+  - log_moneyness
   - v
   - rho
   - kappa
@@ -32,4 +32,8 @@ physics:
 feature_map:
   enabled: true
   mode: kink_adapted
+  input_coordinate: log_moneyness
   moneyness_floor: 1.0e-06
+  tau_epsilon: 1.0e-06
+  q_epsilon: 1.0e-08
+  q_clip: 10.0

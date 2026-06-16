@@ -1,0 +1,39 @@
+dataset_format: parquet
+datasets:
+  interior: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_nosup_ablation_v01/price08_combo_payoff_guard_norm_learned/full/interior.parquet
+  terminal: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_nosup_ablation_v01/price08_combo_payoff_guard_norm_learned/full/terminal.parquet
+  lower: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_nosup_ablation_v01/price08_combo_payoff_guard_norm_learned/full/lower.parquet
+  right: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_nosup_ablation_v01/price08_combo_payoff_guard_norm_learned/full/right.parquet
+  v_zero: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/data/synth/pinn_pricing_nosup_ablation_v01/price08_combo_payoff_guard_norm_learned/full/v_zero.parquet
+feature_order:
+- tau
+- moneyness
+- v
+- rho
+- kappa
+- gamma
+- bar_v
+- r
+coordinate_space: moneyness
+sampling_strategy: lhs_static
+sampling_mode: fixed_theta
+seed: 42
+sizes:
+  n_interior: 20000
+  n_terminal: 5000
+  n_lower: 5000
+  n_right: 10000
+  n_v_zero: 10000
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.0
+  - 2.0
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05

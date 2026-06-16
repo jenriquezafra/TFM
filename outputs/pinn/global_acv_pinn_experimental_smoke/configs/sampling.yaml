@@ -1,0 +1,52 @@
+strategy: global_acv_mixed
+coordinate_space: log_moneyness
+seed: 42
+output_dir: data/synth/global_acv_pinn_smoke
+tau_min: 0.0001
+sizes:
+  n_interior: 96
+  n_terminal: 32
+  n_lower: 32
+mix:
+  global: 0.35
+  hard_core: 0.2
+  z_layer: 0.2
+  buffer: 0.25
+hard_region:
+  x_abs: 0.03
+  tau_max: 0.05
+z_layer:
+  z_min: -4.0
+  z_max: 4.0
+  tau_max: 0.1
+buffer_region:
+  x_abs: 0.08
+  tau_max: 0.1
+boundaries:
+  lower_moneyness: 0.01
+domain:
+  tau:
+  - 0.0
+  - 3.0
+  moneyness:
+  - 0.01
+  - 2.0
+  v:
+  - 0.01
+  - 0.5
+  r:
+  - 0.0
+  - 0.05
+  heston_params:
+    rho:
+    - -0.9
+    - 0.0
+    kappa:
+    - 0.0
+    - 3.0
+    gamma:
+    - 0.01
+    - 0.8
+    bar_v:
+    - 0.01
+    - 0.5

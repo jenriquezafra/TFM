@@ -1,8 +1,8 @@
 meta:
   experiment_name: abl05_guard_boundaries
   seed: 42
-  description: Borde izquierdo deep ITM, borde derecho OTM y residual degenerado en
-    v=0.
+  description: Nucleo log del PDF mas borde izquierdo deep ITM, borde derecho far-field
+    OTM y residual degenerado en v=0.
 inputs:
   cann:
     calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg

@@ -1,7 +1,8 @@
 meta:
   experiment_name: abl07_kink_bulk_loss
   seed: 42
-  description: Separa el residual PDE en zona kink y zona bulk con un gate suave.
+  description: Nucleo log, guards y no-arbitrage mas separacion L_PDE,kink / L_PDE,bulk
+    con gate suave.
 inputs:
   cann:
     calibration_dir: outputs/calibration/Liu_like_v01/Calibration_no_reg

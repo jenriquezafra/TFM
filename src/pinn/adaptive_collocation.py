@@ -16,11 +16,16 @@ from matplotlib.colors import LogNorm
 
 from src.pinn.data_builder import (
     PINN_FEATURE_ORDER,
+    _convert_spot_coordinate,
+    _coordinate_space_key,
+    _feature_order_for_coordinate,
+    _moneyness_column,
+    _sample_kink_band_points,
     _sample_lhs_points,
     _sampling_domain_and_ranges,
     _validate_lhs_set,
 )
-from src.pinn.losses import compute_heston_pde_residual
+from src.pinn.losses import _price_derivatives, compute_heston_pde_residual
 from src.pinn.model import build_pinn_model
 from src.pinn.trainer import (
     _load_checkpoint_state,
@@ -154,7 +159,8 @@ def _build_candidate_pool(
 
     if not blocks:
         raise ValueError("Candidate pool is empty.")
-    candidates = np.concatenate(blocks, axis=0).astype(np.float32, copy=False)
+    candidates_m = np.concatenate(blocks, axis=0).astype(np.float32, copy=False)
+    candidates = _convert_spot_coordinate(candidates_m, _coordinate_space_key(sampling_config))
     source_labels = np.concatenate(labels, axis=0)
 
     meta = {
@@ -175,29 +181,82 @@ def _build_candidate_pool(
     return candidates, source_labels, meta
 
 
-def _evaluate_abs_residual(
+def _evaluate_candidate_scores(
     *,
     model: torch.nn.Module,
     x: np.ndarray,
     input_affine: dict[str, torch.Tensor] | None,
+    coordinate_space: str,
+    score_config: dict,
     device: torch.device,
     batch_size: int,
-) -> np.ndarray:
+) -> dict[str, np.ndarray]:
     if batch_size <= 0:
         raise ValueError(f"batch_size must be > 0. Got {batch_size}.")
+    coordinate_key = _coordinate_space_key(coordinate_space)
+    residual_weight = float(score_config.get("residual_weight", 1.0))
+    curvature_weight = float(
+        score_config.get(
+            "curvature_weight",
+            score_config.get("g_weight", score_config.get("curvature", 0.0)),
+        )
+    )
+    residual_dx_weight = float(
+        score_config.get("residual_dx_weight", score_config.get("dx_weight", 0.0))
+    )
+    residual_dv_weight = float(
+        score_config.get("residual_dv_weight", score_config.get("dv_weight", 0.0))
+    )
     model.eval()
-    values: list[np.ndarray] = []
+    score_values: list[np.ndarray] = []
+    residual_values: list[np.ndarray] = []
+    curvature_values: list[np.ndarray] = []
     for start in range(0, x.shape[0], batch_size):
         stop = min(start + batch_size, x.shape[0])
         xb = torch.from_numpy(x[start:stop]).to(device)
         with torch.enable_grad():
+            xb = xb.requires_grad_(True)
             residual = compute_heston_pde_residual(
                 model=model,
                 x_interior=xb,
                 input_affine=input_affine,
+                coordinate=coordinate_key,
             )
-        values.append(residual.detach().abs().cpu().numpy().reshape(-1))
-    return np.concatenate(values, axis=0).astype(np.float32, copy=False)
+            score = residual_weight * torch.abs(residual)
+            curvature_abs = torch.zeros_like(residual)
+            if curvature_weight > 0.0:
+                _, _u_s, _u_v, curvature = _price_derivatives(
+                    model=model,
+                    x=xb,
+                    input_affine=input_affine,
+                    coordinate=coordinate_key,
+                )
+                curvature_abs = torch.abs(curvature)
+                score = score + curvature_weight * curvature_abs
+            if residual_dx_weight > 0.0 or residual_dv_weight > 0.0:
+                grad_residual = torch.autograd.grad(
+                    outputs=residual,
+                    inputs=xb,
+                    grad_outputs=torch.ones_like(residual),
+                    create_graph=False,
+                    retain_graph=True,
+                )[0]
+                if residual_dx_weight > 0.0:
+                    if coordinate_key == "log_moneyness":
+                        residual_dx = grad_residual[:, 1:2]
+                    else:
+                        residual_dx = xb[:, 1:2] * grad_residual[:, 1:2]
+                    score = score + residual_dx_weight * torch.abs(residual_dx)
+                if residual_dv_weight > 0.0:
+                    score = score + residual_dv_weight * torch.abs(grad_residual[:, 2:3])
+        score_values.append(score.detach().cpu().numpy().reshape(-1))
+        residual_values.append(residual.detach().abs().cpu().numpy().reshape(-1))
+        curvature_values.append(curvature_abs.detach().cpu().numpy().reshape(-1))
+    return {
+        "adaptive_score": np.concatenate(score_values, axis=0).astype(np.float32, copy=False),
+        "abs_pde_residual": np.concatenate(residual_values, axis=0).astype(np.float32, copy=False),
+        "abs_financial_curvature": np.concatenate(curvature_values, axis=0).astype(np.float32, copy=False),
+    }
 
 
 def _select_adaptive_indices(
@@ -245,9 +304,11 @@ def _save_residual_map(
     stem: str,
     n_bins_tau: int,
     n_bins_m: int,
+    coordinate_space: str = "moneyness",
+    cbar_label: str = "mean |PDE residual|",
 ) -> dict[str, str]:
     tau = points[:, 0]
-    m = points[:, 1]
+    m = _moneyness_column(points, coordinate_space)
     tau_edges = np.linspace(float(tau.min()), float(tau.max()), int(n_bins_tau) + 1)
     m_edges = np.linspace(float(m.min()), float(m.max()), int(n_bins_m) + 1)
     tau_idx = np.clip(np.digitize(tau, tau_edges, right=False) - 1, 0, n_bins_tau - 1)
@@ -276,7 +337,7 @@ def _save_residual_map(
         cmap="magma",
     )
     cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("mean |PDE residual|")
+    cbar.set_label(cbar_label)
     ax.set_xlabel("moneyness")
     ax.set_ylabel("tau")
     ax.set_title("Candidate PDE Residual Map")
@@ -303,7 +364,7 @@ def _save_residual_map(
             norm=LogNorm(vmin=vmin, vmax=vmax),
         )
         cbar = plt.colorbar(im, ax=ax)
-        cbar.set_label("mean |PDE residual| (log scale)")
+        cbar.set_label(f"{cbar_label} (log scale)")
         ax.set_xlabel("moneyness")
         ax.set_ylabel("tau")
         ax.set_title("Candidate PDE Residual Map (Log Scale)")
@@ -340,10 +401,12 @@ def build_adaptive_collocation_dataset(
     base_manifest = _resolve_path(base_cfg["collocation_manifest"], project_root=project_root)
     manifest = _load_yaml(base_manifest)
     feature_order = list(manifest.get("feature_order", PINN_FEATURE_ORDER))
-    if feature_order != list(PINN_FEATURE_ORDER):
+    coordinate_space = _coordinate_space_key(manifest.get("coordinate_space", "moneyness"))
+    expected_order = list(_feature_order_for_coordinate(coordinate_space))
+    if feature_order != expected_order:
         raise ValueError(
-            "Adaptive collocation currently expects PINN feature order "
-            f"{list(PINN_FEATURE_ORDER)}, got {feature_order}."
+            "Adaptive collocation feature order mismatch for coordinate_space="
+            f"{coordinate_space}: expected {expected_order}, got {feature_order}."
         )
     datasets = manifest.get("datasets", {})
     missing = [key for key in ("terminal", "lower") if key not in datasets]
@@ -354,10 +417,23 @@ def build_adaptive_collocation_dataset(
     lower_path = _resolve_path(datasets["lower"], project_root=project_root)
     terminal = _read_collocation_matrix(terminal_path, feature_order=feature_order)
     lower = _read_collocation_matrix(lower_path, feature_order=feature_order)
+    optional_paths: dict[str, Path] = {}
+    optional_sets: dict[str, np.ndarray] = {}
+    for optional_key in ("right", "v_zero"):
+        if optional_key not in datasets:
+            continue
+        optional_path = _resolve_path(datasets[optional_key], project_root=project_root)
+        optional_paths[optional_key] = optional_path
+        optional_sets[optional_key] = _read_collocation_matrix(
+            optional_path,
+            feature_order=feature_order,
+        )
 
     sampling_cfg = adaptive_cfg.get("sampling", {})
     if not isinstance(sampling_cfg, dict):
         raise ValueError("adaptive.sampling must be a dictionary.")
+    sampling_cfg = dict(sampling_cfg)
+    sampling_cfg.setdefault("coordinate_space", coordinate_space)
     domain, _ = _sampling_domain_and_ranges(
         sampling_config=sampling_cfg,
         theta_star=theta_star,
@@ -368,7 +444,9 @@ def build_adaptive_collocation_dataset(
     sizes_cfg = adaptive_cfg.get("sizes", {})
     if not isinstance(sizes_cfg, dict):
         raise ValueError("adaptive.sizes must be a dictionary when provided.")
-    total_interior = int(sizes_cfg.get("n_interior", sampling_cfg.get("sizes", {}).get("n_interior", 40000)))
+    total_interior = int(
+        sizes_cfg.get("n_interior", sampling_cfg.get("sizes", {}).get("n_interior", 40000))
+    )
 
     selection_cfg = adaptive_cfg.get("selection", {})
     if not isinstance(selection_cfg, dict):
@@ -377,7 +455,15 @@ def build_adaptive_collocation_dataset(
     if not (0.0 < adaptive_ratio < 1.0):
         raise ValueError(f"adaptive.selection.adaptive_ratio must be in (0,1). Got {adaptive_ratio}.")
     n_adaptive = int(round(total_interior * adaptive_ratio))
-    n_uniform = total_interior - n_adaptive
+    kink_cfg = sampling_cfg.get("kink_band", {})
+    kink_enabled = isinstance(kink_cfg, dict) and bool(kink_cfg.get("enabled", False))
+    kink_fraction = float(kink_cfg.get("fraction", 0.0)) if kink_enabled else 0.0
+    if kink_fraction < 0.0 or kink_fraction >= 1.0:
+        raise ValueError("adaptive.sampling.kink_band.fraction must be in [0, 1).")
+    if adaptive_ratio + kink_fraction >= 1.0:
+        raise ValueError("adaptive_ratio + kink_band.fraction must be < 1.")
+    n_kink = int(round(total_interior * kink_fraction))
+    n_uniform = total_interior - n_adaptive - n_kink
 
     pool_cfg = adaptive_cfg.get("candidate_pool", {})
     if not isinstance(pool_cfg, dict):
@@ -423,30 +509,40 @@ def build_adaptive_collocation_dataset(
     input_affine = _to_torch_input_affine(input_affine=input_affine_np, device=device)
 
     batch_size = int(pool_cfg.get("batch_size", 4096))
-    abs_residual = _evaluate_abs_residual(
+    score_cfg = selection_cfg.get("score", {})
+    if not isinstance(score_cfg, dict):
+        raise ValueError("adaptive.selection.score must be a dictionary when provided.")
+    score_payload = _evaluate_candidate_scores(
         model=model,
         x=candidates,
         input_affine=input_affine,
+        coordinate_space=coordinate_space,
+        score_config=score_cfg,
         device=device,
         batch_size=batch_size,
     )
+    adaptive_score = score_payload["adaptive_score"]
+    abs_residual = score_payload["abs_pde_residual"]
+    abs_curvature = score_payload["abs_financial_curvature"]
 
     min_source_shares = _normalize_shares(
         selection_cfg.get("min_source_shares", {}),
         default={},
     ) if selection_cfg.get("min_source_shares") else {}
     selected_idx = _select_adaptive_indices(
-        abs_residual=abs_residual,
+        abs_residual=adaptive_score,
         source_labels=source_labels,
         n_select=n_adaptive,
         min_source_shares=min_source_shares,
     )
     selected = candidates[selected_idx]
+    selected_score = adaptive_score[selected_idx]
     selected_residual = abs_residual[selected_idx]
+    selected_curvature = abs_curvature[selected_idx]
     selected_source = source_labels[selected_idx]
 
     domain_cfg = candidate_meta["domain"]
-    uniform = _sample_lhs_points(
+    uniform_m = _sample_lhs_points(
         n_samples=n_uniform,
         seed=seed + 20_000,
         param_ranges=_sampling_domain_and_ranges(
@@ -458,13 +554,31 @@ def build_adaptive_collocation_dataset(
         moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
         r_bounds=np.asarray(domain_cfg["r"], dtype=np.float64),
     )
-    interior = np.concatenate([uniform, selected], axis=0).astype(np.float32, copy=False)
+    uniform = _convert_spot_coordinate(uniform_m, coordinate_space)
+    blocks = [uniform]
+    if n_kink > 0:
+        kink_m = _sample_kink_band_points(
+            n_samples=n_kink,
+            seed=seed + 30_000,
+            param_ranges=_sampling_domain_and_ranges(
+                sampling_config=sampling_cfg,
+                theta_star=theta_star,
+                parameter_order=parameter_order,
+            )[1],
+            tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
+            moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
+            r_bounds=np.asarray(domain_cfg["r"], dtype=np.float64),
+            config=kink_cfg,
+        )
+        blocks.append(_convert_spot_coordinate(kink_m, coordinate_space))
+    blocks.append(selected)
+    interior = np.concatenate(blocks, axis=0).astype(np.float32, copy=False)
 
     _validate_lhs_set(
         data=interior,
         name="interior",
-        feature_order=PINN_FEATURE_ORDER,
-        coordinate_space="moneyness",
+        feature_order=feature_order,
+        coordinate_space=coordinate_space,
         tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
         moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
         v_bounds=np.asarray(domain_cfg["v"], dtype=np.float64),
@@ -473,8 +587,8 @@ def build_adaptive_collocation_dataset(
     _validate_lhs_set(
         data=terminal,
         name="terminal",
-        feature_order=PINN_FEATURE_ORDER,
-        coordinate_space="moneyness",
+        feature_order=feature_order,
+        coordinate_space=coordinate_space,
         tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
         moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
         v_bounds=np.asarray(domain_cfg["v"], dtype=np.float64),
@@ -483,55 +597,98 @@ def build_adaptive_collocation_dataset(
     _validate_lhs_set(
         data=lower,
         name="lower",
-        feature_order=PINN_FEATURE_ORDER,
-        coordinate_space="moneyness",
+        feature_order=feature_order,
+        coordinate_space=coordinate_space,
         tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
         moneyness_bounds=np.asarray(domain_cfg["moneyness"], dtype=np.float64),
         v_bounds=np.asarray(domain_cfg["v"], dtype=np.float64),
         r_bounds=np.asarray(domain_cfg["r"], dtype=np.float64),
     )
+    for optional_key, optional_data in optional_sets.items():
+        m_bounds = np.asarray(domain_cfg["moneyness"], dtype=np.float64)
+        v_bounds = np.asarray(domain_cfg["v"], dtype=np.float64)
+        if optional_key == "right":
+            optional_m = _moneyness_column(optional_data, coordinate_space)
+            m_bounds = np.asarray(
+                [
+                    min(float(m_bounds[0]), float(optional_m.min())),
+                    max(float(m_bounds[1]), float(optional_m.max())),
+                ],
+                dtype=np.float64,
+            )
+        if optional_key == "v_zero":
+            optional_v = optional_data[:, 2]
+            v_bounds = np.asarray(
+                [
+                    min(float(v_bounds[0]), float(optional_v.min())),
+                    max(float(v_bounds[1]), float(optional_v.max())),
+                ],
+                dtype=np.float64,
+            )
+        _validate_lhs_set(
+            data=optional_data,
+            name=optional_key,
+            feature_order=feature_order,
+            coordinate_space=coordinate_space,
+            tau_bounds=np.asarray(domain_cfg["tau"], dtype=np.float64),
+            moneyness_bounds=m_bounds,
+            v_bounds=v_bounds,
+            r_bounds=np.asarray(domain_cfg["r"], dtype=np.float64),
+        )
 
     interior_path = output_dir / "interior.parquet"
-    pd.DataFrame(interior, columns=PINN_FEATURE_ORDER).to_parquet(
+    pd.DataFrame(interior, columns=feature_order).to_parquet(
         interior_path,
         engine="pyarrow",
         index=False,
     )
 
-    selected_df = pd.DataFrame(selected, columns=PINN_FEATURE_ORDER)
+    selected_df = pd.DataFrame(selected, columns=feature_order)
+    selected_df["adaptive_score"] = selected_score
     selected_df["abs_pde_residual"] = selected_residual
+    selected_df["abs_financial_curvature"] = selected_curvature
     selected_df["candidate_source"] = selected_source
     selected_path = output_dir / "selected_adaptive_points.parquet"
     selected_df.to_parquet(selected_path, engine="pyarrow", index=False)
 
     residual_map_paths = _save_residual_map(
         points=candidates,
-        abs_residual=abs_residual,
+        abs_residual=adaptive_score,
         output_dir=figures_dir,
-        stem="candidate_pde_residual_map",
+        stem="candidate_adaptive_score_map",
         n_bins_tau=int(pool_cfg.get("n_bins_tau", 36)),
         n_bins_m=int(pool_cfg.get("n_bins_m", 36)),
+        coordinate_space=coordinate_space,
+        cbar_label="mean adaptive score",
     )
 
     manifest_path = output_dir / "collocation_sets_manifest.yaml"
+    manifest_datasets = {
+        "interior": str(interior_path),
+        "terminal": str(terminal_path),
+        "lower": str(lower_path),
+    }
+    for optional_key, optional_path in optional_paths.items():
+        manifest_datasets[optional_key] = str(optional_path)
+    sizes = {
+        "n_interior": int(interior.shape[0]),
+        "n_terminal": int(terminal.shape[0]),
+        "n_lower": int(lower.shape[0]),
+        "n_interior_uniform": int(n_uniform),
+        "n_interior_kink": int(n_kink),
+        "n_interior_adaptive": int(n_adaptive),
+    }
+    for optional_key, optional_data in optional_sets.items():
+        sizes[f"n_{optional_key}"] = int(optional_data.shape[0])
     adaptive_manifest = {
         "dataset_format": "parquet",
-        "datasets": {
-            "interior": str(interior_path),
-            "terminal": str(terminal_path),
-            "lower": str(lower_path),
-        },
-        "feature_order": list(PINN_FEATURE_ORDER),
+        "datasets": manifest_datasets,
+        "feature_order": list(feature_order),
+        "coordinate_space": coordinate_space,
         "sampling_strategy": "adaptive_residual",
         "sampling_mode": str(sampling_cfg.get("mode", "parametric_theta")),
         "seed": seed,
-        "sizes": {
-            "n_interior": int(interior.shape[0]),
-            "n_terminal": int(terminal.shape[0]),
-            "n_lower": int(lower.shape[0]),
-            "n_interior_uniform": int(n_uniform),
-            "n_interior_adaptive": int(n_adaptive),
-        },
+        "sizes": sizes,
         "domain": domain_cfg,
         "adaptive": {
             "base_collocation_manifest": str(base_manifest),
@@ -539,6 +696,8 @@ def build_adaptive_collocation_dataset(
             "base_checkpoint": str(checkpoint_path),
             "candidate_pool_size": int(candidates.shape[0]),
             "adaptive_ratio": adaptive_ratio,
+            "kink_fraction": kink_fraction,
+            "score": score_cfg,
             "hard_region": candidate_meta["hard_region"],
         },
     }
@@ -556,7 +715,13 @@ def build_adaptive_collocation_dataset(
         "device": str(device),
         "n_candidates": int(candidates.shape[0]),
         "n_uniform": int(n_uniform),
+        "n_kink": int(n_kink),
         "n_adaptive": int(n_adaptive),
+        "optional_boundary_sets": {
+            key: {"path": str(optional_paths[key]), "n": int(value.shape[0])}
+            for key, value in optional_sets.items()
+        },
+        "score": score_cfg,
         "candidate_counts": candidate_meta["candidate_counts"],
         "selected_counts": {str(k): int(v) for k, v in selected_counts.items()},
         "abs_residual_summary": {

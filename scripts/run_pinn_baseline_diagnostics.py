@@ -27,6 +27,7 @@ from src.greeks.core import derivatives_batch, greeks_from_jacobian_hessian, val
 from src.greeks.heston_cf_greeks import HestonCFGreeksSettings, heston_cf_greeks_scalar
 from src.greeks.names import build_greek_index_spec, parse_feature_order
 from src.greeks.pinn_adapter import DEFAULT_PINN_FEATURE_ORDER, load_pinn_price_adapter
+from src.pinn.global_acv_pinn import head_greeks_x_to_financial
 from src.pinn.losses import (
     compute_heston_pde_derivative_residual,
     compute_heston_pde_residual,
@@ -258,11 +259,13 @@ def _region_masks(
     tau = points[tau_feature].to_numpy(dtype=np.float64)
     atm = np.abs(np.log(np.maximum(m, np.finfo(np.float64).tiny))) < float(epsilon_m)
     short = tau < float(epsilon_tau)
+    hard = short & atm
     return {
         "full": np.ones(points.shape[0], dtype=bool),
+        "non_hard": ~hard,
         "short_maturity": short,
         "atm": atm,
-        "hard": short & atm,
+        "hard": hard,
     }
 
 
@@ -539,6 +542,7 @@ def _compute_multi_output_head_greeks(
     input_a: torch.Tensor,
     input_b: torch.Tensor,
     spot_feature: str,
+    spot_index: int,
     strike: float,
     dtype: torch.dtype,
     device: torch.device,
@@ -571,6 +575,16 @@ def _compute_multi_output_head_greeks(
     if spot_feature == "moneyness":
         delta = delta / strike
         gamma = gamma / (strike**2)
+    elif _is_log_moneyness_spot(spot_feature):
+        x_coord = torch.as_tensor(x_eval[:, spot_index], dtype=torch.float64)
+        delta_t, gamma_t = head_greeks_x_to_financial(
+            u_x=torch.as_tensor(delta, dtype=torch.float64),
+            u_xx=torch.as_tensor(gamma, dtype=torch.float64),
+            x=x_coord,
+            strike=strike,
+        )
+        delta = delta_t.detach().cpu().numpy()
+        gamma = gamma_t.detach().cpu().numpy()
     return {
         "delta": delta.astype(np.float64, copy=False),
         "gamma": gamma.astype(np.float64, copy=False),
@@ -1055,6 +1069,7 @@ def main() -> None:
         input_a=loaded.price_fn.a,
         input_b=loaded.price_fn.b,
         spot_feature=spot_feature,
+        spot_index=spec.idx_spot,
         strike=strike,
         dtype=dtype,
         device=loaded.device,

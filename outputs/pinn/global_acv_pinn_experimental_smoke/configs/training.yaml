@@ -1,0 +1,62 @@
+meta:
+  seed: 42
+  device: cpu
+  optimizer: adam
+data:
+  supervised_source: none
+  target_column: price_market
+  val_fraction: 0.25
+  input_scaling:
+    enabled: true
+    method: standardize_train
+    eps: 1.0e-08
+optimizers:
+- name: adam
+  learn_rate: 5.0e-05
+  weight_decay: 0.0
+- name: L-BFGS
+  learn_rate: 0.5
+  max_iter: 20
+  line_search_fn: strong_wolfe
+  historic_size: 100
+  full_batch: false
+  batch_size: 2048
+loss:
+  reduction: mean
+  pde:
+    coordinate: log_moneyness
+  weights:
+    pde: 1.0
+    term: 0.1
+    low: 1.0
+    no_arbitrage: 0.1
+    greek_delta: 0.1
+    greek_gamma: 0.01
+    greek_vega: 0.1
+loop:
+  epochs: 2
+  mix_half_switch_epoch: null
+  batch_size_collocation: 16
+  batch_size_boundary: 16
+  log_every: 1
+callbacks:
+  checkpoint:
+    enabled: true
+    filename_best: model_best.pt
+    filename_last: model_last.pt
+  early_stopping:
+    enabled: false
+    monitor: val_total_loss
+    patience: 150
+    min_delta: 1.0e-07
+  lr_scheduler:
+    enabled: false
+    name: step
+    step_size: 250
+    gamma: 0.5
+evaluation:
+  enabled: true
+  batch_size: 4096
+  metrics:
+  - pde_residual_l2
+  - greek_head_consistency

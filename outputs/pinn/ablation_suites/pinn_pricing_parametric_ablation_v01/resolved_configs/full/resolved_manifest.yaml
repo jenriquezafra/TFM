@@ -1,0 +1,101 @@
+suite_id: pinn_pricing_parametric_ablation_v01
+seed: 42
+baseline_key: pbase00_repro_baseline
+resolved_config_root: outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/resolved_configs
+base_configs:
+  pipeline: configs/pinn_pipeline.yaml
+  architecture: configs/pinn_model_architecture.yaml
+  training: configs/pinn_training.yaml
+  diagnostics: configs/pinn_baseline_diagnostics.yaml
+  adaptive: configs/pinn_adaptive_collocation.yaml
+diagnostics:
+  output_subdir: baseline_diagnostics
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+comparison:
+  output_dir: outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+  thresholds:
+    pricing_specialist:
+      full_price_ratio_max: 0.98
+      hard_price_ratio_max: 1.1
+      hard_price_specialist_ratio_max: 0.9
+      full_price_guard_ratio_max: 1.1
+      neutral_full_price_ratio_max: 1.05
+      neutral_hard_price_ratio_max: 1.2
+modes:
+  smoke:
+    training_overrides:
+      sampling:
+        sizes:
+          n_interior: 512
+          n_terminal: 128
+          n_lower: 128
+          n_right: 128
+          n_v_zero: 128
+      loop:
+        epochs: 2
+        mix_half_switch_epoch: 999999
+        batch_size_collocation: 128
+        batch_size_boundary: 64
+        log_every: 1
+      optimizers:
+      - name: adam
+        learn_rate: 0.001
+        weight_decay: 0.0
+      - name: L-BFGS
+        learn_rate: 1.0
+        max_iter: 2
+        line_search_fn: strong_wolfe
+        historic_size: 20
+        full_batch: true
+    diagnostics_overrides:
+      diagnostics:
+        n_bins: 31
+        surface_grid:
+          x_points: 31
+          y_points: 31
+        finite_difference:
+          enabled: false
+        cf_integration:
+          n_u: 240
+  full:
+    training_overrides:
+      meta:
+        device: mps
+variants:
+- key: pbase01_right_vzero
+  label: Right and v=0 on real baseline protocol
+  metric_focus: pricing
+  enabled: true
+  description: Baseline real con frontera derecha del put y residual degenerado v=0,
+    manteniendo parametric_theta y mix_half.
+  training_overrides:
+    sampling:
+      sizes:
+        n_right: 10000
+        n_v_zero: 10000
+      boundaries:
+        lower_moneyness: 0.0
+        right_moneyness: 3.0
+        v_zero_value: 0.0
+    loss:
+      weights:
+        pde: 1.0
+        term: 1.0
+        low: 1.0
+        right: 1.0
+        v_zero: 0.5
+        no_arbitrage: 1.0
+  run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/pinn_pricing_parametric_ablation_v01/pbase01_right_vzero
+  diagnostics_subdir: baseline_diagnostics
+  resolved_configs:
+    architecture: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/resolved_configs/full/pbase01_right_vzero/architecture.yaml
+    training: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/resolved_configs/full/pbase01_right_vzero/training.yaml
+    pipeline: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/resolved_configs/full/pbase01_right_vzero/pipeline.yaml
+    diagnostics: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/resolved_configs/full/pbase01_right_vzero/diagnostics.yaml
+    adaptive: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/ablation_suites/pinn_pricing_parametric_ablation_v01/resolved_configs/full/pbase01_right_vzero/adaptive.yaml
+mode: full
