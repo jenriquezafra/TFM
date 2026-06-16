@@ -39,30 +39,21 @@ The resulting surrogate is primarily an in-domain approximator. Preliminary out-
 \label{sec:ann_synthetic_dataset}
 Training this surrogate requires a large set of labeled input-output pairs. To obtain a controlled and reproducible source, we generate synthetic data under the Heston model introduced in Section~\ref{sec:heston_model}. Each sampled contract/model configuration is priced with the Heston-COS machinery of Section~\ref{sec:fourier_cos_method}, and the resulting price is converted into the implied-volatility convention fixed in Equation~\eqref{eq:bs_iv_definition} through the numerical inversion routine described in Section~\ref{sec:iv_numerical_inversion}. Thus, the financial notation comes from the background chapter; this section only fixes the dataset vocabulary used by the implementation.
 
-In the current pipeline, generation is organized as a \emph{master dataset}: a table whose rows are available to several downstream workflows. The following implementation terms will be used throughout this chapter:
+In the current pipeline, generation is organized as a \emph{master dataset}: a table whose rows are available to several downstream workflows. Each row stores the variables needed for supervised learning and numerical diagnostics:
 \begin{itemize}
-    \item A \emph{feature} is an input variable given to the neural network. In this chapter the feature vector is $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$.
-    \item A \emph{label} is the supervised value paired with a feature vector. For ANN-pricer training, the label is the implied volatility $\sigma_{\mathrm{imp}}$ obtained from the reference numerical pipeline.
-    \item A \emph{target} is any generated output stored for later use. The training target is $\sigma_{\mathrm{imp}}$, while the COS price is also retained as a reference target for diagnostics.
-    \item A \emph{quality flag} is metadata used to assess whether a row is numerically reliable. These flags are not model inputs by default; they support filtering and robustness checks.
-    \item A \emph{split} is a partition of the dataset into train, validation, and test subsets. The training split updates the weights, the validation split selects and monitors the model, and the test split is held out for final evaluation.
-    \item \emph{Preprocessing} refers to transformations applied before training, such as filtering rows, changing numerical precision, or normalizing features and targets.
+    \item The \emph{features} are the neural-network inputs $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$.
+    \item The \emph{training label} is the implied volatility $\sigma_{\mathrm{imp}}$, stored as \texttt{sigma\_imp\_brent}, obtained from the reference numerical pipeline.
+    \item The \emph{auxiliary target} is the COS price \texttt{price\_cos}, retained as a reference quantity for diagnostics.
+    \item The \emph{quality flags} are metadata used to assess numerical reliability. They record the Feller diagnostic and the Brent-inversion status and residual used for filtering and robustness checks.
 \end{itemize}
-
-With this terminology, each row stores features, generated targets, and quality flags:
-\begin{itemize}
-    \item features: $(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)$,
-    \item targets: $(\texttt{price\_cos},\texttt{sigma\_imp\_brent})$,
-    \item quality flags: $(\texttt{feller\_slack},\texttt{feller\_ok},\texttt{brent\_success},\texttt{brent\_abs\_residual})$.
-\end{itemize}
-This design allows ANN and PINN workflows to reuse the same synthetic source while applying experiment-specific filters only at training or evaluation time.
+The terms \emph{split} and \emph{preprocessing} refer, respectively, to the train/validation/test partition and to the transformations applied before training, such as row filtering, precision changes, or feature/target normalization. This design allows ANN and PINN workflows to reuse the same synthetic source while applying experiment-specific filters only at training or evaluation time.
 
 The raw variable set contains the Heston parameters from Equation~\eqref{eq:heston_dynamics} and the contract/market variables $(K,S_0,\tau,r)$. The background chapter uses $\bar\nu$ and $\nu_0$ for variance quantities; the dataset columns $\bar v$ and $v_0$ denote the same long-run and initial variance levels in implementation notation. We fix $K=1$ and keep the moneyness coordinate \(m\) as the relative underlying level. This is consistent with the log-moneyness state used in the Heston-COS formula in Equation~\eqref{eq:heston_log_moneyness_cf}, since $x=\log(S_0/K)=\log m$. The resulting ANN input vector has eight features:
 \[
 \mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\in\mathbb{R}^8.
 \]
 
-A full Cartesian grid is computationally prohibitive in this dimension, since using $N$ points per variable scales as $N^8$ (already intractable for moderate $N$). Therefore, the synthetic inputs are sampled with Latin Hypercube Sampling (LHS), which stratifies each coordinate and provides broad marginal coverage with a fixed budget \cite{mckay_2000}. In our implementation, LHS is applied directly to the full input vector with a fixed seed and a target size of $10^7$ samples in the master dataset. The specific ranges, constraints, and splitting/preprocessing rules are detailed below.
+A full Cartesian grid is computationally prohibitive in this dimension, since using $N$ points per variable scales as $N^8$ (already intractable for moderate $N$). Therefore, the synthetic inputs are sampled with Latin Hypercube Sampling (LHS), which stratifies each coordinate and provides broad marginal coverage for a prescribed number of samples \cite{mckay_2000}. In our implementation, LHS is applied directly to the full input vector with a fixed seed and a target size of $10^7$ samples in the master dataset. The specific ranges, constraints, and splitting/preprocessing rules are detailed below.
 
 \subsection{Parameter Ranges And Constraints}
 The sampling domain combines Heston parameters, contract variables, and market rate. Following the ranges used in our configuration (largely aligned with \cite{liu}), the training domain is summarized in Table~\ref{tab:ann_synth_input_ranges}.

@@ -262,7 +262,9 @@ hmargin=3cm
 	This thesis studies that question for European vanilla put options under the Heston stochastic-volatility model. A deterministic Heston-COS pricing engine with Brent implied-volatility inversion is used to generate controlled synthetic references, while semi-analytical Heston Greeks provide benchmarks for sensitivity diagnostics. On top of this reference layer, the thesis develops a supervised ANN implied-volatility surrogate, uses it inside a CaNN calibration workflow, and evaluates a physics-informed neural network as a differentiable pricing surface. Sobolev training and an analytic control variate are then tested as two strategies for improving Greek accuracy in difficult short-maturity at-the-money regions.
 
 	The results show that the ANN/CaNN block gives the strongest calibration performance, with very small quote-level residuals and improved Heston parameter recovery in the synthetic benchmark. The PINN provides a fast differentiable pricing engine, but its Greek accuracy is more fragile than its price accuracy. Sobolev augmentation reduces global Greek errors, while the analytic control variate gives the strongest hard-region Delta and Gamma improvements. Overall, the thesis shows that neural methods are useful for Heston derivative analytics when they are embedded in a disciplined numerical benchmark that evaluates pricing, calibration, and sensitivities separately.
-		
+	
+	\todos{Acortar o incluso adaptar si hay cambios}
+
 		\textbf{Keywords:} Heston model; derivative pricing; implied volatility; COS method; neural surrogate; calibration; physics-informed neural networks; automatic differentiation; Greeks; Sobolev training; control variates.
 	
 	\vfill
@@ -383,11 +385,11 @@ hmargin=3cm
 
 \input{chapters/03_NN_surrogate.tex}
 
-\input{chapters/05_PINN_greeks.tex}
+\input{chapters/04_PINN.tex}
 
-\input{chapters/06_performance_and_benchmarks.tex}
+\input{chapters/05_performance_and_benchmarks.tex}
 
-\input{chapters/07_conclusions.tex}
+\input{chapters/06_conclusions.tex}
 
 
 
