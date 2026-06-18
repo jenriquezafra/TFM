@@ -2,12 +2,14 @@
 \label{ch:ann_surrogate}
 \label{ch:cann}
 
+\todos{Actualizar introduccion del capitulo para presentar dos modelos supervisados finales: ANN baseline y ANN Sobolev.}
 The main objective of this chapter is to construct the supervised neural block used in the thesis for Heston pricing and calibration. The first component is an ANN-based surrogate pricer for European vanilla options under the Heston stochastic-volatility model. Its target quantity is implied volatility, and the surrogate is designed to approximate the forward map
 \[
 (\Theta,m,\tau,r)\mapsto \sigma_{imp}.
 \]
 The second component is the neural calibration workflow: the trained pricer is frozen and used as a fast evaluator inside an inverse problem that recovers Heston parameters from an implied-volatility quote surface.
 
+\todos{Mencionar aqui que la extension Sobolev de la ANN incorpora informacion diferencial para mejorar griegas, manteniendo la ANN baseline como referencia supervisada.}
 Reference pricing based on the numerical methods introduced in Chapter~\ref{ch:background} is highly accurate but computationally expensive when repeated many times, as required in calibration and sensitivity workflows. In this project, the reference layer combines Heston-COS valuation (Section~\ref{sec:fourier_cos_method}) with implied-volatility inversion (Section~\ref{sec:iv_numerical_inversion}). The ANN aims to preserve pricing accuracy while reducing inference time by several orders of magnitude.
 
 Methodologically, the chapter follows the ANN-pricing and neural-calibration framework of Liu et al. \cite{liu} as the main reference (architecture family, data ranges, and training philosophy), while explicitly documenting the implementation choices adopted in this project. The benchmark results are reported later in Chapter~\ref{ch:performance_benchmarks}; here the focus is the construction of the supervised pricing dataset, the pricer architecture, the training protocol, and the calibration interface.
@@ -30,6 +32,7 @@ where $m$ and $\tau$ follow the moneyness and time-to-maturity notation fixed in
 
 The training objective is to estimate parameters $\mathbf{w}$ such that the empirical prediction error over $\mathcal{D}$ is minimized. In the pricing part of this chapter, the ANN is used as a surrogate, i.e., as a fast approximation of the reference numerical pipeline in the forward map $(\Theta,m,\tau,r)\mapsto \sigma_{imp}$. In the calibration part, the same trained map is reused with the quote descriptors fixed and the Heston parameter vector varied.
 
+\todos{Preparar aqui la comparacion ANN baseline vs ANN Sobolev: baseline minimiza error de IV; Sobolev anade targets de derivadas para mejorar griegas.}
 We learn implied volatility instead of option price because the IV representation is directly comparable across contracts with different maturities and moneyness levels, and it is the market-standard quotation format for calibration and diagnostics. In contrast, raw prices mix scale effects (spot/strike/time) that make learning less homogeneous over the domain.
 
 The resulting surrogate is primarily an in-domain approximator. Preliminary out-of-domain checks indicate that the network remains stable for moderate departures from the training bounds, while errors increase in extreme regimes. For this reason, the methodological core of this chapter is developed on the predefined training domain, and the extrapolation behaviour is discussed separately in the generalization and robustness analysis.
@@ -239,6 +242,7 @@ Weights are initialized with Xavier uniform initialization and biases are initia
 \subsection{Output Interpretation}
 The network output is a scalar implied volatility in annualized units (decimal form), not an option price. Therefore, prediction errors are interpreted directly in IV space, which is the representation used in the calibration workflow and in most volatility-surface diagnostics.
 
+\todos{Anadir explicacion de griegas ANN-IV: precio y sensibilidades se obtienen por composicion entre IV predicha y formula Black--Scholes.}
 Because the output layer is linear, the model is not hard-constrained to produce strictly positive values for every possible input. In practice, training on a physically admissible domain with positive IV labels strongly reduces this risk inside the sampled region. For downstream use, any out-of-domain prediction can be explicitly checked and, if required, filtered before subsequent numerical steps.
 
 This output definition also preserves differentiability of the surrogate with respect to inputs, which is useful in later chapters when the ANN pricer is embedded in calibration and sensitivity pipelines.
@@ -260,6 +264,7 @@ Let $\{(\mathbf{x}_i,\sigma_i)\}_{i=1}^{B}$ denote a mini-batch, where $\sigma_i
 \]
 
 MSE is preferred because it is smooth, differentiable everywhere, and strongly penalizes large deviations, which is desirable when the ANN is later used in calibration loops sensitive to local pricing errors. RMSE and MAPE are then used as reporting metrics, following the convention fixed in Chapter~\ref{ch:performance_benchmarks}.
+\todos{Extender esta parte con la loss Sobolev de ANN: combinar MSE de IV con error en derivadas/targets diferenciales y explicar pesos.}
 
 \subsection{Optimizer And Hyperparameters}
 \label{sec:ann_optimizer_hyperparameters}
@@ -316,6 +321,7 @@ From an experimental standpoint, this callback configuration reduces the risk of
 \end{table}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\todos{Insertar nueva seccion antes de CaNN: ANN Sobolev training para IV, targets diferenciales, loss, y lectura como mejora de griegas mas que de precio/IV.}
 \section{Neural Calibration As An Inverse Problem}
 \label{sec:cann_inverse_problem}
 
@@ -371,6 +377,7 @@ with \(\mathcal{B}\) the admissible Heston parameter box. In this thesis, the bo
 
 The inverse residual surface is not assumed to be convex, so the reference calibration uses Differential Evolution followed by local polishing. This is a pragmatic choice: the method is robust to initialization, does not require gradients of the neural objective, and can evaluate a population of candidates through batched ANN inference.
 
+\todos{Actualizar esta configuracion: indicar si CaNN se evalua con ANN baseline, ANN Sobolev o ambas, y mantener nomenclatura final consistente.}
 The calibration configuration used in the benchmark is fixed in advance and kept inside the interpolation domain of the ANN. It uses the \texttt{Liu\_like\_tanh\_1M\_v01} checkpoint, the 35-quote grid described above, no regularization in the reference objective (\(\lambda=0\)), and the same parameter bounds as the ANN training domain. Differential Evolution is run with maximum iteration count \(1000\), population multiplier \(20\), tolerance \(10^{-4}\), mutation range \((0.5,1.0)\), recombination \(0.7\), and final polishing enabled. Regularized variants are reserved for the stability analysis reported in Chapter~\ref{ch:performance_benchmarks}.
 
 The selected solution is assessed at two levels. First, quote-level residuals check whether the implied-volatility surface is reproduced. Second, parameter diagnostics check whether the selected optimum is locally stable. Around a low-residual optimum, the residual data term can be read through the Gauss--Newton approximation

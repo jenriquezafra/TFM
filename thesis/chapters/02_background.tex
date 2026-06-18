@@ -24,6 +24,7 @@ Its terminal payoff is
     \Psi_{\mathrm{put}}=(K-S_T)^+,\qquad (x)^+=\max(x,0).
 \end{equation}
 The payoff changes slope at the strike, $S_T=K$. This non-differentiable point is often referred to as the payoff kink.
+\todos{Conectar mas adelante este kink con la nueva narrativa: la superficie de precio de la PINN y Gamma son especialmente sensibles cerca de short maturity/ATM.}
 Figure~\ref{fig:put_payoff} shows the normalized put payoff $\Psi_{\mathrm{put}}/K$ as a function of the normalized terminal price $S_T/K$.
 
 \begin{figure}[H]
@@ -117,6 +118,7 @@ Given a target European put value $V_{\text{target}}$, its implied volatility is
     \label{eq:bs_iv_definition}
     V_{BS}^{\mathrm{put}}(S_0,K,r,\tau,\sigma_{\mathrm{imp}})=V_{\text{target}}.
 \end{equation}
+\todos{Reforzar que IV sera el espacio principal de la ANN supervisada, mientras que la PINN aprende directamente precio; esta distincion sostiene la narrativa de resultados.}
 Thus, implied volatility is a transformation of prices into volatility units; it is not a structural parameter of the Heston model. It is nevertheless the main comparison space in this thesis, because option quotes and calibration errors are usually interpreted across moneyness and maturity in implied-volatility units. The numerical inversion used to compute $\sigma_{\mathrm{imp}}$ is detailed in Section~\ref{sec:iv_numerical_inversion}.
 
 The Heston model extends this constant-volatility benchmark by making variance stochastic. In the risk-neutral pricing form used in this thesis, the dynamics are given by the following system of coupled stochastic differential equations:
@@ -162,6 +164,7 @@ A common positivity condition for the CIR variance process is the Feller conditi
 In practice, calibrated parameter sets may violate this inequality while still producing usable market fits; therefore, it is treated as a diagnostic and stability indicator rather than as a hard calibration constraint in many numerical workflows \cite[Chs.~2--3]{rouah_heston_book}.
 
 The other output quantities used later are Greeks. To keep them distinct from Heston parameters such as $\gamma$ and $\rho$, Greek names are written in roman text. For a value function $V(S,\nu,t;r)$, we use
+\todos{Indicar que estas griegas serviran como referencias para diagnosticar ANN baseline/Sobolev y PINN baseline/Sobolev/Sobolev+ACV.}
 \begin{equation}
     \begin{aligned}
     \mathrm{Delta} &= \frac{\partial V}{\partial S}, &
@@ -205,6 +208,7 @@ Let $\hat V_T(u):=\int_{\mathbb R}e^{-iuy}V(T,y)\,dy$ denote the Fourier transfo
 \end{equation}
 
 Compared with PDE solvers, this approach avoids full space-time gridding. Compared with Monte Carlo, it is deterministic and does not introduce sampling noise. In repeated-pricing tasks (surface generation, calibration loops, and large synthetic datasets), this is a major practical advantage.
+\todos{Conectar COS como capa comun: genera labels de IV/precio para ANN y referencias ex-post para evaluar PINN.}
 
 The Fourier-COS method used in the next section is a specific spectral discretization of this transform-based pricing framework: it replaces the continuous integral by a finite cosine expansion over a truncated interval, preserving high accuracy with efficient vectorized evaluation.
 
@@ -322,6 +326,7 @@ This subsection establishes the analytical Heston-COS pricing block used as the 
 \subsection{Semi-Analytical Greeks from the Heston Characteristic Function}
 \label{sec:heston_cf_greeks}
 
+\todos{Explicitar despues que estas griegas de referencia tambien alimentan los targets Sobolev y las comparaciones de los cinco modelos finales.}
 For validation purposes, the option Greeks defined in Section~\ref{sec:heston_model} can also be computed directly from the Heston characteristic-function pricing representation. A standard presentation is often written for a European call \cite{heston} and is developed in \cite[Chapter~1]{rouah_heston_book}
 \begin{equation}
 V^{\mathrm{call}}(S_0,K,\tau)=S_0\,\Pi_1-Ke^{-r\tau}\,\Pi_2,
@@ -400,6 +405,7 @@ Numerically, we solve the scalar nonlinear equation
 For European vanilla options, $V_{BS}$ is strictly increasing in $\sigma$ when $\tau>0$, so the root is unique whenever $V_{\text{target}}$ satisfies static no-arbitrage bounds.
 
 The inversion routine used in this thesis is the bracketed Brent method \cite[Ch.~9]{press2007numerical}. Brent's method keeps a root bracket and combines bisection with secant and inverse-quadratic interpolation steps, falling back to bisection when the interpolated step is not reliable. This choice is robust for the one-dimensional IV root and avoids derivative-sensitivity issues in low-vega regions. As an alternative, the least-squares method of Levenberg and Marquardt \cite{levenberg1944,marquardt1963} was also tested in preliminary experiments, but it showed lower numerical stability in this workflow; therefore, it is not used in the final pipeline.
+\todos{Al reescribir, conectar Brent/IV inversion con la ANN baseline y ANN Sobolev; la PINN no usa esta inversion como loss principal.}
 
 Stopping is based on standard price and parameter tolerances:
 \begin{equation}

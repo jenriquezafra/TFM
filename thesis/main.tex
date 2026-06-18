@@ -32,6 +32,7 @@ hmargin=3cm
 \definecolor{gray45}{gray}{.45}
 
 \newcommand{\todos}[1]{\textcolor{red}{#1}}
+\newcommand{\fix}[1]{\textcolor{blue}{#1}}
 
 % PDF/A -- Important for its inclusion in e-Archive. PDF/A is the optimal format for preservation and for the generation of metadata: http://uc3m.libguides.com/ld.php?content_id=31389625. 
 
@@ -216,6 +217,7 @@ hmargin=3cm
 			\bigskip
 			
 		\end{Large}
+\todos{Revisar titulo para reflejar los cinco modelos finales: ANN baseline, ANN Sobolev, PINN baseline, PINN Sobolev y PINN Sobolev+ACV.}
 		 	{\Huge Physics-Informed and Data-Driven Neural Networks for Option Pricing, Calibration, and Greeks Estimation under the Heston Model}\\
 		 	\vspace*{0.5cm}
 	 		\rule{10.5cm}{0.1mm}\\
@@ -257,13 +259,14 @@ hmargin=3cm
 \begin{abstract}
 \thispagestyle{plain}
 \setcounter{page}{3}
+	\todos{Reescribir el resumen con la nueva narrativa: eje principal ANN supervisada sobre IV; Sobolev mejora sobre todo griegas; PINN queda como alternativa no supervisada sobre precio con resultados razonables pero mas fragiles.}
 	Neural methods can accelerate derivative pricing, but it remains unclear whether this speed can be used inside a complete Heston workflow without compromising calibration reliability and Greek accuracy. Existing studies often evaluate neural pricers mainly through pricing errors or treat calibration and sensitivity computation as separate tasks. This leaves open the question of how neural components behave when they are connected in the same benchmarked pipeline and judged not only by average accuracy, but also by downstream calibration performance, spatial error structure, and derivative quality.
 
 	This thesis studies that question for European vanilla put options under the Heston stochastic-volatility model. A deterministic Heston-COS pricing engine with Brent implied-volatility inversion is used to generate controlled synthetic references, while semi-analytical Heston Greeks provide benchmarks for sensitivity diagnostics. On top of this reference layer, the thesis develops a supervised ANN implied-volatility surrogate, uses it inside a CaNN calibration workflow, and evaluates a physics-informed neural network as a differentiable pricing surface. Sobolev training and an analytic control variate are then tested as two strategies for improving Greek accuracy in difficult short-maturity at-the-money regions.
 
 	The results show that the ANN/CaNN block gives the strongest calibration performance, with very small quote-level residuals and improved Heston parameter recovery in the synthetic benchmark. The PINN provides a fast differentiable pricing engine, but its Greek accuracy is more fragile than its price accuracy. Sobolev augmentation reduces global Greek errors, while the analytic control variate gives the strongest hard-region Delta and Gamma improvements. Overall, the thesis shows that neural methods are useful for Heston derivative analytics when they are embedded in a disciplined numerical benchmark that evaluates pricing, calibration, and sensitivities separately.
 	
-	\todos{Acortar o incluso adaptar si hay cambios}
+	\todos{Actualizar keywords para mencionar de forma consistente ANN baseline, ANN Sobolev, PINN baseline, PINN Sobolev y PINN Sobolev+ACV.}
 
 		\textbf{Keywords:} Heston model; derivative pricing; implied volatility; COS method; neural surrogate; calibration; physics-informed neural networks; automatic differentiation; Greeks; Sobolev training; control variates.
 	

@@ -36,6 +36,7 @@ The experiments we are going to perform require repeated pricing calls, implied-
 This repetition can make the numerical experiment considerably more expensive, because the reference pricer is called many times across contract grids, calibration routines, and sensitivity diagnostics. 
 This repeated-use setting is where neural approximations become attractive.
 
+\todos{Reforzar aqui la distincion narrativa entre aprender una superficie de IV con ANN supervisada y aprender una superficie de precio con PINN no supervisada.}
 A neural network can be trained to approximate a numerical pricing routine and then evaluated very quickly. 
 The idea is to pay the cost of generating accurate reference data once, and then train a model that can be evaluated much faster inside calibration or sensitivity workflows. 
 This is the motivation behind neural pricing and calibration approaches such as \cite{liu}.
@@ -64,6 +65,7 @@ The most delicate cases in this thesis are short maturities and near-the-strike 
 This ATM region is especially relevant because small movements in the underlying can produce large changes in local curvature. 
 For a European put, the payoff changes slope abruptly at the strike: below \(K\) it increases as the asset price falls, while above \(K\) it is zero. This sharp corner is often called a payoff kink. Near maturity, it makes the pricing surface harder to approximate, especially for second-order sensitivities such as Gamma.
 
+\todos{Conectar este parrafo con la nueva lectura de resultados: el kink afecta mas a la superficie de precio de la PINN y a Gamma que a la superficie de IV de la ANN.}
 For this reason, the thesis treats benchmarking as part of the problem itself. Neural components are not evaluated only by speed or by global error metrics, but also by their behaviour in the downstream tasks for which they are intended. The central question is whether these components can be useful inside a Heston pricing workflow without hiding errors that later affect calibration or Greek computation.
 
 
@@ -72,56 +74,73 @@ The proposed methodology is built around a benchmarked Heston workflow that firs
 This numerical reference has two roles: it provides accurate option values and Greek benchmarks, and it generates the controlled data used to train and test the machine-learning components.
 This makes it possible to evaluate neural methods under explicit numerical conditions and to distinguish computational acceleration from genuine loss of reliability.
 
-Using this reference as the common benchmark, we study two neural network approaches. 
-The first is a supervised artificial neural network (ANN) surrogate trained to approximate the outputs of the Heston pricing routine. 
+Using this reference as the common benchmark, we study two families of neural network approaches. 
+The first is a supervised artificial neural network (ANN) surrogate trained to approximate the implied-volatility surface generated from the Heston reference. 
+This branch contains the ANN baseline and its Sobolev-augmented version.
 This surrogate is then used inside a calibration routine, where the objective is to recover model parameters efficiently from option quotes. 
-The second approach is a physics-informed neural network (PINN) used to approximate the option price surface directly from the Heston pricing equation. 
-Since this price surface is differentiable, it can also be used to compute Greeks though automatic differentiation \cite{baydin2018autodiff}. 
+The second approach is a physics-informed neural network (PINN) trained without direct price labels and used to approximate the option price surface directly from the Heston pricing equation. 
+Since this learned price surface is differentiable, it can also be used to compute Greeks through automatic differentiation \cite{baydin2018autodiff}. 
+In this branch, we compare the PINN baseline with a Sobolev-augmented PINN and with a further analytic control variate (ACV) correction, which uses an analytic reference component to improve the stability of the learned sensitivities.
 The complete structure of this benchmarked workflow is summarized in Figure \ref{fig:intro_pipeline}.
 
 
 \begin{figure}[H]
     \centering
     \makebox[\textwidth][c]{%
-    \resizebox{0.98\textwidth}{!}{%
     \begin{tikzpicture}[
-        font=\normalsize,
-        box/.style={draw, rounded corners=2pt, align=center, minimum height=1.05cm, text width=2.2cm, inner sep=4pt},
+        font=\footnotesize,
+        box/.style={draw, rounded corners=2pt, align=center, minimum height=0.78cm, text width=1.62cm, inner sep=3pt},
         refbox/.style={box, fill=blue!7},
         nnbox/.style={box, fill=green!8},
+        pinnbox/.style={box, fill=orange!10},
         outbox/.style={box, fill=gray!10},
-        arrow/.style={-{Latex[length=2.5mm]}, thick},
-        evalarrow/.style={-{Latex[length=2.5mm]}, thick, dashed},
-        node distance=1.0cm and 0.38cm
+        diagbox/.style={outbox, text width=1.78cm},
+        arrow/.style={-{Latex[length=2.8mm,width=2.0mm]}, line width=0.70pt, draw=black},
+        greekline/.style={line width=0.85pt, dash pattern=on 3pt off 2pt, draw=blue!65!black},
+        evalarrow/.style={greekline, -{Latex[length=3.0mm,width=2.2mm]}},
+        branchlabel/.style={align=right, text width=1.35cm, font=\footnotesize}
     ]
-        \node[refbox] (setup) {Heston setup\\synthetic contracts};
-        \node[refbox, right=of setup] (cos) {COS pricing};
-        \node[refbox, right=of cos] (iv) {IV inversion};
+        \node[refbox] (setup) at (0.0,0.0) {Heston setup\\synthetic contracts};
+        \node[refbox] (cos) at (2.55,0.0) {COS pricing};
+        \node[refbox] (iv) at (5.10,0.0) {IV inversion};
+        \node[refbox] (refs) at (7.65,0.0) {Reference\\Greeks};
 
-        \node[nnbox, below=1.0cm of iv] (ann) {ANN IV\\surrogate};
-        \node[nnbox, right=of ann] (cann) {CaNN\\calibration};
-        \node[nnbox, right=of cann] (pinn) {PINN pricing\\surface};
-        \node[nnbox, right=of pinn, yshift=0.7cm] (sobolev) {Sobolev\\training};
-        \node[nnbox, right=of pinn, yshift=-0.7cm] (acv) {ACV\\control variate};
-        \node[outbox, right=of sobolev, yshift=-0.7cm] (greeks) {Greek\\diagnostics};
-        \node[refbox, above=1.0cm of greeks] (refs) {Reference\\Greeks};
+        \node[nnbox] (annbase) at (2.55,-1.55) {ANN\\baseline};
+        \node[nnbox] (annsobo) at (5.10,-1.55) {ANN\\Sobolev};
+        \node[nnbox] (cann) at (7.65,-1.55) {CaNN\\calibration};
+        \node[diagbox] (anngreeks) at (10.25,-1.55) {ANN/CaNN\\diagnostics};
 
-        \node[align=right, text width=2.0cm, left=0.35cm of setup] (reflabel) {Numerical\\reference};
-        \node[align=right, text width=2.0cm, left=0.35cm of ann] (nnlabel) {Neural\\workflow};
+        \node[pinnbox] (pinnbase) at (2.55,-3.25) {PINN\\baseline};
+        \node[pinnbox] (pinnsobo) at (5.10,-3.25) {PINN\\Sobolev};
+        \node[pinnbox] (pinnacv) at (7.65,-3.25) {PINN Sobolev\\+ ACV};
+        \node[diagbox] (pinngreeks) at (10.25,-3.25) {Pricing and\\Greek\\diagnostics};
+
+        \node[branchlabel] at (-1.85,0.0) {Numerical\\reference};
+        \node[branchlabel] at (-1.85,-1.55) {ANN\\supervised};
+        \node[branchlabel] at (-1.85,-3.25) {PINN\\unsupervised};
 
         \draw[arrow] (setup) -- (cos);
         \draw[arrow] (cos) -- (iv);
-        \draw[arrow] (iv) -- (ann);
-        \draw[arrow] (ann) -- (cann);
-        \draw[arrow] (cann) -- (pinn);
-        \draw[arrow] (pinn.east) -- (sobolev.west);
-        \draw[arrow] (pinn.east) -- (acv.west);
-        \draw[arrow] (sobolev.east) -- (greeks.north west);
-        \draw[arrow] (acv.east) -- (greeks.south west);
-        \draw[evalarrow] (refs.south) -- (greeks.north);
-        \draw[evalarrow] (refs.west) -- (sobolev.north);
-    \end{tikzpicture}}}
-    \caption{High-level structure of the benchmarked Heston workflow. Solid arrows show the main computational flow; dashed arrows show reference Greeks used to compute diagnostic errors and to define Sobolev Greek targets.}
+        \draw[arrow] (iv) -- (refs);
+
+        \draw[arrow] (iv.south) -- ++(0,-0.45) -| (annbase.north);
+        \draw[arrow] (annbase) -- (annsobo);
+        \draw[arrow] (annsobo) -- (cann);
+        \draw[arrow] (cann) -- (anngreeks);
+
+        \draw[arrow] (setup.south) |- (pinnbase.west);
+        \draw[arrow] (pinnbase) -- (pinnsobo);
+        \draw[arrow] (pinnsobo) -- (pinnacv);
+        \draw[arrow] (pinnacv) -- (pinngreeks);
+
+        \coordinate (greektargets) at (6.20,-0.88);
+        \coordinate (pinntarget) at (5.10,-2.58);
+        \draw[greekline] (refs.south) -- (greektargets);
+        \draw[evalarrow] (greektargets) -- (annsobo.north);
+        \draw[greekline] (greektargets) -- (6.20,-2.58) -- (pinntarget);
+        \draw[evalarrow] (pinntarget) -- (pinnsobo.north);
+    \end{tikzpicture}}
+    \caption{High-level structure of the benchmarked Heston workflow. The ANN branch is supervised and learns the implied-volatility surface, with baseline and Sobolev variants feeding the calibration and Greek diagnostics. The PINN branch learns the price surface from the Heston PDE, and is evaluated through baseline, Sobolev, and Sobolev+ACV variants. Solid arrows show the main computational flow; dashed arrows show how the reference Greeks are injected into the Sobolev-trained models as derivative targets.}
     \label{fig:intro_pipeline}
 \end{figure}
 
@@ -131,10 +150,12 @@ For this reason, the final part of the workflow studies two complementary ways o
 One introduces derivative information during training, while the other uses an analytic reference component to correct or diagnose the learned sensitivities. 
 These two ideas are later developed as the Sobolev-enhanced and analytic-control-variate experiments. 
 
+
 The main contribution is the construction and evaluation of this full workflow under a common benchmark.
-The ANN calibration block is used to study whether neural surrogates can accelerate repeated Heston evaluations and parameter recovery. 
-The PINN block is used to study whether a neural price surface can provide reliable prices and sensitivities at the same time. 
-The final experiments analyse the regions where Greek estimation is most difficult and assess whether the two Greek-improvement strategies reduce those errors.
+The ANN block studies a supervised implied-volatility surrogate, including both the baseline model and its Sobolev-augmented version, and then uses this surrogate family inside the CaNN calibration problem.
+The PINN block follows a different route: it studies an unsupervised price-surface approximation through the baseline, Sobolev, and Sobolev+ACV variants.
+This separation is deliberate, because the two families are trained in different spaces and are not meant to be compared as interchangeable models.
+The final experiments analyse the regions where Greek estimation is most difficult and assess how the derivative-aware and analytic-correction strategies behave there.
 
 
 This organization is important for the interpretation of the results. 
@@ -154,8 +175,10 @@ Its performance, however, still depends on numerical choices such as the truncat
 
 Neural methods enter this landscape as acceleration and approximation tools. Feed-forward ANN surrogates can learn pricing or implied-volatility maps from synthetic labels and then evaluate them much faster than the numerical solver, which makes them attractive for calibration workflows \cite{liu}. Physics-informed neural networks follow a different route: instead of learning only from labels, they use the pricing equation itself as part of the training objective. Recent work applies this idea to Heston-type option pricing and related PDE settings \cite{hainaut2024pinn,yu2022gpinn}. More recent operator-learning work for stochastic-volatility models also reports a useful warning for the present thesis: highly accurate Heston prices can still lead to noisy autodiff Greeks, especially near the at-the-money region \cite{malandain2025deepsvm}. At the same time, the PINN literature reports well-known difficulties with optimization, loss balancing, gradient flow, and robustness across the training domain \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
 
+\todos{Ajustar estado del arte: usar Liu como referencia directa para ANN/CaNN, Amici y Noguer para aprendizaje diferencial/Sobolev, y Malandain/DeepSVM para fragilidad de griegas en modelos physics-informed.}
 For Greek computation, automatic differentiation provides a natural way to obtain sensitivities from differentiable neural price surfaces \cite{baydin2018autodiff}, although accurate prices do not automatically imply accurate derivatives. This motivates derivative-aware training strategies such as Sobolev-type supervision \cite{czarnecki2017sobolev}, deep differential learning of Heston parameter sensitivities \cite{amici2024ddn}, and broader derivative-informed operator-learning methods for financial surfaces \cite{noguer2026derivative_operator}. These ideas are complemented here by correction and diagnostic tools based on analytic control variates, which are related to the variance-reduction tradition in Monte Carlo methods \cite{glasserman2004montecarlo}.
 
+\todos{Revisar tabla para que las filas y roles reflejen los cinco modelos finales y no una lectura lineal ANN/CaNN/PINN.}
 Table~\ref{tab:state_of_art_blocks} summarizes these methodological blocks and clarifies their role in this thesis. The table also motivates the structure of the proposed workflow: COS pricing is kept as the deterministic reference, ANN and CaNN components are used for fast calibration, and PINN-based methods are evaluated as differentiable pricing surfaces whose Greek quality must be diagnosed separately.
 
 \begin{table}[H]
@@ -187,6 +210,7 @@ The scope is intentionally controlled.
 All experiments are carried out for European vanilla options under the Heston model, using synthetic data and numerical references whose settings can be inspected.
 This restriction is appropriate for the objective of the work: to test whether neural components can accelerate pricing, calibration, and sensitivity computation while remaining comparable to established numerical methods.
 
+\todos{Actualizar estructura de la tesis: Chapter 3 debe incluir ANN baseline y ANN Sobolev; Chapter 4 las tres variantes PINN; Chapter 5 los resultados organizados por los cinco modelos finales.}
 The remainder of the thesis is organized as follows. 
 Chapter~\ref{ch:background} introduces the mathematical and financial background needed for the rest of the work, including option pricing, the Heston model, Greeks, and the numerical methods used as referece.
 Chapter~\ref{ch:ann_surrogate} develops the supervised neural methods for Heston pricing and calibration: the ANN surrogate pricer and the CaNN inverse workflow.
