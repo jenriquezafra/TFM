@@ -1,0 +1,146 @@
+config_path: configs/acv_hard_patch_sobolev_control_variate_fixed_theta_final_diagnostics.yaml
+run_dir: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4
+checkpoint: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4/checkpoints/model_best.pt
+acv_config: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4/run_config.yaml
+detail_file: /Users/jenriquezafra/Proyectos/Dev/python/TFM/TFM/outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4/diagnostics_fixed_theta_final/surface_diagnostics.csv
+metrics:
+  full:
+    n: 25921
+    price:
+      rmse: 0.0014598168350668473
+      mae: 0.0012232962070628647
+      p90_abs_error: 0.0024325383292048697
+      p99_abs_error: 0.003413964475016849
+      max_abs_error: 0.003896095706055591
+    delta:
+      rmse: 0.0049633190147824816
+      mae: 0.004076978461531429
+      p90_abs_error: 0.007217750813377444
+      p99_abs_error: 0.011358924871083245
+      max_abs_error: 0.04429641476518276
+    gamma:
+      rmse: 0.10394077456416763
+      mae: 0.037436072503016574
+      p90_abs_error: 0.08249440234234551
+      p99_abs_error: 0.2987888279313169
+      max_abs_error: 2.068140649230285
+    vega:
+      rmse: 0.003778409265154601
+      mae: 0.003084747255430912
+      p90_abs_error: 0.005913072889773718
+      p99_abs_error: 0.010541613886490725
+      max_abs_error: 0.012383798977893157
+    theta:
+      rmse: 0.0016349726424508576
+      mae: 0.001332021395871281
+      p90_abs_error: 0.002215682733747004
+      p99_abs_error: 0.005038247996991556
+      max_abs_error: 0.012397945533834942
+    rho:
+      rmse: 0.041586342726689485
+      mae: 0.03549577943489422
+      p90_abs_error: 0.06772681599291597
+      p99_abs_error: 0.08940912241948307
+      max_abs_error: 0.0979160858921434
+  short_maturity:
+    n: 0
+    price:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    delta:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    gamma:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    vega:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    theta:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    rho:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+  atm:
+    n: 3864
+    price:
+      rmse: 0.0013954081871493684
+      mae: 0.0011754984535105666
+      p90_abs_error: 0.002148207967419419
+      p99_abs_error: 0.00244961775803359
+      max_abs_error: 0.0025726021409560595
+    delta:
+      rmse: 0.0043311277467860945
+      mae: 0.0035148748412786868
+      p90_abs_error: 0.007234978402753479
+      p99_abs_error: 0.008115681796579921
+      max_abs_error: 0.008392619824276637
+    gamma:
+      rmse: 0.04702332544492312
+      mae: 0.02966172207568433
+      p90_abs_error: 0.08925505329269734
+      p99_abs_error: 0.15162459191220748
+      max_abs_error: 0.17417562191697278
+    vega:
+      rmse: 0.0020668924891275656
+      mae: 0.0018844975136543055
+      p90_abs_error: 0.0028433995332981746
+      p99_abs_error: 0.0038686317612236713
+      max_abs_error: 0.004763714628374688
+    theta:
+      rmse: 0.0015467025695822818
+      mae: 0.001413955791347159
+      p90_abs_error: 0.0019534560115911856
+      p99_abs_error: 0.004075953237560447
+      max_abs_error: 0.007435191587431889
+    rho:
+      rmse: 0.03955318601853931
+      mae: 0.03558119624811107
+      p90_abs_error: 0.054342557182191026
+      p99_abs_error: 0.05962036028693579
+      max_abs_error: 0.061223617727656165
+  hard:
+    n: 0
+    price:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    delta:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    gamma:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    vega:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    theta:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan
+    rho:
+      rmse: .nan
+      mae: .nan
+      p99_abs_error: .nan
+      max_abs_error: .nan

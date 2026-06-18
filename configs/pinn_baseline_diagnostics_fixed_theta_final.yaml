@@ -1,0 +1,64 @@
+global:
+  experiment_id: "baseline_pinn_fixed_theta_final"
+  run_dir: "PINN_mix_scaled_fixed_theta"
+  checkpoint_name: "model_best.pt"
+  architecture_config: null
+  device: "auto"
+  dtype: "float64"
+  feature_order: null
+
+  spot_feature: "moneyness"
+  vol_feature: "v"
+  tau_feature: "tau"
+  rate_feature: "r"
+  theta_sign: "minus_dv_dtau"
+  strike: 1.0
+
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+
+diagnostics:
+  output_subdir: "pricing_baseline_fixed_theta_final"
+  option_type: "put"
+  mape_floor: 1.0e-4
+  stabilized_relative_floor: 1.0
+  n_bins: 161
+
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+
+  surface_grid:
+    x_feature: "moneyness"
+    x_min: 0.8
+    x_max: 1.2
+    x_points: 161
+    y_feature: "tau"
+    y_min: 0.05
+    y_max: 2.0
+    y_points: 161
+
+  fixed_values:
+    tau: 1.0
+    moneyness: 1.0
+    v: 0.21971117661996578
+    rho: -0.5241299828927267
+    kappa: 1.0576232226342916
+    gamma: 0.29956827744543396
+    bar_v: 0.19758448825937408
+    r: 0.01
+
+  finite_difference:
+    enabled: false
+    spot_step: 1.0e-4
+    vol_step: 1.0e-4
+    tau_step: 1.0e-4
+    rate_step: 1.0e-4
+    max_points: 2048
+    seed: 42
+
+  cf_integration:
+    u_min: 1.0e-6
+    u_max: 200.0
+    n_u: 1200
