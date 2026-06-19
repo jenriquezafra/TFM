@@ -24,7 +24,6 @@ Its terminal payoff is
     \Psi_{\mathrm{put}}=(K-S_T)^+,\qquad (x)^+=\max(x,0).
 \end{equation}
 The payoff changes slope at the strike, $S_T=K$. This non-differentiable point is often referred to as the payoff kink.
-\todos{Conectar mas adelante este kink con la nueva narrativa: la superficie de precio de la PINN y Gamma son especialmente sensibles cerca de short maturity/ATM.}
 Figure~\ref{fig:put_payoff} shows the normalized put payoff $\Psi_{\mathrm{put}}/K$ as a function of the normalized terminal price $S_T/K$.
 
 \begin{figure}[H]
@@ -118,7 +117,7 @@ Given a target European put value $V_{\text{target}}$, its implied volatility is
     \label{eq:bs_iv_definition}
     V_{BS}^{\mathrm{put}}(S_0,K,r,\tau,\sigma_{\mathrm{imp}})=V_{\text{target}}.
 \end{equation}
-\todos{Reforzar que IV sera el espacio principal de la ANN supervisada, mientras que la PINN aprende directamente precio; esta distincion sostiene la narrativa de resultados.}
+
 Thus, implied volatility is a transformation of prices into volatility units; it is not a structural parameter of the Heston model. It is nevertheless the main comparison space in this thesis, because option quotes and calibration errors are usually interpreted across moneyness and maturity in implied-volatility units. The numerical inversion used to compute $\sigma_{\mathrm{imp}}$ is detailed in Section~\ref{sec:iv_numerical_inversion}.
 
 The Heston model extends this constant-volatility benchmark by making variance stochastic. In the risk-neutral pricing form used in this thesis, the dynamics are given by the following system of coupled stochastic differential equations:
@@ -164,7 +163,6 @@ A common positivity condition for the CIR variance process is the Feller conditi
 In practice, calibrated parameter sets may violate this inequality while still producing usable market fits; therefore, it is treated as a diagnostic and stability indicator rather than as a hard calibration constraint in many numerical workflows \cite[Chs.~2--3]{rouah_heston_book}.
 
 The other output quantities used later are Greeks. To keep them distinct from Heston parameters such as $\gamma$ and $\rho$, Greek names are written in roman text. For a value function $V(S,\nu,t;r)$, we use
-\todos{Indicar que estas griegas serviran como referencias para diagnosticar ANN baseline/Sobolev y PINN baseline/Sobolev/Sobolev+ACV.}
 \begin{equation}
     \begin{aligned}
     \mathrm{Delta} &= \frac{\partial V}{\partial S}, &

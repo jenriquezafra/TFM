@@ -207,10 +207,9 @@ The scope is intentionally controlled.
 All experiments are carried out for European vanilla options under the Heston model, using synthetic data and numerical references whose settings can be inspected.
 This restriction is appropriate for the objective of the work: to test whether neural components can accelerate pricing, calibration, and sensitivity computation while remaining comparable to established numerical methods.
 
-\todos{Actualizar estructura de la tesis: Chapter 3 debe incluir ANN baseline y ANN Sobolev; Chapter 4 las tres variantes PINN; Chapter 5 los resultados organizados por los cinco modelos finales.}
 The remainder of the thesis is organized as follows. 
-Chapter~\ref{ch:background} introduces the mathematical and financial background needed for the rest of the work, including option pricing, the Heston model, Greeks, and the numerical methods used as referece.
-Chapter~\ref{ch:ann_surrogate} develops the supervised neural methods for Heston pricing and calibration: the ANN surrogate pricer and the CaNN inverse workflow.
-Chapter~\ref{ch:pinn_greeks} introduces the PINN framework for Heston pricing and sensitivity computation, including the extensions used to study Greeks accuracy.
-Chapter~\ref{ch:performance_benchmarks} reports the numerical benchmarks for pricing, calibration, PINN performance, and Greek diagnostics.
+Chapter~\ref{ch:background} introduces the mathematical and financial background needed for the rest of the work, including option pricing, the Heston model, Greeks, and the numerical methods used as reference.
+Chapter~\ref{ch:ann_surrogate} develops the supervised ANN branch: the baseline implied-volatility surrogate, its Sobolev-augmented version, and the CaNN calibration workflow built on top of these surrogates.
+Chapter~\ref{ch:pinn_greeks} introduces the PINN branch for Heston pricing and sensitivity computation, covering the baseline PINN, the Sobolev-augmented PINN, and the Sobolev+ACV variant.
+Chapter~\ref{ch:performance_benchmarks} reports the numerical benchmarks by model family, separating ANN/CaNN calibration and Greek diagnostics from the PINN pricing and sensitivity experiments.
 Chapter~\ref{ch:conclusions} summarizes the main conclusions and discusses possible extensions.

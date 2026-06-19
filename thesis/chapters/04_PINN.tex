@@ -363,7 +363,7 @@ This sampling strategy preserves the fully unsupervised nature of the method. No
 \label{sec:pinn_sobolev_training}
 
 \todos{Revisar esta seccion para que defina PINN Sobolev como segunda variante final y no como mejora principal de toda la tesis.}
-The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\Gamma\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. This issue is also observed in recent physics-informed Heston operator learning, where autodiff Greeks become noisy even when price errors are small \cite{malandain2025deepsvm}. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}. The formulation below is an application-specific hybrid: it follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.
+The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\mathrm{Gamma}\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. This issue is also observed in recent physics-informed Heston operator learning, where autodiff Greeks become noisy even when price errors are small \cite{malandain2025deepsvm}. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}. The formulation below is an application-specific hybrid: it follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.
 
 The extension keeps the original physics objective and adds supervised derivative terms on a dedicated set of Greek-anchor points. Let
 \[
@@ -390,16 +390,16 @@ To prevent scale dominance across Greeks, we use normalized residuals and split 
 \left(
 \frac{q_{\phi}(x)-q^{\star}(x)}{s_q+\varepsilon}
 \right)^2,\qquad
-\mathcal{Q}_1=\{\Delta,\text{Vega}_{v},\Theta,\text{Rho}\},\\
+\mathcal{Q}_1=\{\mathrm{Delta},\mathrm{Vega}_{v},\mathrm{Theta},\mathrm{Rho}\},\\
 \mathcal{L}_{\mathrm{g},2}
 &=
 \frac{1}{|\mathcal{S}_{\mathrm{g}}|}
 \sum_{x\in\mathcal{S}_{\mathrm{g}}}
 \left(
-\frac{\Gamma_{\phi}(x)-\Gamma^{\star}(x)}{s_{\Gamma}+\varepsilon}
+\frac{\mathrm{Gamma}_{\phi}(x)-\mathrm{Gamma}^{\star}(x)}{s_{\mathrm{Gamma}}+\varepsilon}
 \right)^2,
 \end{align}
-where \(s_q\) are fixed scale factors (e.g., robust quantiles of \(|q^\star|\) on \(\mathcal{S}_{\mathrm{g}}\)) and \(\varepsilon>0\) avoids numerical singularities near zero. The separation of \(\mathcal{L}_{\mathrm{g},2}\) for \(\Gamma\) gives independent control of curvature supervision, which is typically more unstable than first-order terms.
+where \(s_q\) are fixed scale factors (e.g., robust quantiles of \(|q^\star|\) on \(\mathcal{S}_{\mathrm{g}}\)) and \(\varepsilon>0\) avoids numerical singularities near zero. The separation of \(\mathcal{L}_{\mathrm{g},2}\) for \(\mathrm{Gamma}\) gives independent control of curvature supervision, which is typically more unstable than first-order terms.
 
 The prototype objective is then
 \begin{equation}
@@ -433,10 +433,10 @@ The first-order and second-order derivatives with respect to the input coordinat
 \]
 From these objects, standard trading Greeks are extracted as follows:
 \begin{align}
-\Delta &= \frac{\partial u_\phi}{\partial S},\\
-\Gamma &= \frac{\partial^2 u_\phi}{\partial S^2},\\
-\Theta &= \frac{\partial u_\phi}{\partial t}=-\frac{\partial u_\phi}{\partial \tau},\\
-\text{Rho} &= \frac{\partial u_\phi}{\partial r}.
+\mathrm{Delta} &= \frac{\partial u_\phi}{\partial S},\\
+\mathrm{Gamma} &= \frac{\partial^2 u_\phi}{\partial S^2},\\
+\mathrm{Theta} &= \frac{\partial u_\phi}{\partial t}=-\frac{\partial u_\phi}{\partial \tau},\\
+\mathrm{Rho} &= \frac{\partial u_\phi}{\partial r}.
 \end{align}
 
 In this work, the spatial coordinate is moneyness \(m=S/K\), not spot directly. Hence a chain-rule conversion is required:
@@ -449,7 +449,7 @@ For the normalized-strike setup used in the thesis (\(K=1\)), both coordinate sy
 
 Since the PINN state includes instantaneous variance \(v\), a natural model-consistent volatility sensitivity is
 \[
-\text{Vega}_{v}:=\frac{\partial u_\phi}{\partial v}.
+\mathrm{Vega}_{v}:=\frac{\partial u_\phi}{\partial v}.
 \]
 If needed, this can be transformed to a sensitivity with respect to volatility level \(\sigma_v=\sqrt{v}\):
 \[
