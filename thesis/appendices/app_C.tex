@@ -1,7 +1,6 @@
 \chapter{Global Notation Glossary}
 \label{app:global_glossary}
 
-\todos{Actualizar glosario con notacion de ANN baseline, ANN Sobolev, PINN baseline, PINN Sobolev, PINN Sobolev+ACV, targets diferenciales y pesos de loss.}
 This appendix contains a global glossary of symbols used throughout the thesis.
 It is intended as a living reference and can be expanded as additional notation appears in later revisions.
 
@@ -41,6 +40,45 @@ It is intended as a living reference and can be expanded as additional notation 
         $W_t^{(S)},\;W_t^{(\nu)}$ & Brownian motions driving the spot and variance processes. \\
         \hline
         $\kappa,\;\bar\nu,\;\gamma,\;\rho,\;\nu_0$ & Heston parameters: mean reversion, long-run variance, vol-of-vol, correlation, and initial variance. Later chapters also use $\bar v$ and $v_0$ for the variance parameters. \\
+        \hline
+        \multicolumn{2}{l}{Source: Author's elaboration}
+    \end{tabular}}
+\end{table}
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Global notation glossary: neural benchmark notation}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
+        \hline
+        \textbf{Symbol} & \textbf{Meaning} \\
+        \hline
+        ANN baseline, ANN Sobolev & Supervised implied-volatility surrogates used in the ANN branch. The Sobolev variant adds derivative information to the baseline supervised objective. \\
+        \hline
+        CaNN & Calibration workflow that uses a frozen ANN surrogate as fast forward evaluator in the inverse Heston calibration problem. \\
+        \hline
+        PINN baseline, PINN Sobolev, PINN Sobolev+ACV & Physics-informed price-surface variants. The baseline PINN is the PDE-trained pricing model; the Sobolev variant adds derivative targets; the ACV variant adds an analytic control-variate correction for the hard short-maturity ATM region. \\
+        \hline
+        $u_\phi$ & Neural price surface produced by the PINN, with trainable parameters $\phi$. \\
+        \hline
+        $\mathcal{R}_\phi$ & Heston PDE residual evaluated on the PINN output. \\
+        \hline
+        $\mathcal{L}_{\mathrm{PDE}},\;\mathcal{L}_{\mathrm{term}},\;\mathcal{L}_{\mathrm{low}}$ & Baseline PINN loss terms for the interior PDE residual, terminal payoff, and lower-boundary condition. \\
+        \hline
+        $\mathcal{G}^{\star}(x),\;\mathcal{G}_{\phi}(x)$ & Reference Greek vector and PINN autodiff Greek vector at input point $x$. \\
+        \hline
+        $\mathcal{L}_{\mathrm{g},1},\;\mathcal{L}_{\mathrm{g},2}$ & Sobolev Greek loss terms for first-order sensitivities and Gamma supervision. \\
+        \hline
+        $\lambda_{\mathrm{PDE}},\;\lambda_{\mathrm{term}},\;\lambda_{\mathrm{low}},\;\lambda_{\mathrm{g},1},\;\lambda_{\mathrm{g},2}$ & Loss weights for the PINN baseline terms and the Sobolev derivative terms. \\
+        \hline
+        $\Theta,\;\Theta^\star$ & Heston parameter tuple and calibrated parameter tuple used when evaluating trained models. \\
+        \hline
+        $J(\theta^\star),\;\nabla J(\theta^\star),\;H$ & Calibration objective value, gradient, and Hessian at the calibrated optimum. \\
+        \hline
+        $\mathrm{cond}_{\mathrm{abs}}(H)$ & Hessian condition number computed from absolute eigenvalues. \\
+        \hline
+        $\mathcal{D}_{\mathrm{hard}}$ & Hard short-maturity ATM region used in the ACV diagnostic. \\
+        \hline
+        $p_{99}$ & Ninety-ninth percentile of the reported error distribution. \\
         \hline
         \multicolumn{2}{l}{Source: Author's elaboration}
     \end{tabular}}

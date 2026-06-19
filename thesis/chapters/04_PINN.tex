@@ -360,6 +360,7 @@ This sampling strategy preserves the fully unsupervised nature of the method. No
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Extension: Sobolev-Enhanced Training for Greek Accuracy}
+\label{sec:pinn_sobolev_training}
 
 \todos{Revisar esta seccion para que defina PINN Sobolev como segunda variante final y no como mejora principal de toda la tesis.}
 The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\Gamma\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. This issue is also observed in recent physics-informed Heston operator learning, where autodiff Greeks become noisy even when price errors are small \cite{malandain2025deepsvm}. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}. The formulation below is an application-specific hybrid: it follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.

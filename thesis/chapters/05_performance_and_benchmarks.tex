@@ -41,7 +41,7 @@ Methodological details are kept in the corresponding method chapters: Chapter~\r
 \label{sec:ann_pricer_performance}
 This section reports the performance of the supervised ANN benchmarks introduced in Chapter~\ref{ch:ann_surrogate}. The objective is to assess mean implied-volatility accuracy and spatial stability over \((m,\tau)\), using a fully specified evaluation protocol that can be reproduced without implementation-specific references. The section first fixes the ANN baseline, then compares it with the Sobolev-augmented ANN, and finally uses the selected surrogate inside the CaNN calibration workflow.
 
-The baseline ANN analyzed here corresponds to the selected tanh configuration from Chapter~\ref{ch:ann_surrogate}. The benchmark uses fixed weights (no retraining in Chapter~\ref{ch:performance_benchmarks}) and fixed train/validation/test splits of sizes \(8.0\times10^5/1.0\times10^5/1.0\times10^5\). Pointwise error is defined as
+The baseline ANN analyzed here corresponds to the selected tanh configuration from Chapter~\ref{ch:ann_surrogate}. The benchmark uses fixed weights (no retraining in Chapter~\ref{ch:performance_benchmarks}) and fixed train/validation/test splits of sizes \(8.0\cdot10^5/1.0\cdot10^5/1.0\cdot10^5\). Pointwise error is defined as
 \[
 e=\hat{\sigma}_{\mathrm{IV}}-\sigma_{\mathrm{IV}}^{\mathrm{ref}},
 \]
@@ -59,11 +59,11 @@ Before reporting the final split-wise metrics, Table~\ref{tab:ann_optimizer_sele
         \hline
         \textbf{Candidate} & \textbf{Activation} & \textbf{Update schedule} & \textbf{Val RMSE} & \textbf{Test RMSE} & \textbf{Test MAPE} \\
         \hline
-        Selected tanh ANN & \texttt{tanh} & Adam & \(2.00\times10^{-3}\) & \(1.86\times10^{-3}\) & 15.88\% \\
+        Selected tanh ANN & \texttt{tanh} & Adam & \(2.00\cdot10^{-3}\) & \(1.86\cdot10^{-3}\) & 15.88\% \\
         \hline
-        ReLU baseline & ReLU & Adam & \(2.16\times10^{-3}\) & \(3.03\times10^{-3}\) & 18.33\% \\
+        ReLU baseline & ReLU & Adam & \(2.16\cdot10^{-3}\) & \(3.03\cdot10^{-3}\) & 18.33\% \\
         \hline
-        Adam--L-BFGS refinement & ReLU & Adam \(\rightarrow\) L-BFGS & \(2.13\times10^{-3}\) & \(3.07\times10^{-3}\) & 27.17\% \\
+        Adam--L-BFGS refinement & ReLU & Adam \(\rightarrow\) L-BFGS & \(2.13\cdot10^{-3}\) & \(3.07\cdot10^{-3}\) & 27.17\% \\
         \hline
         \multicolumn{6}{l}{Source: Own elaboration from stored ANN evaluation summaries}
     \end{tabular}}
@@ -81,17 +81,17 @@ This model is used as the supervised reference for the rest of the ANN benchmark
         \hline
         \textbf{Split} & \(\mathbf{n}\) & \textbf{RMSE} & \textbf{MAPE (\%)} \\
         \hline
-        Train & \(8.0\times10^5\) & \(2.64\times10^{-4}\) & 2.21 \\
+        Train & \(8.0\cdot10^5\) & \(2.64\cdot10^{-4}\) & 2.21 \\
         \hline
-        Validation & \(1.0\times10^5\) & \(2.00\times10^{-3}\) & 18.12 \\
+        Validation & \(1.0\cdot10^5\) & \(2.00\cdot10^{-3}\) & 18.12 \\
         \hline
-        Test & \(1.0\times10^5\) & \(1.86\times10^{-3}\) & 15.88 \\
+        Test & \(1.0\cdot10^5\) & \(1.86\cdot10^{-3}\) & 15.88 \\
         \hline
         \multicolumn{4}{l}{Source: Own elaboration}
     \end{tabular}}
 \end{table}
 
-The test RMSE remains in the \(10^{-3}\) range in absolute IV units, improving by \(38.5\%\) with respect to the earlier ReLU Liu-style reference run (\(3.03\times10^{-3}\) to \(1.86\times10^{-3}\)). MAPE is larger than the raw IV error scale suggests because relative errors are amplified in low-IV regions; therefore it is read jointly with the spatial diagnostics below rather than as an isolated scalar.
+The test RMSE remains in the \(10^{-3}\) range in absolute IV units, improving by \(38.5\%\) with respect to the earlier ReLU Liu-style reference run (\(3.03\cdot10^{-3}\) to \(1.86\cdot10^{-3}\)). MAPE is larger than the raw IV error scale suggests because relative errors are amplified in low-IV regions; therefore it is read jointly with the spatial diagnostics below rather than as an isolated scalar.
 
 Figure~\ref{fig:extrapolation_grid_ann} provides a panel-wise diagnostic. Each row corresponds to one parameter plane: top \((\gamma,\bar v)\) (vol-of-vol versus long-run variance), middle \((\rho,\gamma)\) (correlation versus vol-of-vol), and bottom \((\kappa,\bar v)\) (mean reversion versus long-run variance). The left column shows ANN IV maps with white isoclines, while the right column shows \(\log |\,\mathrm{NN}-\mathrm{Heston}\,|\) on the same grids, using lighter tones for lower errors and darker tones for larger errors. The dashed black lines delimit interpolation limits; regions beyond those limits are extrapolation zones where the network was not trained.
 
@@ -112,11 +112,11 @@ The same pattern appears in the regional MSE curves by moneyness and maturity bi
 
 This baseline therefore provides a strong implied-volatility reference, but its derivative behaviour is not optimized explicitly. The Sobolev subsection uses the same evaluation logic to assess whether Sobolev training preserves the implied-volatility fit while improving the derived Greeks.
 
-\subsection{Sobolev Metho   ds: IV Accuracy And Derivative-Aware Training}
+\subsection{Sobolev Methods: IV Accuracy And Derivative-Aware Training}
 
 \subsubsection{IV And Price-Level Comparison}
 
-At IV level, Sobolev training does not improve the held-out scalar regression error: test RMSE increases from \(1.86\times10^{-3}\) for the ANN baseline to \(2.55\times10^{-3}\) for the Sobolev variant. However, on the fixed Greek-diagnostic grid, price-level errors remain of the same order and even decrease slightly, from \(2.05\times10^{-5}\) to \(1.95\times10^{-5}\). Therefore, the Sobolev variant should not be read as a uniformly better IV regressor, but as a derivative-aware surrogate whose main value appears in the sensitivity diagnostics.
+At IV level, Sobolev training does not improve the held-out scalar regression error: test RMSE increases from \(1.86\cdot10^{-3}\) for the ANN baseline to \(2.55\cdot10^{-3}\) for the Sobolev variant. However, on the fixed Greek-diagnostic grid, price-level errors remain of the same order and even decrease slightly, from \(2.05\cdot10^{-5}\) to \(1.95\cdot10^{-5}\). Therefore, the Sobolev variant should not be read as a uniformly better IV regressor, but as a derivative-aware surrogate whose main value appears in the sensitivity diagnostics.
 
 \subsubsection{Derived Greek Diagnostics}
 
@@ -129,28 +129,37 @@ The main effect of Sobolev training appears in the Greeks obtained by composing 
         \hline
         \textbf{Greek} & \textbf{ANN baseline} & \textbf{ANN Sobolev} & \textbf{RMSE ratio} \\
         \hline
-        DELTA & \(1.60\times10^{-4}\) & \(2.29\times10^{-5}\) & \(7.0\times\) \\
+        DELTA & \(1.60\cdot10^{-4}\) & \(2.29\cdot10^{-5}\) & \(7.0\times\) \\
         \hline
-        GAMMA & \(1.91\times10^{-3}\) & \(1.50\times10^{-4}\) & \(12.7\times\) \\
+        GAMMA & \(1.91\cdot10^{-3}\) & \(1.50\cdot10^{-4}\) & \(12.7\times\) \\
         \hline
-        VEGA & \(3.29\times10^{-4}\) & \(1.47\times10^{-4}\) & \(2.2\times\) \\
+        VEGA & \(3.29\cdot10^{-4}\) & \(1.47\cdot10^{-4}\) & \(2.2\times\) \\
         \hline
-        THETA & \(1.02\times10^{-4}\) & \(2.05\times10^{-5}\) & \(5.0\times\) \\
+        THETA & \(1.02\cdot10^{-4}\) & \(2.05\cdot10^{-5}\) & \(5.0\times\) \\
         \hline
-        RHO & \(7.92\times10^{-4}\) & \(3.81\times10^{-5}\) & \(20.8\times\) \\
+        RHO & \(7.92\cdot10^{-4}\) & \(3.81\cdot10^{-5}\) & \(20.8\times\) \\
         \hline
         \multicolumn{4}{l}{Source: Own elaboration}
     \end{tabular}}
 \end{table}
 
-Figure~\ref{fig:ann_baseline_sobolev_greek_rel_error_maps} is the main diagnostic for this comparison because it shows where the RMSE reductions occur, not only their aggregate size. Each Greek is displayed with the same relative-error scale for the ANN baseline and the ANN Sobolev surrogate. In the baseline row, error is still visible across extended regions of the grid, especially for curvature and rate-sensitive quantities such as GAMMA and RHO. After Sobolev training, the high-error areas contract sharply and the maps become more homogeneous, which indicates that the improvement is spatially systematic rather than driven by a small number of isolated points.
+Before moving to the spatial maps, Figure~\ref{fig:ann_baseline_sobolev_greek_error_histograms} provides a distributional check of the same Greek errors. The panels use signed errors on a log-density scale, so they show both the concentration around zero and the presence of tails. For DELTA, GAMMA, THETA, and RHO, the Sobolev ANN concentrates most of the error mass in a much narrower neighborhood of zero than the baseline ANN; VEGA also shifts toward the center, although with a less pronounced separation. This supports the interpretation that Sobolev training improves the derivative surface across a broad part of the grid, while the following maps indicate where that improvement is located.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/nn/ann_iv_baseline_vs_sobolev_error_hist_overlay_logy_5greeks.png}
+    \caption{Baseline--Sobolev ANN Greek error histograms.}
+    \label{fig:ann_baseline_sobolev_greek_error_histograms}
+\end{figure}
+
+Figure~\ref{fig:ann_baseline_sobolev_greek_rel_error_maps} compares the ANN baseline and ANN Sobolev surrogate on the same fixed \((m,\tau)\) grid against the Heston characteristic-function reference. The high-error regions contract after Sobolev training, especially for GAMMA, RHO, and DELTA.
 
 This visual evidence is important for the interpretation of the supervised branch. The ANN Sobolev model is not selected because it gives the smallest global IV error, but because it produces a smoother and more reliable differentiable surface once Greeks are extracted from the IV representation.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.90\textwidth]{figures/nn/ann_iv_baseline_vs_sobolev_rel_error_maps_10panel.png}
-    \caption{Relative absolute-error maps for ANN-derived Greeks. For each Greek, the baseline ANN and the ANN Sobolev surrogate are evaluated on the same fixed \((m,\tau)\) grid against the Heston characteristic-function reference. Sobolev training visibly contracts the high-error regions and gives a more homogeneous sensitivity surface, especially for GAMMA, RHO, and DELTA.}
+    \caption{Relative absolute-error maps for ANN-derived Greeks.}
     \label{fig:ann_baseline_sobolev_greek_rel_error_maps}
 \end{figure}
 
@@ -195,15 +204,15 @@ Table~\ref{tab:cann_residual_distribution} reports quote-level calibration resid
         \hline
         \textbf{Forward surrogate} & \(\mathbf{n}\) & \textbf{MSE} & \textbf{RMSE} & \textbf{MAPE (\%)} & \(\mathbf{\max |e|}\) \\
         \hline
-        ANN baseline & 35 & \(7.43\times10^{-10}\) & \(2.73\times10^{-5}\) & 0.0048 & \(6.79\times10^{-5}\) \\
+        ANN baseline & 35 & \(7.43\cdot10^{-10}\) & \(2.73\cdot10^{-5}\) & 0.0048 & \(6.79\cdot10^{-5}\) \\
         \hline
-        ANN Sobolev & 35 & \(3.69\times10^{-11}\) & \(6.08\times10^{-6}\) & 0.0011 & \(1.36\times10^{-5}\) \\
+        ANN Sobolev & 35 & \(3.69\cdot10^{-11}\) & \(6.08\cdot10^{-6}\) & 0.0011 & \(1.36\cdot10^{-5}\) \\
         \hline
         \multicolumn{6}{l}{Source: Own elaboration from stored quote-level calibration outputs}
     \end{tabular}}
 \end{table}
 
-The Sobolev surrogate gives the tighter quote fit: the residual RMSE falls from \(2.73\times10^{-5}\) to \(6.08\times10^{-6}\), and the maximum absolute residual is reduced by roughly a factor of five. The MAPE values are very small in both cases because the replicated Liu grid is smooth and remains inside the interpolation region, but the same ordering is preserved in relative terms. This suggests that the Sobolev information does not only improve derivative diagnostics later in the ANN branch; in this controlled calibration problem it also makes the inverse fit more precise in IV space.
+The Sobolev surrogate gives the tighter quote fit: the residual RMSE falls from \(2.73\cdot10^{-5}\) to \(6.08\cdot10^{-6}\), and the maximum absolute residual is reduced by roughly a factor of five. The MAPE values are very small in both cases because the replicated Liu grid is smooth and remains inside the interpolation region, but the same ordering is preserved in relative terms. This suggests that the Sobolev information does not only improve derivative diagnostics later in the ANN branch; in this controlled calibration problem it also makes the inverse fit more precise in IV space.
 
 \subsubsection{Parameter Recovery Profile}
 
@@ -217,17 +226,17 @@ Since this quote set includes sidecar synthetic truth, parameter-level errors ca
         \hline
         \textbf{Metric} & \textbf{CaNN ANN baseline} & \textbf{CaNN ANN Sobolev} & \textbf{Liu et al. \cite{liu}} \\
         \hline
-        Weighted MSE & \(7.43\times10^{-10}\) & \(3.69\times10^{-11}\) & \(\sim 10^{-8}\) \\
+        Weighted MSE & \(7.43\cdot10^{-10}\) & \(3.69\cdot10^{-11}\) & \(\sim 10^{-8}\) \\
         \hline
-        \(|\rho-\rho^\star|\) & \(8.05\times10^{-3}\) & \(1.79\times10^{-3}\) & \(4.84\times10^{-2}\) \\
+        \(|\rho-\rho^\star|\) & \(8.05\cdot10^{-3}\) & \(1.79\cdot10^{-3}\) & \(4.84\cdot10^{-2}\) \\
         \hline
-        \(|\kappa-\kappa^\star|\) & \(8.48\times10^{-4}\) & \(8.36\times10^{-3}\) & \(4.88\times10^{-2}\) \\
+        \(|\kappa-\kappa^\star|\) & \(8.48\cdot10^{-4}\) & \(8.36\cdot10^{-3}\) & \(4.88\cdot10^{-2}\) \\
         \hline
-        \(|\gamma-\gamma^\star|\) & \(6.57\times10^{-3}\) & \(2.40\times10^{-3}\) & \(3.28\times10^{-2}\) \\
+        \(|\gamma-\gamma^\star|\) & \(6.57\cdot10^{-3}\) & \(2.40\cdot10^{-3}\) & \(3.28\cdot10^{-2}\) \\
         \hline
-        \(|\bar v-\bar v^\star|\) & \(1.02\times10^{-4}\) & \(3.08\times10^{-5}\) & \(4.54\times10^{-3}\) \\
+        \(|\bar v-\bar v^\star|\) & \(1.02\cdot10^{-4}\) & \(3.08\cdot10^{-5}\) & \(4.54\cdot10^{-3}\) \\
         \hline
-        \(|v_0-v_0^\star|\) & \(1.83\times10^{-4}\) & \(8.03\times10^{-5}\) & \(4.39\times10^{-4}\) \\
+        \(|v_0-v_0^\star|\) & \(1.83\cdot10^{-4}\) & \(8.03\cdot10^{-5}\) & \(4.39\cdot10^{-4}\) \\
         \hline
         \multicolumn{4}{l}{Source: Own elaboration based on selected run outputs and \cite{liu}.}
     \end{tabular}}
@@ -288,8 +297,7 @@ These results define the retained CaNN benchmark for the supervised branch: the 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Unsupervised PINN Benchmarks}
 \label{sec:pinn_pricing_performance}
-\todos{Reformular como PINN baseline pricing: modelo no supervisado sobre precio, con resultados razonables y rapidos pero no directamente comparables con ANN-IV supervisada.}
-This section reports the baseline PINN pricing quality before introducing Sobolev terms in the training objective. The goal is to establish a reproducible reference for price-level accuracy and runtime against the COS/Heston engine.
+This section reports the pricing benchmark for the baseline PINN defined in Chapter~\ref{ch:pinn_greeks}. Using the Heston--COS engine of Section~\ref{sec:fourier_cos_method} as numerical reference and the evaluation protocol summarized in Appendix~\ref{app:pinn_pricing_benchmark_setup}, we measure price-level accuracy and runtime on the fixed benchmark grid. These results establish the baseline reference for the physics-informed branch before analyzing the Sobolev and Sobolev+ACV diagnostics later in the section.
 
 \subsection{PINN Baseline}
 
@@ -297,8 +305,7 @@ The detailed reproducible setup (input convention, standardization, reference pa
 
 \subsubsection{Global Pricing Metrics}
 
-The compact global summary is embedded in Figure~\ref{fig:pinn_pricing_composite}: MSE \(=9.43\times10^{-8}\), RMSE \(=3.07\times10^{-4}\), and MAPE \(=0.28\%\). These results are obtained with the baseline PINN only (without Sobolev augmentation) on the final fixed grid, so they can be read directly against the Sobolev pricing diagnostic in Figure~\ref{fig:pinn_pricing_composite_sobolev}.
-\todos{Anadir lectura comparativa de PINN baseline frente a PINN Sobolev y PINN Sobolev+ACV si tambien hay metricas de precio disponibles.}
+The compact global summary is embedded in Figure~\ref{fig:pinn_pricing_composite}: MSE \(=9.43\cdot10^{-8}\), RMSE \(=3.07\cdot10^{-4}\), and MAPE \(=0.28\%\). These values provide the price-level reference for the baseline PINN on the final fixed grid. In absolute price units, the error is small, while the MAPE remains below one percent, which indicates that the model captures the benchmark Heston surface accurately enough to serve as the reference point for the subsequent derivative diagnostics.
 
 \subsubsection{Spatial And Distributional Diagnostics}
 
@@ -313,164 +320,77 @@ The pointwise agreement between PINN and reference prices, the global metric tab
 
 The spatial panel shows that relative error is not homogeneous over \((m,\tau)\). On this common local grid, the largest relative deviations appear near short maturities and in low-reference-price regions, while the central pricing region remains more stable. These values must be interpreted jointly with the absolute-unit metrics (MSE and RMSE): when the reference price is small, relative error can magnify deviations that remain modest in price units. Distributionally, the median relative absolute error is \(0.12\%\), the \(p_{95}\) relative absolute error is \(0.81\%\), and no point exceeds \(20\%\) relative error.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{figures/pinn/pricing/pricing_benchmark_composite_sobolev_hist.png}
-    \caption[Sobolev PINN pricing benchmark versus reference]{ADAPTAR. Sobolev PINN pricing benchmark versus reference. The panels follow the same layout as Figure~\ref{fig:pinn_pricing_composite}; in the spatial panel, the color scale represents the cellwise mean relative absolute error over \((\tau,m)\).}
-    \label{fig:pinn_pricing_composite_sobolev}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.88\textwidth]{figures/pinn/pricing/pinn_baseline_sobolev_price_abs_error_maps_2row.png}
-    \caption{ADAPTAR}
-    \label{fig:pinn_baseline_sobolev_price_abs_error_maps}
-\end{figure}
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Sobolev Methods: Greek Improvement And Pricing Trade-Off}
 \label{sec:pinn_greeks_performance}
-\todos{Separar resultados PINN en tres variantes: PINN baseline, PINN Sobolev y PINN Sobolev+ACV.}
-This section evaluates autodiff-based Greek quality for the baseline PINN and quantifies the effect of Sobolev augmentation through a controlled ablation.
+The baseline PINN established the reference pricing result for the physics-informed branch. The Sobolev variant is evaluated next as the derivative-aware modification defined in Section~\ref{sec:pinn_sobolev_training}, motivated by the Sobolev experiment already studied in the supervised ANN branch. In the PINN setting, however, this modification is not interpreted as an automatic improvement: the central question is whether the extra derivative information improves the Greek diagnostics while preserving, or possibly sacrificing, the pricing quality that defines the role of the PINN. For this reason, we first report the Sobolev pricing benchmark on the same grid and then analyze the Greek ablation against the baseline.
 
-\subsubsection{Ablation Design And Reproducible Protocol}
-\label{sec:ablation_pinn_sobolev}
-The ablation isolates the impact of Jacobian-informed Sobolev terms on top of the baseline PINN objective, comparing:
-\todos{Ampliar protocolo para incluir PINN Sobolev+ACV como tercera variante final, no solo baseline vs Sobolev.}
-\begin{itemize}
-    \item \textbf{Baseline PINN}: PDE + terminal + lower-boundary losses only.
-    \item \textbf{Sobolev-augmented PINN}: baseline loss plus derivative supervision terms \(\mathcal{L}_{g,1}\) and \(\mathcal{L}_{g,2}\) as defined in Chapter~\ref{ch:pinn_greeks}.
-\end{itemize}
-
-To keep the comparison interpretable, both variants are benchmarked on the same \((m,\tau)\) grid, with identical fixed parameters, the same Heston characteristic-function Greek engine, and the same numerical integration settings.
-
-\begin{table}[H]
-    \ttabbox[\FBwidth]
-    {\caption{Reproducible protocol for the Greek ablation benchmark.}\label{tab:pinn_greeks_ablation_setup}}
-    {\begin{tabular}{|P{4.4cm}|P{6.7cm}|}
-        \hline
-        \textbf{Item} & \textbf{Value} \\
-        \hline
-        Compared variants & Baseline PINN vs Sobolev-augmented PINN \\
-        \hline
-        Architecture and features & Fixed across variants (same parametric PINN input convention) \\
-        \hline
-        Evaluation grid & \(m\in[0.8,1.2]\) (161 points), \(\tau\in[0.05,2.0]\) (161 points) \\
-        \hline
-        Total evaluation size & \(n=2.5921\times10^4\) points per Greek \\
-        \hline
-        Fixed model parameters & \(v=0.04,\ \rho=-0.7,\ \kappa=2.0,\ \gamma=0.3,\ \bar v=0.04,\ r=0.01\) \\
-        \hline
-        Reference Greeks & Semi-analytical Heston characteristic-function Greeks \\
-        \hline
-        Characteristic function integration setup & \(u_{\min}=10^{-6}\), \(u_{\max}=200\), \(n_u=1200\) \\
-        \hline
-        Shared conventions & Put option, strike \(K=1\), THETA sign convention (\(\mathrm{THETA}=-\partial V/\partial\tau\)), MAPE floor \(10^{-4}\) \\
-        \hline
-        Arithmetic context & Double precision on CPU \\
-        \hline
-        \multicolumn{2}{l}{Source: Own elaboration}
-    \end{tabular}}
-\end{table}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/pricing/pricing_benchmark_composite_sobolev_hist.png}
+    \caption[Sobolev PINN pricing benchmark versus reference]{Sobolev PINN pricing benchmark versus reference. Top-left: PINN-reference scatter. Top-right: global MSE/RMSE/MAPE and relative-error summary. Bottom-left: mean relative absolute-error map over \((\tau,m)\), with the color scale representing the cellwise mean relative absolute error. Bottom-right: histogram of relative absolute pricing errors.}
+    \label{fig:pinn_pricing_composite_sobolev}
+\end{figure}
 
 \subsubsection{Ablation Metrics By Greek}
 
-Greek quality is reported with the same primary metrics used in the rest of the chapter: MSE, RMSE, and MAPE (\%).
-\todos{Actualizar tabla de griegas para incluir PINN Sobolev+ACV y usar nombres finales de modelos.}
+The Greek comparison is restricted to the baseline PINN and the Sobolev PINN, evaluated on the same fixed \((m,\tau)\) grid and under the same Heston parameter configuration used in the pricing benchmark. Reference sensitivities are computed with the semi-analytical Heston characteristic-function engine introduced in Section~\ref{sec:heston_cf_greeks}. This keeps the ablation focused on the effect of the Sobolev terms themselves: the ACV correction is not included here because it is a separate local hard-region diagnostic, discussed later in the section.
+
+Greek quality is reported with the same primary metrics used in the rest of the chapter: MSE, RMSE, and MAPE (\%). Table~\ref{tab:ablation_metrics_by_greek} reports the five Greeks on \(n=2.5921\cdot10^4\) grid points per Greek. The comparison is limited to the baseline PINN and the Sobolev PINN, because the ACV variant is evaluated later as a local hard-region correction rather than as part of this global ablation.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Greek metrics for baseline and Sobolev PINN (\(n=2.5921\times10^4\) per Greek).}\label{tab:ablation_metrics_by_greek}}
+    {\caption{PINN Greek errors.}\label{tab:ablation_metrics_by_greek}}
     {\small
     \begin{tabular}{|P{2.0cm}|P{1.7cm}|P{2.0cm}|P{2.0cm}|P{2.0cm}|}
         \hline
         \textbf{Variant} & \textbf{Greek} & \textbf{MSE} & \textbf{RMSE} & \textbf{MAPE (\%)} \\
         \hline
-        Baseline & DELTA & \(1.11\times 10^{-3}\) & \(3.33\times 10^{-2}\) & 10.74 \\
+        Baseline & DELTA & \(1.11\cdot10^{-3}\) & \(3.33\cdot10^{-2}\) & 10.74 \\
         \hline
-        Baseline & GAMMA & \(1.48\times 10^{-1}\) & \(3.85\times 10^{-1}\) & 82.98 \\
+        Baseline & GAMMA & \(1.48\cdot10^{-1}\) & \(3.85\cdot10^{-1}\) & 82.98 \\
         \hline
-        Baseline & VEGA & \(4.30\times 10^{-3}\) & \(6.55\times 10^{-2}\) & 71.84 \\
+        Baseline & VEGA & \(4.30\cdot10^{-3}\) & \(6.55\cdot10^{-2}\) & 71.84 \\
         \hline
-        Baseline & THETA & \(2.32\times 10^{-5}\) & \(4.82\times 10^{-3}\) & 31.98 \\
+        Baseline & THETA & \(2.32\cdot10^{-5}\) & \(4.82\cdot10^{-3}\) & 31.98 \\
         \hline
-        Baseline & RHO & \(7.01\times 10^{-3}\) & \(8.37\times 10^{-2}\) & 95.00 \\
+        Baseline & RHO & \(7.01\cdot10^{-3}\) & \(8.37\cdot10^{-2}\) & 95.00 \\
         \hline
-        Sobolev & DELTA & \(1.23\times 10^{-7}\) & \(3.51\times 10^{-4}\) & 0.28 \\
+        Sobolev & DELTA & \(1.23\cdot10^{-7}\) & \(3.51\cdot10^{-4}\) & 0.28 \\
         \hline
-        Sobolev & GAMMA & \(7.99\times 10^{-5}\) & \(8.94\times 10^{-3}\) & 31.29 \\
+        Sobolev & GAMMA & \(7.99\cdot10^{-5}\) & \(8.94\cdot10^{-3}\) & 31.29 \\
         \hline
-        Sobolev & VEGA & \(1.00\times 10^{-5}\) & \(3.17\times 10^{-3}\) & 36.11 \\
+        Sobolev & VEGA & \(1.00\cdot10^{-5}\) & \(3.17\cdot10^{-3}\) & 36.11 \\
         \hline
-        Sobolev & THETA & \(2.81\times 10^{-7}\) & \(5.30\times 10^{-4}\) & 1.88 \\
+        Sobolev & THETA & \(2.81\cdot10^{-7}\) & \(5.30\cdot10^{-4}\) & 1.88 \\
         \hline
-        Sobolev & RHO & \(2.05\times 10^{-6}\) & \(1.43\times 10^{-3}\) & 9.05 \\
+        Sobolev & RHO & \(2.05\cdot10^{-6}\) & \(1.43\cdot10^{-3}\) & 9.05 \\
         \hline
         \multicolumn{5}{l}{Source: Own elaboration}
     \end{tabular}}
 \end{table}
 
-Compared with the baseline PINN, Sobolev augmentation reduces RMSE by approximately \(9\times\) (THETA) to \(95\times\) (DELTA), with the largest practical gains in the previously hardest Greeks (GAMMA and VEGA). Greek-inference throughput decreases from \(9.48\times 10^3\) to \(8.60\times 10^3\) points/s (\(\sim 9.3\%\) reduction), which remains a clearly favorable trade-off given the global accuracy gains.
-\todos{Matizar interpretacion: Sobolev-PINN mejora griegas, pero introduce informacion derivativa externa; no venderlo como PINN completamente no supervisada.}
+Compared with the baseline PINN, Sobolev training reduces RMSE for all five Greeks, with the most relevant reductions in GAMMA and VEGA. This improvement should be read together with the change in training information: the Sobolev run uses external derivative targets, and Greek-inference throughput decreases from \(9.48\cdot10^3\) to \(8.60\cdot10^3\) points/s.
 
-\subsubsection{Visual Diagnostics}
+The distributional view in Figure~\ref{fig:pinn_baseline_sobolev_error_histograms} complements the scalar metrics by showing how the error mass changes across the full grid. The overlaid log-density histograms show that Sobolev training does not only improve the aggregate RMSE values, but also reduces the frequency of large deviations. This effect is most visible in GAMMA and VEGA, which are precisely the Greeks with the weakest baseline behavior in Table~\ref{tab:ablation_metrics_by_greek}.
 
-This subsection is organized as a before/after narrative. Baseline diagnostics are first used to localize the dominant Greek-error modes, and Sobolev diagnostics are then read with the same visual layout to make improvements directly comparable.
-\todos{Revisar narrativa visual para incluir tambien PINN Sobolev+ACV o dejar claro que estas figuras solo comparan baseline vs Sobolev.}
-
-Figure~\ref{fig:no_sobolev_greeks_error_maps} displays baseline relative absolute-error maps for the five Greeks. The spatial pattern is heterogeneous, with broad high-error regions in GAMMA and VEGA, which is consistent with their weaker baseline MSE/RMSE values in Table~\ref{tab:ablation_metrics_by_greek}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{figures/pinn/greeks/no_sobolev_rel_abs_error_maps_5greeks.png}
-    \caption{Baseline PINN Greek relative-error maps.}
-    \label{fig:no_sobolev_greeks_error_maps}
-\end{figure}
-
-\todos{Corregir figura comparativa: caption debe decir baseline--Sobolev y el label no puede duplicar el de la figura anterior.}
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.90\textwidth]{figures/pinn/greeks/pinn_baseline_sobolev_greek_rel_error_maps_10panel.png}
-    \caption{ADAPTAR}
-    \label{fig:pinn_baseline_sobolev_greek_rel_error_maps}
-\end{figure}
-
-The baseline histogram panel complements this map-level view with error distributions. The heaviest tails appear in GAMMA and VEGA, while DELTA, THETA, and RHO are comparatively tighter. This confirms that the baseline model captures coarse sensitivity structure but still exhibits non-negligible extreme deviations in the hardest derivatives.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{figures/pinn/greeks/no_sobolev_error_hist_5greeks.png}
-    \caption{Baseline PINN Greek error histograms.}
-\end{figure}
-
-
-After adding Sobolev terms, Figure~\ref{fig:sobolev_greeks_error_maps} shows a clear contraction of high-error regions across all Greeks. The strongest visual improvement appears in GAMMA and VEGA, where problematic zones become much smaller and less intense than in the baseline maps. This spatial change is consistent with the order-of-magnitude RMSE reductions reported in Table~\ref{tab:ablation_metrics_by_greek}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_rel_abs_error_maps_5greeks.png}
-    \caption{Sobolev PINN Greek relative-error maps.}
-    \label{fig:sobolev_greeks_error_maps}
-\end{figure}
-
-
-The same effect appears in Figure~\ref{fig:sobolev_error_histograms}: Sobolev training narrows the distributions and reduces tail mass, so large deviations become less frequent for all five Greeks compared with the baseline histogram panel. The tail compression is particularly visible in GAMMA and VEGA, where baseline outliers were most persistent.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{figures/pinn/greeks/sobolev_error_hist_5greeks.png}
-    \caption{Sobolev PINN Greek error histograms.}
-    \label{fig:sobolev_error_histograms}
-\end{figure}
-
-\todos{Reubicar o eliminar este histograma overlay; si se mantiene, quitar TODO de la caption y explicar su papel.}
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figures/pinn/greeks/baseline_vs_sobolev_error_hist_overlay_logy_5greeks.png}
-    \caption{\textbf{TODO: REUBICAR / AJUSTAR CAPTION.} Baseline--Sobolev Greek error histograms with overlaid log-density scale.}
-    \label{fig:todo_baseline_sobolev_error_histograms}
+    \caption{Baseline--Sobolev PINN Greek error histograms.}
+    \label{fig:pinn_baseline_sobolev_error_histograms}
 \end{figure}
 
+\subsubsection{Visual Diagnostics}
+
+The visual diagnostics in this subsection refer only to the baseline--Sobolev ablation. The ACV correction is treated separately below because it targets a localized hard region rather than the full \((m,\tau)\) grid. Figure~\ref{fig:pinn_baseline_sobolev_greek_rel_error_maps} compares the relative absolute-error maps for both PINN variants on the same fixed \((m,\tau)\) grid. The baseline row shows broad high-error regions, especially for GAMMA and VEGA, while the Sobolev row contracts those regions and makes the error field more homogeneous.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\textwidth]{figures/pinn/greeks/pinn_baseline_sobolev_greek_rel_error_maps_10panel.png}
+    \caption{Baseline--Sobolev PINN Greek relative-error maps.}
+    \label{fig:pinn_baseline_sobolev_greek_rel_error_maps}
+\end{figure}
 
 The two-phase optimization schedule used in this ablation trains epochs \(0\) to \(4000\) without Sobolev terms, then activates Sobolev augmentation from epoch \(4000\) onward. Together, the diagnostics indicate that Sobolev augmentation improves local derivative fidelity, not just aggregate scalar scores, while keeping the runtime overhead limited.
 
@@ -486,6 +406,17 @@ In this diagnostic, ``hard'' refers to the short-maturity ATM region
 \]
 which is precisely the neighborhood where the terminal put payoff kink at \(m=1,\tau=0\) creates the strongest curvature stress for Gamma estimation.
 
+\subsubsection{Hard-Region Relative Error Maps}
+
+Figure~\ref{fig:pinn_sobolev_acv_hard_rel_error_maps} focuses on this local region rather than on the full pricing grid. This zoom is useful because the ACV correction is not intended to change the global PINN narrative, but to test whether an analytical component can stabilize the short-maturity ATM layer where automatic differentiation of the learned surface is most fragile.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/pinn/greeks/pinn_baseline_sobolev_acv_hard_rel_abs_error_maps_15panel.png}
+    \caption{ADAPTAR}
+    \label{fig:pinn_sobolev_acv_hard_rel_error_maps}
+\end{figure}
+
 \begin{table}[H]
     \ttabbox[\FBwidth]
     {\caption{ACV control-variate diagnostic against the ablation baseline.}\label{tab:acv_control_variate_ablation}}
@@ -493,15 +424,15 @@ which is precisely the neighborhood where the terminal put payoff kink at \(m=1,
         \hline
         \textbf{Metric} & \textbf{Baseline PINN} & \textbf{ACV control variate} \\
         \hline
-        Price RMSE & \(4.269\times10^{-3}\) & \(4.235\times10^{-3}\) \\
+        Price RMSE & \(4.269\cdot10^{-3}\) & \(4.235\cdot10^{-3}\) \\
         \hline
-        Delta RMSE & \(3.381\times10^{-2}\) & \(3.269\times10^{-2}\) \\
+        Delta RMSE & \(3.381\cdot10^{-2}\) & \(3.269\cdot10^{-2}\) \\
         \hline
-        Gamma RMSE & \(5.348\times10^{-1}\) & \(4.040\times10^{-1}\) \\
+        Gamma RMSE & \(5.348\cdot10^{-1}\) & \(4.040\cdot10^{-1}\) \\
         \hline
-        Hard Delta RMSE & \(8.729\times10^{-2}\) & \(1.288\times10^{-2}\) \\
+        Hard Delta RMSE & \(8.729\cdot10^{-2}\) & \(1.288\cdot10^{-2}\) \\
         \hline
-        Hard Gamma RMSE & \(4.992\) & \(6.446\times10^{-1}\) \\
+        Hard Gamma RMSE & \(4.992\) & \(6.446\cdot10^{-1}\) \\
         \hline
         Hard \(p_{99}\) Gamma error & \(17.643\) & \(1.612\) \\
         \hline
@@ -509,7 +440,7 @@ which is precisely the neighborhood where the terminal put payoff kink at \(m=1,
     \end{tabular}}
 \end{table}
 
-The control variate is therefore the strongest candidate in the ablation table for full Delta RMSE, full Gamma RMSE, hard-region Delta RMSE, hard-region Gamma RMSE, and hard \(p_{99}\) Gamma error. The result should still be read cautiously near the terminal payoff kink: the remaining Gamma error is concentrated in the short-maturity ATM layer, and the extremely short bucket \(\tau<5\times10^{-4}\) still requires separate validation of the semi-analytical Gamma reference before making stronger claims there.
+The control variate is therefore the strongest candidate in the ablation table for full Delta RMSE, full Gamma RMSE, hard-region Delta RMSE, hard-region Gamma RMSE, and hard \(p_{99}\) Gamma error. The result should still be read cautiously near the terminal payoff kink: the remaining Gamma error is concentrated in the short-maturity ATM layer, and the extremely short bucket \(\tau<5\cdot10^{-4}\) still requires separate validation of the semi-analytical Gamma reference before making stronger claims there.
 \todos{Revisar consistencia: si el modelo final es PINN Sobolev+ACV, la tabla debe comparar baseline, Sobolev y Sobolev+ACV bajo el mismo protocolo.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -518,11 +449,11 @@ The control variate is therefore the strongest candidate in the ablation table f
 \todos{Reescribir comparacion final por familias y roles, no como pipeline lineal: ANN baseline/Sobolev frente a PINN baseline/Sobolev/Sobolev+ACV.}
 This section summarizes the end-to-end pipeline in operational order, emphasizing where each model contributes and how computational cost is distributed.
 
-First, market calibration is driven by the ANN pricer plus the CaNN optimization loop. The ANN stage provides fast implied-volatility evaluations (\(\approx 8.43\times10^5\) points/s), while CaNN concentrates cost in iterative inverse fitting. The retained Sobolev calibration reaches quote-level residual RMSE \(6.08\times10^{-6}\) and improves all reported Liu et al. parameter errors on the replicated \(35\)-quote benchmark, while the ANN baseline calibration remains the direct Liu-style reference.
+First, market calibration is driven by the ANN pricer plus the CaNN optimization loop. The ANN stage provides fast implied-volatility evaluations (\(\approx 8.43\cdot10^5\) points/s), while CaNN concentrates cost in iterative inverse fitting. The retained Sobolev calibration reaches quote-level residual RMSE \(6.08\cdot10^{-6}\) and improves all reported Liu et al. parameter errors on the replicated \(35\)-quote benchmark, while the ANN baseline calibration remains the direct Liu-style reference.
 
-Second, the calibrated market state \((\rho,\kappa,\gamma,\bar v,v_0)\) is injected into the parametric PINN pricing stage. On the final local fixed-grid pricing diagnostic, baseline PINN pricing reaches MSE \(9.43\times10^{-8}\), RMSE \(3.07\times10^{-4}\), and MAPE \(0.28\%\), while the Sobolev variant reaches MSE \(5.33\times10^{-8}\), RMSE \(2.31\times10^{-4}\), and MAPE \(0.18\%\). A separate broader repeated-evaluation benchmark is used only to quantify throughput: in that setting, the baseline PINN runs at approximately \(4.91\times10^5\) points/s, whereas COS runs at approximately \(87.36\) points/s, so the PINN remains several orders of magnitude faster in repeated evaluation mode.
+Second, the calibrated market state \((\rho,\kappa,\gamma,\bar v,v_0)\) is injected into the parametric PINN pricing stage. On the final local fixed-grid pricing diagnostic, baseline PINN pricing reaches MSE \(9.43\cdot10^{-8}\), RMSE \(3.07\cdot10^{-4}\), and MAPE \(0.28\%\), while the Sobolev variant reaches MSE \(5.33\cdot10^{-8}\), RMSE \(2.31\cdot10^{-4}\), and MAPE \(0.18\%\). A separate broader repeated-evaluation benchmark is used only to quantify throughput: in that setting, the baseline PINN runs at approximately \(4.91\cdot10^5\) points/s, whereas COS runs at approximately \(87.36\) points/s, so the PINN remains several orders of magnitude faster in repeated evaluation mode.
 
-Third, Greek extraction is performed on top of the same calibrated parameter state. The baseline PINN Greek pass runs at \(\approx 9.48\times10^3\) points/s, while the Sobolev variant runs at \(\approx 8.60\times10^3\) points/s (about \(9.3\%\) slower) and substantially improves derivative accuracy (for example, GAMMA RMSE from \(3.85\times10^{-1}\) to \(8.94\times10^{-3}\), VEGA RMSE from \(6.55\times10^{-2}\) to \(3.17\times10^{-3}\)). In the separate hard-region ablation, the ACV control variate gives the best Delta/Gamma metrics, reducing hard Gamma RMSE from \(4.992\) to \(6.446\times10^{-1}\) and hard \(p_{99}\) Gamma error from \(17.643\) to \(1.612\).
+Third, Greek extraction is performed on top of the same calibrated parameter state. The baseline PINN Greek pass runs at \(\approx 9.48\cdot10^3\) points/s, while the Sobolev variant runs at \(\approx 8.60\cdot10^3\) points/s (about \(9.3\%\) slower) and substantially improves derivative accuracy (for example, GAMMA RMSE from \(3.85\cdot10^{-1}\) to \(8.94\cdot10^{-3}\), VEGA RMSE from \(6.55\cdot10^{-2}\) to \(3.17\cdot10^{-3}\)). In the separate hard-region ablation, the ACV control variate gives the best Delta/Gamma metrics, reducing hard Gamma RMSE from \(4.992\) to \(6.446\cdot10^{-1}\) and hard \(p_{99}\) Gamma error from \(17.643\) to \(1.612\).
 
 Pipeline-level error should be read as stagewise bounds, not as a single scalar. The ANN and CaNN stages control IV-space mismatch used for calibration, pricing quality is validated in price space against COS, and Greek quality is validated in derivative space. Since these are different output spaces and objectives, the most reliable reading is the per-stage error envelope reported above and in Sections~\ref{sec:ann_pricer_performance}--\ref{sec:pinn_greeks_performance}.
 \todos{Cerrar con una lectura tipo: ANN Sobolev es el resultado fuerte para griegas supervisadas; PINN Sobolev+ACV es mejora localizada en el bloque physics-informed.}

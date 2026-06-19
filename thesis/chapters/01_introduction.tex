@@ -36,7 +36,8 @@ The experiments we are going to perform require repeated pricing calls, implied-
 This repetition can make the numerical experiment considerably more expensive, because the reference pricer is called many times across contract grids, calibration routines, and sensitivity diagnostics. 
 This repeated-use setting is where neural approximations become attractive.
 
-\todos{Reforzar aqui la distincion narrativa entre aprender una superficie de IV con ANN supervisada y aprender una superficie de precio con PINN no supervisada.}
+\fix{In this project, neural approximations enter the workflow through two different routes. One route learns the implied-volatility representation produced by the numerical reference from generated training examples, which gives the supervised ANN setting. The other route learns the option price surface more directly, using the structure of the Heston pricing problem during training, which gives the PINN setting. This distinction matters because the two models are trained in different output spaces and their errors must be interpreted differently.}
+
 A neural network can be trained to approximate a numerical pricing routine and then evaluated very quickly. 
 The idea is to pay the cost of generating accurate reference data once, and then train a model that can be evaluated much faster inside calibration or sensitivity workflows. 
 This is the motivation behind neural pricing and calibration approaches such as \cite{liu}.
@@ -65,7 +66,7 @@ The most delicate cases in this thesis are short maturities and near-the-strike 
 This ATM region is especially relevant because small movements in the underlying can produce large changes in local curvature. 
 For a European put, the payoff changes slope abruptly at the strike: below \(K\) it increases as the asset price falls, while above \(K\) it is zero. This sharp corner is often called a payoff kink. Near maturity, it makes the pricing surface harder to approximate, especially for second-order sensitivities such as Gamma.
 
-\todos{Conectar este parrafo con la nueva lectura de resultados: el kink afecta mas a la superficie de precio de la PINN y a Gamma que a la superficie de IV de la ANN.}
+
 For this reason, the thesis treats benchmarking as part of the problem itself. Neural components are not evaluated only by speed or by global error metrics, but also by their behaviour in the downstream tasks for which they are intended. The central question is whether these components can be useful inside a Heston pricing workflow without hiding errors that later affect calibration or Greek computation.
 
 
@@ -173,30 +174,26 @@ FFT-based pricing \cite{carr_madan_1999} and the Fourier-COS method \cite{fang_o
 The COS method is especially useful here because it gives a deterministic and accurate reference layer for repeated pricing, implied-volatility generation, and benchmark construction. 
 Its performance, however, still depends on numerical choices such as the truncation interval, the number of expansion terms, and the stability of the implied volatility inversion.
 
-Neural methods enter this landscape as acceleration and approximation tools. Feed-forward ANN surrogates can learn pricing or implied-volatility maps from synthetic labels and then evaluate them much faster than the numerical solver, which makes them attractive for calibration workflows \cite{liu}. Physics-informed neural networks follow a different route: instead of learning only from labels, they use the pricing equation itself as part of the training objective. Recent work applies this idea to Heston-type option pricing and related PDE settings \cite{hainaut2024pinn,yu2022gpinn}. More recent operator-learning work for stochastic-volatility models also reports a useful warning for the present thesis: highly accurate Heston prices can still lead to noisy autodiff Greeks, especially near the at-the-money region \cite{malandain2025deepsvm}. At the same time, the PINN literature reports well-known difficulties with optimization, loss balancing, gradient flow, and robustness across the training domain \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
+Neural methods enter this landscape as acceleration and approximation tools. Feed-forward ANN surrogates can learn pricing or implied-volatility maps from synthetic labels and then evaluate them much faster than the numerical solver, which makes them attractive for the ANN/CaNN calibration workflow followed in this thesis. Liu et al.~\cite{liu} are therefore used as the closest reference for the supervised ANN calibration branch. Physics-informed neural networks follow a different route: instead of learning only from labels, they use the pricing equation itself as part of the training objective. Recent work applies this idea to Heston-type option pricing and related PDE settings \cite{hainaut2024pinn,yu2022gpinn}. More recent operator-learning work for stochastic-volatility models also reports a useful warning for the present thesis: highly accurate Heston prices can still lead to noisy autodiff Greeks, especially near the at-the-money region \cite{malandain2025deepsvm}. At the same time, the PINN literature reports well-known difficulties with optimization, loss balancing, gradient flow, and robustness across the training domain \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}.
 
-\todos{Ajustar estado del arte: usar Liu como referencia directa para ANN/CaNN, Amici y Noguer para aprendizaje diferencial/Sobolev, y Malandain/DeepSVM para fragilidad de griegas en modelos physics-informed.}
-For Greek computation, automatic differentiation provides a natural way to obtain sensitivities from differentiable neural price surfaces \cite{baydin2018autodiff}, although accurate prices do not automatically imply accurate derivatives. This motivates derivative-aware training strategies such as Sobolev-type supervision \cite{czarnecki2017sobolev}, deep differential learning of Heston parameter sensitivities \cite{amici2024ddn}, and broader derivative-informed operator-learning methods for financial surfaces \cite{noguer2026derivative_operator}. These ideas are complemented here by correction and diagnostic tools based on analytic control variates, which are related to the variance-reduction tradition in Monte Carlo methods \cite{glasserman2004montecarlo}.
+For Greek computation, automatic differentiation provides a natural way to obtain sensitivities from differentiable neural surfaces \cite{baydin2018autodiff}, although accurate prices do not automatically imply accurate derivatives. This motivates derivative-aware training strategies such as Sobolev-type supervision \cite{czarnecki2017sobolev}, deep differential learning of Heston parameter sensitivities \cite{amici2024ddn}, and broader derivative-informed operator-learning methods for financial surfaces \cite{noguer2026derivative_operator}. In this thesis, these references frame the Sobolev experiments in both neural branches. They are complemented by analytic control variates, which are used as an additional correction and diagnostic mechanism connected to the variance-reduction tradition in Monte Carlo methods \cite{glasserman2004montecarlo}.
 
-\todos{Revisar tabla para que las filas y roles reflejen los cinco modelos finales y no una lectura lineal ANN/CaNN/PINN.}
 Table~\ref{tab:state_of_art_blocks} summarizes these methodological blocks and clarifies their role in this thesis. The table also motivates the structure of the proposed workflow: COS pricing is kept as the deterministic reference, ANN and CaNN components are used for fast calibration, and PINN-based methods are evaluated as differentiable pricing surfaces whose Greek quality must be diagnosed separately.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Methodological blocks and role in this thesis}\label{tab:state_of_art_blocks}}
-    {\begin{tabular}{|P{2.9cm}|P{3.7cm}|P{3.3cm}|P{3.2cm}|}
+    {\caption{Methodological blocks by role in this thesis}\label{tab:state_of_art_blocks}}
+    {\begin{tabular}{|P{2.8cm}|P{3.5cm}|P{3.5cm}|P{3.3cm}|}
         \hline
-        \textbf{Block} & \textbf{Representative methods} & \textbf{Main strengths} & \textbf{Main limitations} \\
+        \textbf{Block} & \textbf{Representative methods} & \textbf{Role in this thesis} & \textbf{Main limitations} \\
         \hline
-        Classical model-based pricing & Black--Scholes, Heston semi-closed pricing \cite{black_scholes_1973,heston} & Financial interpretability; analytical and semi-analytical pricing structure & Constant-volatility benchmark is too simple; Heston calibration is more involved \\
+        Numerical reference & Black--Scholes, Heston, COS pricing \cite{black_scholes_1973,heston,fang_oosterlee_2009} & Deterministic prices, implied-volatility labels, and Greek references & Requires careful numerical setup and stable inversion \\
         \hline
-        Spectral pricing & FFT/Carr--Madan, COS/Fang--Oosterlee \cite{carr_madan_1999,fang_oosterlee_2009} & High accuracy with efficient repeated pricing & Requires careful numerical setup \\
+        ANN surrogate family & ANN baseline, ANN Sobolev, CaNN calibration \cite{liu,czarnecki2017sobolev} & Supervised implied-volatility surrogate and calibration block & Depends on labelled synthetic data and interpolation-domain validity \\
         \hline
-        Data-driven surrogates & ANN pricers/calibrators \cite{liu} & Very fast inference once trained & Domain-shift and extrapolation risk \\
+        PINN family & PINN baseline, PINN Sobolev, PINN Sobolev+ACV \cite{hainaut2024pinn,yu2022gpinn,malandain2025deepsvm} & Unsupervised price-surface approximation and Greek diagnostics & Sensitive optimization, loss balancing, and Greek stability \cite{wang2021gradientpath,wang2022pinnntk,urban_2025,malandain2025deepsvm} \\
         \hline
-        Physics-informed surrogates & PINN/gPINN and physics-informed operator variants \cite{hainaut2024pinn,yu2022gpinn,malandain2025deepsvm} & Injects structural constraints into learning & Training instability, sensitive optimization, and noisy autodiff Greeks near difficult regions \cite{wang2021gradientpath,wang2022pinnntk,urban_2025,malandain2025deepsvm} \\
-        \hline
-        Greek-improvement and correction methods & Automatic differentiation, Sobolev training, differential learning, control variates \cite{baydin2018autodiff,czarnecki2017sobolev,amici2024ddn,noguer2026derivative_operator,glasserman2004montecarlo} & Direct sensitivity computation; targeted reduction of derivative errors & Derivative accuracy depends on surface smoothness; control variates are problem-specific \\
+        Greek diagnostics and correction & Automatic differentiation, Sobolev training, differential learning, control variates \cite{baydin2018autodiff,czarnecki2017sobolev,amici2024ddn,noguer2026derivative_operator,glasserman2004montecarlo} & Framework for computing, evaluating, and improving sensitivities & Derivative accuracy depends on surface smoothness and target quality; control variates are problem-specific \\
         \hline
         \multicolumn{4}{l}{Source: Author's synthesis from the cited literature}
     \end{tabular}}

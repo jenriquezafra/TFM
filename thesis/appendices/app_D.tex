@@ -14,4 +14,4 @@ with affine standardization fitted on training statistics. Concretely, each feat
 \]
 where \(\mu_j^{\mathrm{train}}\) and \(\sigma_j^{\mathrm{train}}\) are computed only on the training split and then reused unchanged in validation, test, and benchmark evaluation. This keeps features on comparable scales and stabilizes training and gradient computation, which is especially important in PINN settings; it also avoids data leakage from evaluation sets.
 
-The evaluation sample contains \(1.0\times10^4\) candidates, with \(9.996\times10^3\) valid comparisons after numerical filtering. COS pricing is computed with \(N=1500\), \(L=50\), and fallback \(L=80\), under European put convention (\(K=1\)) and no-arbitrage tolerance \(10^{-8}\). All reported metrics are computed in double precision on CPU.
+The evaluation sample contains \(1.0\cdot10^4\) candidates, with \(9.996\cdot10^3\) valid comparisons after numerical filtering. COS pricing is computed with \(N=1500\), \(L=50\), and fallback \(L=80\), under European put convention (\(K=1\)) and no-arbitrage tolerance \(10^{-8}\). All reported metrics are computed in double precision on CPU.
