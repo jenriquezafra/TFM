@@ -359,13 +359,13 @@ This sampling strategy preserves the fully unsupervised nature of the method. No
 \todos{mantener esta afirmacion solo para la pinn baseline; despues matizar que pinn sobolev y pinn sobolev+acv introducen informacion derivativa/analitica adicional.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Extension: Sobolev-Enhanced Training for Greek Accuracy}
+\section{Sobolev-Enhanced Training for Greek Accuracy}
 \label{sec:pinn_sobolev_training}
 
 \todos{revisar esta seccion para que defina pinn sobolev como segunda variante final, no como la mejora principal de toda la tesis.}
-The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\mathrm{Gamma}\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. This issue is also observed in recent physics-informed Heston operator learning, where autodiff Greeks become noisy even when price errors are small \cite{malandain2025deepsvm}. To address this limitation, a natural extension is to enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}. The formulation below is an application-specific hybrid: it follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.
+The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\mathrm{Gamma}\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. This issue is also observed in recent physics-informed Heston operator learning, where autodiff Greeks become noisy even when price errors are small \cite{malandain2025deepsvm}. To address this limitation, we enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}. The formulation below is an application-specific hybrid: it follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.
 
-The extension keeps the original physics objective and adds supervised derivative terms on a dedicated set of Greek-anchor points. Let
+The Sobolev variant keeps the original physics objective and adds supervised derivative terms on a dedicated set of Greek-anchor points. Let
 \[
 \mathcal{L}_{\mathrm{base}}
 =
@@ -410,10 +410,67 @@ The prototype objective is then
 +\lambda_{\mathrm{g},2}\mathcal{L}_{\mathrm{g},2}.
 \end{equation}
 
-From an optimization viewpoint, this extension introduces additional multi-term imbalance risks, already documented in the PINN literature \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}. Therefore, the intended training strategy is two-stage: first, train the baseline PINN to a stable price solution; second, apply a short fine-tuning phase with gradually increased \((\lambda_{\mathrm{g},1},\lambda_{\mathrm{g},2})\), while monitoring possible regressions in price/PDE metrics.
+From an optimization viewpoint, this formulation introduces additional multi-term imbalance risks, already documented in the PINN literature \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}. Therefore, the intended training strategy is two-stage: first, train the baseline PINN to a stable price solution; second, apply a short fine-tuning phase with gradually increased \((\lambda_{\mathrm{g},1},\lambda_{\mathrm{g},2})\), while monitoring possible regressions in price/PDE metrics.
 
 A stricter physics-informed alternative would be to differentiate the Heston PDE itself with respect to the state variables and penalize the residuals of the PDEs satisfied by the sensitivities. This is the type of Sobolev or sensitivity-equation route suggested in \cite{malandain2025deepsvm}. It has the advantage of reducing the dependence on external Greek labels, but it also introduces higher-order derivatives and additional loss-balancing difficulties. The experiment in this thesis therefore uses semi-analytical Heston Greeks as derivative targets: this makes the diagnostic controlled and directly comparable with the reference engine, while leaving sensitivity-PDE training as a natural extension.
-\todos{anadir o referenciar la variante pinn sobolev+acv: explicar que acv mete una componente analitica/control variate y se evalua como mejora adicional de griegas.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Analytical Control Variate Correction}
+\label{sec:pinn_acv_correction}
+
+The Sobolev variant of Section~\ref{sec:pinn_sobolev_training} reduces the derivative error of the PINN by adding explicit Greek information to the training objective. However, the most difficult region for the learned price surface remains structurally tied to the payoff itself. For a put option, the terminal condition introduced in Equation~\eqref{eq:european_put_payoff} has a kink at \(m=1\) and \(\tau=0\), as illustrated in Figure~\ref{fig:put_payoff}. The short-maturity at-the-money layer therefore contains a sharp curvature profile. Since second-order sensitivities such as Gamma are obtained by differentiating the learned surface, small price irregularities in this layer can generate disproportionately large Greek errors. This motivates a third variant, denoted PINN Sobolev+ACV, in which the Sobolev PINN is kept as the global model and an analytical control variate is activated only near the kink. Control variates are most commonly introduced as variance-reduction devices in Monte Carlo methods \cite{glasserman2004montecarlo}; here we use the same general principle in a deterministic neural setting, replacing a fragile local component of the learned surface by an analytical approximation. \todos{Revisar bibliografia: no esta claro si la combinacion PINN+Sobolev+ACV para Heston es original o si existe algun antecedente directo.} In Heston pricing, related control-variate ideas have also been used to stabilize numerical integrals in characteristic-function methods \cite{guterding_boenkost_2018}.
+
+The correction is written in log-moneyness coordinates
+\[
+x=\log m,
+\]
+because the singular layer around the strike is naturally centered at \(x=0\). Let \(u_{\mathrm{Sob}}(z)\) be the price produced by the Sobolev PINN at
+\[
+z=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
+\]
+The ACV model combines this global price with a local Black--Scholes put approximation \(u_{\mathrm{BS}}^{\mathrm{put}}\), following the pricing convention fixed in Section~\ref{sec:heston_model} and using the instantaneous variance \(v\) as the local variance level \cite{black_scholes_1973}:
+\begin{equation}
+u_{\mathrm{ACV}}(z)
+=
+\left(1-\chi(\tau,x)\right)u_{\mathrm{Sob}}(z)
++\chi(\tau,x)
+\left(u_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r)+\tau R_{\eta}(z)\right).
+\label{eq:pinn_acv_decomposition}
+\end{equation}
+Here \(R_{\eta}\) is a residual network that could learn the remaining Heston correction inside the patch. In the final diagnostic used in this thesis, this residual is initialized at zero and is not trained. Therefore, the reported Sobolev+ACV experiment isolates the effect of the analytical control variate and of the local blending mechanism, rather than adding another supervised Greek-fitting stage.
+
+Using the normalized-strike convention of Chapter~\ref{ch:background}, the Black--Scholes control variate is
+\begin{equation}
+u_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r)
+=
+e^{-r\tau}\Phi(-d_2)-e^x\Phi(-d_1),
+\end{equation}
+with
+\begin{equation}
+d_1=\frac{x+(r+\frac{1}{2}v)\tau}{\sqrt{v\tau+\varepsilon_{\mathrm{BS}}}},
+\qquad
+d_2=d_1-\sqrt{v\tau+\varepsilon_{\mathrm{BS}}},
+\end{equation}
+where \(\Phi\) is the standard normal cumulative distribution function and \(\varepsilon_{\mathrm{BS}}>0\) is a numerical floor; compare with Equations~\eqref{eq:bs_put_formula}--\eqref{eq:bs_d1_d2}. This expression is not used as a global replacement for the Heston price. It is only a local analytical component whose role is to encode the leading short-maturity payoff geometry around the strike.
+
+The localization is controlled by a smooth gate
+\begin{equation}
+\chi(\tau,x)
+=
+\sigma\!\left(\frac{x_c-|x|}{\delta_x}\right)
+\sigma\!\left(\frac{\tau_c-\tau}{\delta_\tau}\right),
+\label{eq:pinn_acv_gate}
+\end{equation}
+where \(\sigma\) is the logistic function. Thus \(\chi\) is close to one near short maturities and near \(x=0\), and it decays smoothly toward zero outside the patch. This avoids a discontinuous transition between the analytical approximation and the global Sobolev PINN.
+
+For evaluation, the hard region is defined as
+\begin{equation}
+\mathcal{D}_{\mathrm{hard}}
+=
+\left\{(m,\tau):|\log(m)|<0.03,\ \tau<0.05\right\}.
+\label{eq:pinn_acv_hard_region}
+\end{equation}
+This region is not a new training domain for the baseline PINN; it is a diagnostic set designed to measure whether the control variate reduces the outlier contribution generated by the payoff-kink layer. The broader PINN surface is still provided by \(u_{\mathrm{Sob}}\), and reference Greeks for the evaluation are computed with the characteristic-function machinery summarized in Section~\ref{sec:heston_cf_greeks}. The empirical effect of ACV is therefore assessed separately in Chapter~\ref{ch:performance_benchmarks}, where the local hard-region reading is compared with the global error metrics.
 
 \section{Greeks Computation}
 
