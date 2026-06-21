@@ -106,7 +106,7 @@ def _format_log_tick(value: float, _pos: int | None = None) -> str:
     return f"{value:.1e}"
 
 
-def _apply_log_ticks(cbar, norm: LogNorm) -> None:
+def _apply_log_ticks(cbar, norm: LogNorm, *, include_bounds: bool = True) -> None:
     lo = float(norm.vmin)
     hi = float(norm.vmax)
     if not np.isfinite(lo) or not np.isfinite(hi) or lo <= 0.0 or hi <= lo:
@@ -114,7 +114,11 @@ def _apply_log_ticks(cbar, norm: LogNorm) -> None:
     exp_min = int(np.floor(np.log10(lo)))
     exp_max = int(np.ceil(np.log10(hi)))
     powers = [10.0**exp for exp in range(exp_min, exp_max + 1)]
-    ticks = [lo] + [tick for tick in powers if lo < tick < hi] + [hi]
+    ticks = [tick for tick in powers if lo < tick < hi]
+    if include_bounds:
+        ticks = [lo] + ticks + [hi]
+    elif not ticks:
+        ticks = [float(np.sqrt(lo * hi))]
     unique_ticks: list[float] = []
     for tick in ticks:
         log_tick = float(np.log10(tick))
@@ -135,26 +139,43 @@ def _style_axis(ax) -> None:
     ax.grid(True, alpha=0.22)
 
 
-def save_triptych(*, frames: list[pd.DataFrame], value_prefix: str, cbar_label: str, out_path: Path) -> None:
+def save_triptych(
+    *,
+    frames: list[pd.DataFrame],
+    value_prefix: str,
+    cbar_label: str,
+    out_path: Path,
+    colorbar_scope: str = "shared",
+) -> None:
     grids_by_greek = [
         [_grid(df, f"{value_prefix}_{greek}") for df in frames]
         for greek in GREEKS
     ]
-    norm = _log_norm([matrix for row in grids_by_greek for matrix, _, _ in row])
+    if colorbar_scope not in {"shared", "greek"}:
+        raise ValueError(f"Unsupported colorbar scope: {colorbar_scope}")
+    shared_norm = _log_norm([matrix for row in grids_by_greek for matrix, _, _ in row])
+    row_norms = [
+        _log_norm([matrix for matrix, _, _ in row])
+        for row in grids_by_greek
+    ]
     cmap = plt.get_cmap("magma_r").copy()
     cmap.set_bad(color="#f2f2f2")
 
     fig, axes = plt.subplots(len(GREEKS), len(frames), figsize=(15.8, 18.8), sharex=True, sharey=True)
-    fig.subplots_adjust(left=0.10, right=0.97, bottom=0.06, top=0.88, wspace=0.14, hspace=0.28)
+    if colorbar_scope == "greek":
+        fig.subplots_adjust(left=0.10, right=0.90, bottom=0.06, top=0.93, wspace=0.14, hspace=0.28)
+    else:
+        fig.subplots_adjust(left=0.10, right=0.97, bottom=0.06, top=0.88, wspace=0.14, hspace=0.28)
 
     for col_idx, label in enumerate(MODEL_LABELS[: len(frames)]):
         axes[0, col_idx].set_title(label, fontsize=TITLE_SIZE)
 
-    image = None
     for row_idx, greek in enumerate(GREEKS):
+        norm = row_norms[row_idx] if colorbar_scope == "greek" else shared_norm
+        row_image = None
         for col_idx, (matrix, tau, m) in enumerate(grids_by_greek[row_idx]):
             ax = axes[row_idx, col_idx]
-            image = ax.imshow(
+            row_image = ax.imshow(
                 _plot_matrix(matrix, norm),
                 origin="lower",
                 aspect="auto",
@@ -169,7 +190,21 @@ def save_triptych(*, frames: list[pd.DataFrame], value_prefix: str, cbar_label: 
                 ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE)
             _style_axis(ax)
 
-    if image is not None:
+        if colorbar_scope == "greek" and row_image is not None:
+            cbar = fig.colorbar(
+                row_image,
+                ax=axes[row_idx, :].tolist(),
+                orientation="vertical",
+                fraction=0.025,
+                pad=0.018,
+            )
+            if row_idx == 0:
+                cbar.set_label(cbar_label, fontsize=LABEL_SIZE)
+            cbar.ax.tick_params(labelsize=TICK_SIZE)
+            _apply_log_ticks(cbar, norm, include_bounds=False)
+
+    if colorbar_scope == "shared":
+        image = axes[0, 0].images[0] if axes[0, 0].images else None
         cbar = fig.colorbar(
             image,
             ax=axes.ravel().tolist(),
@@ -180,7 +215,7 @@ def save_triptych(*, frames: list[pd.DataFrame], value_prefix: str, cbar_label: 
         )
         cbar.set_label(cbar_label, fontsize=LABEL_SIZE)
         cbar.ax.tick_params(labelsize=TICK_SIZE)
-        _apply_log_ticks(cbar, norm)
+        _apply_log_ticks(cbar, shared_norm)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=350, bbox_inches="tight")
@@ -218,6 +253,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("outputs/figures/pinn_greeks/acv_comparison"),
     )
+    parser.add_argument(
+        "--colorbar-scope",
+        choices=("shared", "greek"),
+        default="shared",
+        help="Use one shared colorbar for all panels or one colorbar per Greek row.",
+    )
     return parser.parse_args()
 
 
@@ -234,12 +275,14 @@ def main() -> None:
         value_prefix="abs_error",
         cbar_label="absolute error",
         out_path=out_dir / "pinn_baseline_sobolev_acv_greek_abs_error_maps_15panel.png",
+        colorbar_scope=args.colorbar_scope,
     )
     save_triptych(
         frames=frames,
         value_prefix="rel_abs_error",
         cbar_label="relative absolute error",
         out_path=out_dir / "pinn_baseline_sobolev_acv_greek_rel_abs_error_maps_15panel.png",
+        colorbar_scope=args.colorbar_scope,
     )
     print(f"Saved figures to: {out_dir}")
 

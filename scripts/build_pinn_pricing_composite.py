@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from matplotlib.colors import LogNorm
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, ScalarFormatter
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -243,14 +243,18 @@ def build_figure(
     ax_scatter = fig.add_subplot(outer[0, 0])
     y_ref = df["price_ref_plot"].to_numpy(dtype=np.float64)
     y_pred = df["price_pinn_plot"].to_numpy(dtype=np.float64)
-    lo = float(np.nanmin([np.min(y_ref), np.min(y_pred)]))
-    hi = float(np.nanmax([np.max(y_ref), np.max(y_pred)]))
-    ax_scatter.scatter(y_ref, y_pred, s=8, alpha=0.35, edgecolors="none", color="#2f5d8a")
-    ax_scatter.plot([lo, hi], [lo, hi], linestyle="--", linewidth=1.1, color="black")
-    ax_scatter.set_xlabel(rf"$V_{{\mathrm{{{reference_symbol}}}}}$", fontsize=LABEL_SIZE)
-    ax_scatter.set_ylabel(r"$V_{\mathrm{PINN}}$", fontsize=LABEL_SIZE)
-    ax_scatter.set_title(f"A. {model_name} price parity", fontsize=TITLE_SIZE)
+    residual = y_pred - y_ref
+    ax_scatter.scatter(y_ref, residual, s=8, alpha=0.35, edgecolors="none", color="#2f5d8a")
+    ax_scatter.axhline(0.0, linestyle="--", linewidth=1.1, color="black")
+    ax_scatter.set_xlabel(r"$V_{\mathrm{ref}}$", fontsize=LABEL_SIZE)
+    ax_scatter.set_ylabel(r"$V_{\mathrm{PINN}} - V_{\mathrm{ref}}$", fontsize=LABEL_SIZE)
+    ax_scatter.set_title(f"A. {model_name} price residuals", fontsize=TITLE_SIZE)
     ax_scatter.tick_params(axis="both", labelsize=TICK_SIZE)
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((0, 0))
+    ax_scatter.yaxis.set_major_formatter(formatter)
+    ax_scatter.yaxis.get_offset_text().set_size(TICK_SIZE)
     ax_scatter.grid(True, alpha=0.25)
 
     ax_table = fig.add_subplot(outer[0, 1])

@@ -8,7 +8,9 @@ import matplotlib
 import numpy as np
 import pandas as pd
 from matplotlib.colors import LogNorm
+from matplotlib.colors import TwoSlopeNorm
 from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import ScalarFormatter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +20,9 @@ import matplotlib.pyplot as plt
 
 
 GREEKS = ("delta", "gamma", "vega", "theta", "rho")
+PINN_VALUE_ROWS = ("price", "delta", "gamma", "vega", "theta", "rho")
 GREEK_LABELS = {
+    "price": "PRICE",
     "delta": "DELTA",
     "gamma": "GAMMA",
     "vega": "VEGA",
@@ -30,6 +34,7 @@ MAPE_FLOOR = 1.0e-4
 TITLE_SIZE = 20
 LABEL_SIZE = 17
 TICK_SIZE = 15
+HIST_TICK_SIZE = 18
 
 
 def _resolve(path: Path) -> Path:
@@ -111,7 +116,9 @@ def _format_log_tick(value: float, _pos: int | None = None) -> str:
     rounded = int(np.round(exponent))
     if np.isclose(exponent, rounded, atol=1.0e-8):
         return rf"$10^{{{rounded}}}$"
-    return f"{value:.1e}"
+    floor_exp = int(np.floor(exponent))
+    coeff = value / (10.0**floor_exp)
+    return rf"${coeff:.1f}\times10^{{{floor_exp}}}$"
 
 
 def _apply_log_ticks(cbar, norm: LogNorm) -> None:
@@ -122,7 +129,17 @@ def _apply_log_ticks(cbar, norm: LogNorm) -> None:
     exp_min = int(np.floor(np.log10(lo)))
     exp_max = int(np.ceil(np.log10(hi)))
     powers = [10.0**exp for exp in range(exp_min, exp_max + 1)]
-    ticks = [lo] + [tick for tick in powers if lo < tick < hi] + [hi]
+    log_lo = np.log10(lo)
+    log_hi = np.log10(hi)
+    min_edge_spacing = 0.35
+    interior = [
+        tick
+        for tick in powers
+        if lo < tick < hi
+        and np.log10(tick) - log_lo >= min_edge_spacing
+        and log_hi - np.log10(tick) >= min_edge_spacing
+    ]
+    ticks = [lo] + interior + [hi]
     unique_ticks: list[float] = []
     for tick in ticks:
         if not any(np.isclose(tick, existing, rtol=1.0e-6, atol=0.0) for existing in unique_ticks):
@@ -184,12 +201,89 @@ def _prepare_pinn_errors(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _value_col(df: pd.DataFrame, quantity: str) -> pd.Series:
+    candidates = (
+        f"pinn_{quantity}",
+        f"{quantity}_pred",
+        f"pred_{quantity}",
+        quantity,
+    )
+    for col in candidates:
+        if col in df.columns:
+            return df[col]
+    raise KeyError(f"Cannot infer value column for {quantity}.")
+
+
+def _prepare_pinn_values(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    for quantity in PINN_VALUE_ROWS:
+        out[f"value_{quantity}"] = _value_col(out, quantity)
+    return out
+
+
+def _ann_value_col(df: pd.DataFrame, quantity: str) -> pd.Series:
+    candidates = (
+        f"{quantity}_ann_iv",
+        f"ann_{quantity}",
+        quantity,
+    )
+    for col in candidates:
+        if col in df.columns:
+            return df[col]
+    raise KeyError(f"Cannot infer ANN-IV value column for {quantity}.")
+
+
+def _prepare_ann_values(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    for quantity in PINN_VALUE_ROWS:
+        out[f"value_{quantity}"] = _ann_value_col(out, quantity)
+    return out
+
+
 def _plot_matrix(matrix: np.ndarray, norm: LogNorm) -> np.ndarray:
     return np.where(np.isfinite(matrix), np.maximum(matrix, norm.vmin), np.nan)
 
 
+def _linear_limits(matrices: list[np.ndarray]) -> tuple[float, float]:
+    vals = np.concatenate([matrix[np.isfinite(matrix)] for matrix in matrices])
+    if vals.size == 0:
+        return 0.0, 1.0
+    lo = float(np.nanpercentile(vals, 1.0))
+    hi = float(np.nanpercentile(vals, 99.0))
+    if not np.isfinite(lo) or not np.isfinite(hi):
+        return 0.0, 1.0
+    if np.isclose(lo, hi):
+        pad = max(abs(lo) * 0.05, 1.0e-6)
+        return lo - pad, hi + pad
+    return lo, hi
+
+
+def _value_cmap_norm(quantity: str, matrices: list[np.ndarray]):
+    vals = np.concatenate([matrix[np.isfinite(matrix)] for matrix in matrices])
+    if vals.size == 0:
+        vmax = 1.0
+    else:
+        vmax = float(np.nanpercentile(np.abs(vals), 99.0))
+        if not np.isfinite(vmax) or vmax <= 0.0:
+            vmax = 1.0
+    cmap = plt.get_cmap("RdBu_r").copy()
+    cmap.set_bad(color="#f2f2f2")
+    return cmap, TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax), None, None
+
+
 def _style_axis(ax) -> None:
     ax.tick_params(axis="both", labelsize=TICK_SIZE)
+    ax.grid(True, alpha=0.22)
+
+
+def _style_hist_axis(ax) -> None:
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((0, 0))
+    ax.xaxis.set_major_formatter(formatter)
+    ax.tick_params(axis="both", labelsize=HIST_TICK_SIZE)
+    ax.xaxis.get_offset_text().set_size(HIST_TICK_SIZE)
+    ax.yaxis.get_offset_text().set_size(HIST_TICK_SIZE)
     ax.grid(True, alpha=0.22)
 
 
@@ -268,7 +362,7 @@ def save_ann_pair_map(*, baseline: pd.DataFrame, sobolev: pd.DataFrame, out_path
             fraction=0.025,
             pad=0.025,
         )
-        cbar.set_label("relative absolute error", fontsize=LABEL_SIZE)
+        cbar.set_label("Relative Absolute Error", fontsize=LABEL_SIZE)
         cbar.ax.tick_params(labelsize=TICK_SIZE)
         _apply_log_ticks(cbar, norm)
 
@@ -327,9 +421,9 @@ def save_ann_pair_hist(
         ax.set_xticks(np.linspace(lo, hi, 5))
         ax.axvline(0.0, linestyle="--", color="black", linewidth=1.0)
         ax.set_title(GREEK_LABELS[greek], fontsize=TITLE_SIZE)
-        ax.set_xlabel(r"$e$", fontsize=LABEL_SIZE)
+        ax.set_xlabel("error (ANN - ref.)", fontsize=LABEL_SIZE)
         ax.set_ylabel("density", fontsize=LABEL_SIZE)
-        _style_axis(ax)
+        _style_hist_axis(ax)
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False, fontsize=LABEL_SIZE)
@@ -517,11 +611,239 @@ def save_pinn_greeks_pair(*, variants: list[pd.DataFrame], out_path: Path) -> No
             pad=0.025,
         )
         cbar.ax.tick_params(labelsize=TICK_SIZE)
-        cbar.set_label("relative absolute error", fontsize=LABEL_SIZE)
+        cbar.set_label("Relative Absolute Error", fontsize=LABEL_SIZE)
         _apply_log_ticks(cbar, norm)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=350, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_pinn_price_greek_value_pair(*, variants: list[pd.DataFrame], out_path: Path) -> None:
+    labels = PINN_VARIANT_LABELS[:2]
+    prepared = [_prepare_pinn_values(df) for df in variants[:2]]
+    all_grids = [
+        [
+            _regular_or_binned_grid(df, f"value_{quantity}", n_bins=181)
+            for df in prepared
+        ]
+        for quantity in PINN_VALUE_ROWS
+    ]
+
+    fig, axes = plt.subplots(
+        len(PINN_VALUE_ROWS),
+        2,
+        figsize=(11.2, 21.5),
+        sharex=True,
+        sharey=True,
+    )
+    fig.subplots_adjust(left=0.13, right=0.88, bottom=0.055, top=0.94, wspace=0.14, hspace=0.30)
+
+    for col_idx, label in enumerate(labels):
+        axes[0, col_idx].set_title(label, fontsize=TITLE_SIZE)
+
+    for row_idx, quantity in enumerate(PINN_VALUE_ROWS):
+        row_grids = all_grids[row_idx]
+        row_matrices = [matrix for matrix, _, _ in row_grids]
+        cmap, norm, vmin, vmax = _value_cmap_norm(quantity, row_matrices)
+
+        image = None
+        for col_idx, (matrix, tau, m) in enumerate(row_grids):
+            ax = axes[row_idx, col_idx]
+            image = ax.imshow(
+                matrix,
+                origin="lower",
+                aspect="auto",
+                extent=[float(tau.min()), float(tau.max()), float(m.min()), float(m.max())],
+                cmap=cmap,
+                norm=norm,
+                vmin=vmin,
+                vmax=vmax,
+                interpolation="bicubic",
+            )
+            if col_idx == 0:
+                ax.set_ylabel(f"{GREEK_LABELS[quantity]}\n$m$", fontsize=LABEL_SIZE)
+            if row_idx == len(PINN_VALUE_ROWS) - 1:
+                ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE)
+            _style_axis(ax)
+
+        if image is not None:
+            cbar = fig.colorbar(
+                image,
+                ax=axes[row_idx, :].tolist(),
+                orientation="vertical",
+                fraction=0.045,
+                pad=0.025,
+            )
+            cbar.ax.tick_params(labelsize=max(TICK_SIZE - 2, 10))
+            cbar.set_label("value", fontsize=max(LABEL_SIZE - 2, 10))
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=350, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_pinn_price_greek_value_pair_landscape(*, variants: list[pd.DataFrame], out_path: Path) -> None:
+    labels = PINN_VARIANT_LABELS[:2]
+    prepared = [_prepare_pinn_values(df) for df in variants[:2]]
+    all_grids = [
+        [
+            _regular_or_binned_grid(df, f"value_{quantity}", n_bins=181)
+            for quantity in PINN_VALUE_ROWS
+        ]
+        for df in prepared
+    ]
+    fig, axes = plt.subplots(
+        2,
+        len(PINN_VALUE_ROWS),
+        figsize=(22.0, 7.6),
+        sharex=True,
+        sharey=True,
+    )
+    fig.subplots_adjust(left=0.055, right=0.985, bottom=0.12, top=0.78, wspace=0.18, hspace=0.18)
+
+    for col_idx, quantity in enumerate(PINN_VALUE_ROWS):
+        axes[0, col_idx].set_title(GREEK_LABELS[quantity], fontsize=TITLE_SIZE)
+
+        matrices = [all_grids[row_idx][col_idx][0] for row_idx in range(2)]
+        cmap, norm, vmin, vmax = _value_cmap_norm(quantity, matrices)
+
+        image = None
+        for row_idx, label in enumerate(labels):
+            matrix, tau, m = all_grids[row_idx][col_idx]
+            ax = axes[row_idx, col_idx]
+            image = ax.imshow(
+                matrix,
+                origin="lower",
+                aspect="auto",
+                extent=[float(tau.min()), float(tau.max()), float(m.min()), float(m.max())],
+                cmap=cmap,
+                norm=norm,
+                vmin=vmin,
+                vmax=vmax,
+                interpolation="bicubic",
+            )
+            if col_idx == 0:
+                ax.set_ylabel(f"{label}\n$m$", fontsize=LABEL_SIZE)
+            if row_idx == 1:
+                ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE)
+            _style_axis(ax)
+
+        if image is not None:
+            cbar = fig.colorbar(
+                image,
+                ax=axes[:, col_idx].tolist(),
+                orientation="horizontal",
+                location="top",
+                fraction=0.085,
+                pad=0.12,
+            )
+            cbar.ax.tick_params(labelsize=max(TICK_SIZE - 3, 10))
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=350, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_ann_sobolev_value_surfaces_3d(*, points: pd.DataFrame, out_path: Path) -> None:
+    prepared = _prepare_ann_values(points)
+    grids = [
+        (quantity, _regular_or_binned_grid(prepared, f"value_{quantity}", n_bins=161))
+        for quantity in PINN_VALUE_ROWS
+    ]
+
+    fig = plt.figure(figsize=(18.5, 10.4))
+    fig.subplots_adjust(left=0.02, right=0.98, bottom=0.04, top=0.93, wspace=0.05, hspace=0.16)
+    cmap = plt.get_cmap("RdBu_r")
+
+    for idx, (quantity, (matrix, tau, m)) in enumerate(grids, start=1):
+        ax = fig.add_subplot(2, 3, idx, projection="3d")
+        tau_grid, m_grid = np.meshgrid(tau, m)
+
+        vals = matrix[np.isfinite(matrix)]
+        if vals.size:
+            z_abs = float(np.nanpercentile(np.abs(vals), 99.0))
+            if not np.isfinite(z_abs) or z_abs <= 0.0:
+                z_abs = max(float(np.nanmax(np.abs(vals))), 1.0)
+        else:
+            z_abs = 1.0
+        norm = TwoSlopeNorm(vmin=-z_abs, vcenter=0.0, vmax=z_abs)
+
+        ax.plot_surface(
+            tau_grid,
+            m_grid,
+            matrix,
+            cmap=cmap,
+            norm=norm,
+            linewidth=0.0,
+            antialiased=True,
+            rcount=90,
+            ccount=90,
+            shade=True,
+        )
+        ax.set_title(GREEK_LABELS[quantity], fontsize=TITLE_SIZE, pad=10)
+        ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE, labelpad=8)
+        ax.set_ylabel(r"$m$", fontsize=LABEL_SIZE, labelpad=8)
+        ax.set_zlabel("value", fontsize=LABEL_SIZE, labelpad=8)
+        ax.tick_params(axis="both", labelsize=max(TICK_SIZE - 3, 9), pad=2)
+        ax.zaxis.set_tick_params(labelsize=max(TICK_SIZE - 4, 8), pad=2)
+        ax.view_init(elev=26, azim=-132)
+        ax.set_box_aspect((1.55, 1.0, 0.62))
+        ax.grid(True, alpha=0.20)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_pinn_sobolev_acv_kink_value_surfaces_3d(*, points: pd.DataFrame, out_path: Path) -> None:
+    prepared = _prepare_pinn_values(points)
+    grids = [
+        (quantity, _regular_or_binned_grid(prepared, f"value_{quantity}", n_bins=121))
+        for quantity in PINN_VALUE_ROWS
+    ]
+
+    fig = plt.figure(figsize=(18.5, 10.4))
+    fig.subplots_adjust(left=0.02, right=0.98, bottom=0.04, top=0.93, wspace=0.05, hspace=0.16)
+    cmap = plt.get_cmap("RdBu_r")
+
+    for idx, (quantity, (matrix, tau, m)) in enumerate(grids, start=1):
+        ax = fig.add_subplot(2, 3, idx, projection="3d")
+        tau_grid, m_grid = np.meshgrid(tau, m)
+
+        vals = matrix[np.isfinite(matrix)]
+        if vals.size:
+            z_abs = float(np.nanpercentile(np.abs(vals), 99.0))
+            if not np.isfinite(z_abs) or z_abs <= 0.0:
+                z_abs = max(float(np.nanmax(np.abs(vals))), 1.0)
+        else:
+            z_abs = 1.0
+        norm = TwoSlopeNorm(vmin=-z_abs, vcenter=0.0, vmax=z_abs)
+
+        ax.plot_surface(
+            tau_grid,
+            m_grid,
+            matrix,
+            cmap=cmap,
+            norm=norm,
+            linewidth=0.0,
+            antialiased=True,
+            rcount=90,
+            ccount=90,
+            shade=True,
+        )
+        ax.set_title(GREEK_LABELS[quantity], fontsize=TITLE_SIZE, pad=10)
+        ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE, labelpad=8)
+        ax.set_ylabel(r"$m$", fontsize=LABEL_SIZE, labelpad=8)
+        ax.set_zlabel("value", fontsize=LABEL_SIZE, labelpad=8)
+        ax.tick_params(axis="both", labelsize=max(TICK_SIZE - 3, 9), pad=2)
+        ax.zaxis.set_tick_params(labelsize=max(TICK_SIZE - 4, 8), pad=2)
+        ax.view_init(elev=28, azim=-136)
+        ax.set_box_aspect((1.35, 1.0, 0.70))
+        ax.grid(True, alpha=0.20)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -578,6 +900,14 @@ def build_all(
     save_pinn_greeks_pair(
         variants=pinn_variants,
         out_path=greeks_out_dir / "pinn_baseline_sobolev_greek_rel_error_maps_10panel.png",
+    )
+    save_pinn_price_greek_value_pair(
+        variants=pinn_variants,
+        out_path=greeks_out_dir / "pinn_baseline_sobolev_price_greek_value_maps_12panel.png",
+    )
+    save_pinn_price_greek_value_pair_landscape(
+        variants=pinn_variants,
+        out_path=greeks_out_dir / "pinn_baseline_sobolev_price_greek_value_maps_presentation.png",
     )
 
 

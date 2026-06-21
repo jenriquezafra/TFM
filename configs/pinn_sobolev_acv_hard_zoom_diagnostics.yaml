@@ -1,0 +1,45 @@
+global:
+  run_dir: "PINN_Sobolev_ACV_final"
+  checkpoint_name: "model_best.pt"
+  acv_config: null
+  device: "auto"
+  dtype: "float64"
+
+  chunk_size_values: 4096
+  chunk_size_jac: 512
+  chunk_size_hess: 64
+  chunk_size_pde: 128
+
+diagnostics:
+  output_subdir: "diagnostics_fixed_theta_hard_zoom"
+  option_type: "put"
+  compute_pde_residual: false
+
+  hard_region:
+    epsilon_m: 0.03
+    epsilon_tau: 0.05
+
+  surface_grid:
+    x_feature: "moneyness"
+    x_min: 0.9704455335485082
+    x_max: 1.030454533953517
+    x_points: 121
+    y_feature: "tau"
+    y_min: 0.005
+    y_max: 0.05
+    y_points: 80
+
+  fixed_values:
+    tau: 1.0
+    moneyness: 1.0
+    v: 0.21971117661996578
+    rho: -0.5241299828927267
+    kappa: 1.0576232226342916
+    gamma: 0.29956827744543396
+    bar_v: 0.19758448825937408
+    r: 0.01
+
+  cf_integration:
+    u_min: 1.0e-6
+    u_max: 200.0
+    n_u: 1200

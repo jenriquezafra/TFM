@@ -7,6 +7,8 @@ import matplotlib
 import numpy as np
 import pandas as pd
 from matplotlib.colors import LogNorm
+from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import ScalarFormatter
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -25,6 +27,7 @@ MAPE_FLOOR = 1.0e-4
 TITLE_SIZE = 20
 LABEL_SIZE = 17
 TICK_SIZE = 15
+HIST_TICK_SIZE = 18
 
 
 def _resolve(path: Path) -> Path:
@@ -52,8 +55,57 @@ def _log_norm(matrices: list[np.ndarray]) -> LogNorm | None:
     return LogNorm(vmin=vmin, vmax=vmax)
 
 
+def _format_log_tick(value: float, _pos: int | None = None) -> str:
+    if not np.isfinite(value) or value <= 0.0:
+        return ""
+    exponent = np.log10(value)
+    rounded = int(np.round(exponent))
+    if np.isclose(exponent, rounded, atol=1.0e-8):
+        return rf"$10^{{{rounded}}}$"
+    floor_exp = int(np.floor(exponent))
+    coeff = value / (10.0**floor_exp)
+    return rf"${coeff:.1f}\times10^{{{floor_exp}}}$"
+
+
+def _apply_log_ticks(cbar, norm: LogNorm | None) -> None:
+    if norm is None:
+        return
+    lo = float(norm.vmin)
+    hi = float(norm.vmax)
+    if not np.isfinite(lo) or not np.isfinite(hi) or lo <= 0.0 or hi <= lo:
+        return
+    exp_min = int(np.floor(np.log10(lo)))
+    exp_max = int(np.ceil(np.log10(hi)))
+    powers = [10.0**exp for exp in range(exp_min, exp_max + 1)]
+    log_lo = np.log10(lo)
+    log_hi = np.log10(hi)
+    min_edge_spacing = 0.35
+    interior = [
+        tick
+        for tick in powers
+        if lo < tick < hi
+        and np.log10(tick) - log_lo >= min_edge_spacing
+        and log_hi - np.log10(tick) >= min_edge_spacing
+    ]
+    ticks = [lo] + interior + [hi]
+    cbar.set_ticks(ticks)
+    cbar.ax.xaxis.set_major_formatter(FuncFormatter(_format_log_tick))
+    cbar.ax.yaxis.set_major_formatter(FuncFormatter(_format_log_tick))
+
+
 def _style_axis(ax) -> None:
     ax.tick_params(axis="both", labelsize=TICK_SIZE)
+    ax.grid(True, alpha=0.22)
+
+
+def _style_hist_axis(ax) -> None:
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((0, 0))
+    ax.xaxis.set_major_formatter(formatter)
+    ax.tick_params(axis="both", labelsize=HIST_TICK_SIZE)
+    ax.xaxis.get_offset_text().set_size(HIST_TICK_SIZE)
+    ax.yaxis.get_offset_text().set_size(HIST_TICK_SIZE)
     ax.grid(True, alpha=0.22)
 
 
@@ -161,9 +213,9 @@ def _save_hist_composite(*, df: pd.DataFrame, out_path: Path) -> None:
         ax.hist(values, bins=90, range=(lo, hi), density=True, alpha=0.86, color="#2F5D8A")
         ax.axvline(0.0, linestyle="--", color="black", linewidth=1.0)
         ax.set_title(GREEK_LABELS[greek], fontsize=TITLE_SIZE)
-        ax.set_xlabel(r"$e$", fontsize=LABEL_SIZE)
+        ax.set_xlabel("error (PINN - ref.)", fontsize=LABEL_SIZE)
         ax.set_ylabel("density", fontsize=LABEL_SIZE)
-        _style_axis(ax)
+        _style_hist_axis(ax)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=350, bbox_inches="tight")
@@ -224,8 +276,9 @@ def _save_pair_map_composite(
             fraction=0.025,
             pad=0.025,
         )
-        cbar.set_label("relative absolute error", fontsize=LABEL_SIZE)
+        cbar.set_label("Relative Absolute Error", fontsize=LABEL_SIZE)
         cbar.ax.tick_params(labelsize=TICK_SIZE)
+        _apply_log_ticks(cbar, norm)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=350, bbox_inches="tight")
@@ -283,9 +336,9 @@ def _save_pair_hist_composite(
         ax.set_xticks(np.linspace(lo, hi, 5))
         ax.axvline(0.0, linestyle="--", color="black", linewidth=1.0)
         ax.set_title(GREEK_LABELS[greek], fontsize=TITLE_SIZE)
-        ax.set_xlabel(r"$e$", fontsize=LABEL_SIZE)
+        ax.set_xlabel("error (PINN - ref.)", fontsize=LABEL_SIZE)
         ax.set_ylabel("density", fontsize=LABEL_SIZE)
-        _style_axis(ax)
+        _style_hist_axis(ax)
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False, fontsize=LABEL_SIZE)
