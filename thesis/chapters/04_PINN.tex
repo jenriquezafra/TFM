@@ -68,7 +68,7 @@ d\langle W^{(1)},W^{(2)}\rangle_t = \rho\,dt.
 \]
 Here $r$ is the risk-free rate, $\kappa$ is the mean-reversion speed of the variance process, $\bar v$ is the long-run variance level, $\gamma$ is the volatility of variance, and $\rho$ controls the correlation between returns and variance shocks. The current variance level at valuation time is denoted by $v_0$, so that $v_t$ evolves from the initial condition $v(0)=v_0$.
 
-Let $u(t,S,v)$ denote the price of a European vanilla option. By the Feynman-Kac representation, $u$ satisfies the Heston pricing PDE \cite{heston}
+Let $u(t,S,v)$ denote the price of a European vanilla option. By the Feynman--Kac representation introduced in Equation~\eqref{eq:feynman_kac_generic}, $u$ satisfies the Heston pricing PDE \cite{heston}
 \begin{equation}
 u_t
 +\frac{1}{2}vS^2u_{SS}
@@ -428,7 +428,7 @@ because the singular layer around the strike is naturally centered at \(x=0\). L
 \[
 z=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
 \]
-The ACV model combines this global price with a local Black--Scholes put approximation \(u_{\mathrm{BS}}^{\mathrm{put}}\), following the pricing convention fixed in Section~\ref{sec:heston_model} and using the instantaneous variance \(v\) as the local variance level \cite{black_scholes_1973}:
+The ACV model combines this global price with a local Black--Scholes put approximation \(u_{\mathrm{BS}}^{\mathrm{put}}\), following the pricing convention fixed in Section~\ref{sec:black_scholes_model} and using the instantaneous variance \(v\) as the local variance level \cite{black_scholes_1973}:
 \begin{equation}
 u_{\mathrm{ACV}}(z)
 =

@@ -52,9 +52,21 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         \textbf{Symbol} & \textbf{Meaning} \\
         \hline
-        ANN baseline, ANN Sobolev & Supervised implied-volatility surrogates used in the ANN branch. The Sobolev variant adds derivative information to the baseline supervised objective. \\
+        ANN baseline, ANN Sobolev & Supervised implied-volatility surrogates used in the ANN branch. Both use the same input-output map; the Sobolev variant augments the baseline value loss with IV-derivative information. \\
         \hline
-        CaNN & Calibration workflow that uses a frozen ANN surrogate as fast forward evaluator in the inverse Heston calibration problem. \\
+        CaNN baseline, CaNN Sobolev & Calibration workflows that use a frozen ANN surrogate as fast forward evaluator in the inverse Heston calibration problem. The two variants keep the same calibration objective and differ only in whether the evaluator is the ANN baseline or the ANN Sobolev surrogate. \\
+        \hline
+        $f_{NN},\;\mathbf{x},\;\hat\sigma_{\mathrm{imp}}$ & ANN implied-volatility map, input vector, and predicted implied volatility. In Chapter~\ref{ch:ann_surrogate}, \(\mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\). \\
+        \hline
+        $\hat V_{\mathrm{ANN}},\;\mathrm{Greek}_{\mathrm{ANN}}(q)$ & Price and sensitivity obtained from the ANN predicted implied volatility by composing it with the Black--Scholes pricing convention and differentiating with respect to input direction \(q\). \\
+        \hline
+        $\mathcal{L}_{\mathrm{MSE}}$ & Baseline ANN mean-squared-error loss in implied-volatility space. \\
+        \hline
+        $\mathcal{L}_{\mathrm{Sob}},\;\mathcal{L}_{\mathrm{ANN\text{-}Sob}}$ & Sobolev derivative loss for IV-derivative targets and total Sobolev ANN objective. \\
+        \hline
+        $\mathcal{J},\;d_{i,q},\;s_q$ & Sobolev derivative directions, reference IV derivative target at anchor point \(i\) in direction \(q\), and robust scale used to normalize that derivative direction. \\
+        \hline
+        $B,\;B_{\mathrm{Sob}},\;\lambda_{\mathrm{Sob}}$ & Baseline mini-batch size, Sobolev mini-batch size, and weight of the Sobolev derivative loss in the ANN Sobolev objective. \\
         \hline
         PINN baseline, PINN Sobolev, PINN Sobolev+ACV & Physics-informed price-surface variants. The baseline PINN is the PDE-trained pricing model; the Sobolev variant adds derivative targets; the ACV variant adds an analytic control-variate correction for the hard short-maturity ATM region. \\
         \hline

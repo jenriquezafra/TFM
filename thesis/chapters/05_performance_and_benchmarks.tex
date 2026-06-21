@@ -26,7 +26,7 @@ To keep the empirical comparison coherent, the chapter uses three primary error 
 \end{equation}
 MSE is aligned with the training objective used in the supervised components, RMSE restores the error to the natural output units, and MAPE provides a scale-relative percentage reading. The denominator floor \(\varepsilon_{\mathrm{MAPE}}\) avoids unstable ratios near zero. Tail quantiles and maximum errors are used only as auxiliary diagnostics when discussing distributional behavior, not as headline metrics.
 
-The minimal pre-benchmark validation protocol combines three checks: convergence with respect to \((N,L)\) in the COS expansion, put-call parity residual control across strikes, and Black--Scholes consistency in near-constant-variance regimes.
+The minimal pre-benchmark validation protocol combines three checks: convergence with respect to \((N,L)\) in the COS expansion, put-call parity residual control based on Equation~\eqref{eq:put_call_parity}, and Black--Scholes consistency in near-constant-variance regimes.
 
 These checks are used as a guardrail before comparing models, so that downstream differences can be attributed to model behavior rather than to numerical artifacts. For consistency across Sections~\ref{sec:ann_pricer_performance}--\ref{sec:pinn_greeks_performance}, each block is analyzed with the same reading logic: global summary metrics, localized error diagnostics over relevant domains, and runtime indicators.
 
@@ -466,4 +466,3 @@ In the physics-informed branch, the baseline PINN provides the reference price-s
 The throughput reduction reported there, from approximately \(9.48\cdot10^3\) to \(8.60\cdot10^3\) Greek points/s, is moderate relative to the improvement in derivative accuracy. 
 The Sobolev+ACV variant has a narrower role: it is not retained as a better global PINN, but as a local correction for the short-maturity ATM region analyzed in Table~\ref{tab:pinn_sobolev_acv_kink_rmse_mape}. 
 For price evaluation, the pricing benchmark of Section~\ref{sec:pinn_pricing_performance} gives approximately \(4.91\cdot10^5\) PINN points/s versus \(87.36\) COS points/s in repeated evaluation mode. 
-

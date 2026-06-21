@@ -24,7 +24,7 @@ Taken together, these results support a practical division of roles. The ANN/CaN
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Future Work}
 
-The most immediate extension would be to exploit put-call parity. Since the thesis has focused on European put options, the corresponding call prices can be obtained consistently from the same learned put surface under the usual parity relation. This would enlarge the set of vanilla instruments covered by the framework without changing the core Heston benchmark, and would also provide a first consistency check before moving to more complex payoffs.
+The most immediate extension would be to exploit put-call parity. Since the thesis has focused on European put options, the corresponding call prices can be obtained consistently from the same learned put surface through Equation~\eqref{eq:put_call_parity}. This would enlarge the set of vanilla instruments covered by the framework without changing the core Heston benchmark, and would also provide a first consistency check before moving to more complex payoffs.
 
 From there, it would be natural to study more explicitly the interaction between networks that learn volatility surfaces and networks that produce prices and Greeks. In the present thesis these components have been benchmarked separately to keep the comparison clean. A more coupled approach could use calibrated implied-volatility surfaces as inputs for pricing and Greek engines, while derivative-aware models could provide diagnostics on the smoothness and stability of the learned volatility representation.
 
