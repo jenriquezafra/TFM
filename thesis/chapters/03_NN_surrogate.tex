@@ -12,7 +12,7 @@ The second model is the Sobolev ANN. This variant keeps the same input-output st
 
 Reference pricing based on the numerical methods introduced in Chapter~\ref{ch:background} is highly accurate but computationally expensive when repeated many times, as required in calibration and sensitivity workflows. In this project, the reference layer combines Heston-COS valuation (Section~\ref{sec:fourier_cos_method}) with implied-volatility inversion (Section~\ref{sec:iv_numerical_inversion}). The baseline ANN aims to reproduce this numerical pipeline efficiently, while the Sobolev ANN additionally uses derivative targets to make the surrogate more reliable for Greek estimation.
 
-Finally, the chapter also introduces the neural calibration workflow. In this stage, the trained pricer is frozen and used as a fast evaluator inside an inverse problem that recovers Heston parameters from an observed implied-volatility surface. Methodologically, we follow the ANN-pricing and neural-calibration framework of Liu et al. \cite{liu} as the main reference, while documenting the specific implementation choices adopted in this project. The benchmark results are reported later in Chapter~\ref{ch:performance_benchmarks}; here the focus is the construction of the supervised pricing dataset, the pricer architecture, the baseline and Sobolev training protocols, and the calibration interface.
+Finally, the chapter also introduces the neural calibration workflow. In this stage, the trained pricer is frozen and used as a fast evaluator inside an inverse problem that recovers Heston parameters from an observed implied-volatility surface. Methodologically, we follow the ANN-pricing and neural-calibration framework of Liu et al. \cite{liu} as the main reference, while documenting the specific implementation choices adopted in this project. The numerical experiments were implemented in Python using PyTorch as the main neural-network framework; in particular, its automatic differentiation tools are used both for derivative-aware training terms and for the sensitivity diagnostics computed from the learned surfaces. Appendix~\ref{app:software_implementation} gives additional implementation and repository details. The benchmark results are reported later in Chapter~\ref{ch:performance_benchmarks}; here the focus is the construction of the supervised pricing dataset, the pricer architecture, the baseline and Sobolev training protocols, and the calibration interface.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Problem Formulation}
@@ -313,7 +313,7 @@ Here \(B_{\mathrm{Sob}}\) is the Sobolev mini-batch size, \(q\) indexes the supe
 +
 \lambda_{\mathrm{Sob}}\mathcal{L}_{\mathrm{Sob}}(\mathbf{w}).
 \end{equation}
-Here \(\mathcal{L}_{\mathrm{MSE}}\) is the baseline value loss from Equation~\eqref{eq:ann_baseline_mse_loss}. In the retained Sobolev ANN run, \(\lambda_{\mathrm{Sob}}=0.10\), the Sobolev batch size is \(512\), and the derivative term is activated after a warm-up of \(500\) epochs. 
+Here \(\mathcal{L}_{\mathrm{MSE}}\) is the baseline value loss from Equation~\eqref{eq:ann_baseline_mse_loss}. In the retained Sobolev ANN run, \(\lambda_{\mathrm{Sob}}=0.10\), the Sobolev batch size is \(512\), and the derivative term is activated after a warm-up of \(500\) epochs. A compact implementation excerpt showing how this derivative loss is computed with PyTorch automatic differentiation is included in Appendix~\ref{app:software_implementation}.
 
 \subsection{Optimizer And Hyperparameters}
 \label{sec:ann_optimizer_hyperparameters}

@@ -1,136 +1,100 @@
-\chapter{Global Notation Glossary}
-\label{app:global_glossary}
+\chapter{Software Implementation}
+\label{app:software_implementation}
 
-This appendix contains a global glossary of symbols used throughout the thesis.
-It is intended as a living reference and can be expanded as additional notation appears in later revisions.
+This appendix documents the implementation layer used to generate the numerical results reported in the thesis. Its purpose is not to reproduce the full source code, but to make explicit the computational choices that affect reproducibility: the programming environment, the role of automatic differentiation, the separation between experiment scripts and reusable modules, and the repository in which the implementation was developed.
 
-\begin{table}[H]
-    \ttabbox[\FBwidth]
-    {\caption{Global notation glossary: core pricing and model notation}}
-    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
-        \hline
-        \textbf{Symbol} & \textbf{Meaning} \\
-        \hline
-        $(\Omega,\mathcal F,(\mathcal F_t),\mathbb P)$ & Filtered probability space: outcomes, measurable events, information available over time, and original probability measure. \\
-        \hline
-        $t,\;T,\;\tau$ & Valuation time, maturity, and time to maturity ($\tau=T-t$). \\
-        \hline
-        $S_t,\;K,\;m$ & Spot price, strike, and moneyness ($m=S_0/K$ for quote grids, $m=S/K$ as a PDE coordinate). \\
-        \hline
-        $r$ & Constant risk-free interest rate. \\
-        \hline
-        $\mathbb Q$ & Risk-neutral probability measure. \\
-        \hline
-        $V_t$ & Arbitrage-free option value at time $t$. \\
-        \hline
-        $V(t_0,x)$ & Option value at valuation time $t_0$ when the state variable is $x$. \\
-        \hline
-        $V_{BS},\;V_{\text{target}}$ & Black--Scholes option value and target option value used in IV inversion. \\
-        \hline
-        $\Psi,\;\Psi_{\mathrm{put}}$ & Option payoff function at maturity; for the thesis pricing target, $\Psi_{\mathrm{put}}=(K-S_T)^+$. \\
-        \hline
-        $X_t,\;x,\;y$ & State variable and its initial/terminal values, typically $x=X(t_0)$ and $y=X(T)$. \\
-        \hline
-        $F_X,\;f_X$ & Cumulative distribution function and probability density function of $X$. \\
-        \hline
-        $\theta$ & Generic model-parameter vector. \\
-        \hline
-        $\mu$ & Generic drift under the original probability measure. \\
-        \hline
-        $W_t^{(S)},\;W_t^{(\nu)}$ & Brownian motions driving the spot and variance processes. \\
-        \hline
-        $\kappa,\;\bar\nu,\;\gamma,\;\rho,\;\nu_0$ & Heston parameters: mean reversion, long-run variance, vol-of-vol, correlation, and initial variance. Later chapters also use $\bar v$ and $v_0$ for the variance parameters. \\
-        \hline
-        \multicolumn{2}{l}{Source: Author's elaboration}
-    \end{tabular}}
-\end{table}
+\section{Computational Environment}
 
-\begin{table}[H]
-    \ttabbox[\FBwidth]
-    {\caption{Global notation glossary: neural benchmark notation}}
-    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
-        \hline
-        \textbf{Symbol} & \textbf{Meaning} \\
-        \hline
-        ANN baseline, ANN Sobolev & Supervised implied-volatility surrogates used in the ANN branch. Both use the same input-output map; the Sobolev variant augments the baseline value loss with IV-derivative information. \\
-        \hline
-        CaNN baseline, CaNN Sobolev & Calibration workflows that use a frozen ANN surrogate as fast forward evaluator in the inverse Heston calibration problem. The two variants keep the same calibration objective and differ only in whether the evaluator is the ANN baseline or the ANN Sobolev surrogate. \\
-        \hline
-        $f_{NN},\;\mathbf{x},\;\hat\sigma_{\mathrm{imp}}$ & ANN implied-volatility map, input vector, and predicted implied volatility. In Chapter~\ref{ch:ann_surrogate}, \(\mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\). \\
-        \hline
-        $\hat V_{\mathrm{ANN}},\;\mathrm{Greek}_{\mathrm{ANN}}(q)$ & Price and sensitivity obtained from the ANN predicted implied volatility by composing it with the Black--Scholes pricing convention and differentiating with respect to input direction \(q\). \\
-        \hline
-        $\mathcal{L}_{\mathrm{MSE}}$ & Baseline ANN mean-squared-error loss in implied-volatility space. \\
-        \hline
-        $\mathcal{L}_{\mathrm{Sob}},\;\mathcal{L}_{\mathrm{ANN\text{-}Sob}}$ & Sobolev derivative loss for IV-derivative targets and total Sobolev ANN objective. \\
-        \hline
-        $\mathcal{J},\;d_{i,q},\;s_q$ & Sobolev derivative directions, reference IV derivative target at anchor point \(i\) in direction \(q\), and robust scale used to normalize that derivative direction. \\
-        \hline
-        $B,\;B_{\mathrm{Sob}},\;\lambda_{\mathrm{Sob}}$ & Baseline mini-batch size, Sobolev mini-batch size, and weight of the Sobolev derivative loss in the ANN Sobolev objective. \\
-        \hline
-        PINN baseline, PINN Sobolev, PINN Sobolev+ACV & Physics-informed price-surface variants. The baseline PINN is the PDE-trained pricing model; the Sobolev variant adds derivative targets; the ACV variant adds an analytic control-variate correction for the hard short-maturity ATM region. \\
-        \hline
-        $u_\phi$ & Neural price surface produced by the PINN, with trainable parameters $\phi$. \\
-        \hline
-        $\mathcal{R}_\phi$ & Heston PDE residual evaluated on the PINN output. \\
-        \hline
-        $\mathcal{L}_{\mathrm{PDE}},\;\mathcal{L}_{\mathrm{term}},\;\mathcal{L}_{\mathrm{low}}$ & Baseline PINN loss terms for the interior PDE residual, terminal payoff, and lower-boundary condition. \\
-        \hline
-        $\mathcal{G}^{\star}(x),\;\mathcal{G}_{\phi}(x)$ & Reference Greek vector and PINN autodiff Greek vector at input point $x$. \\
-        \hline
-        $\mathcal{L}_{\mathrm{g},1},\;\mathcal{L}_{\mathrm{g},2}$ & Sobolev Greek loss terms for first-order sensitivities and Gamma supervision. \\
-        \hline
-        $\lambda_{\mathrm{PDE}},\;\lambda_{\mathrm{term}},\;\lambda_{\mathrm{low}},\;\lambda_{\mathrm{g},1},\;\lambda_{\mathrm{g},2}$ & Loss weights for the PINN baseline terms and the Sobolev derivative terms. \\
-        \hline
-        $\Theta,\;\Theta^\star$ & Heston parameter tuple and calibrated parameter tuple used when evaluating trained models. \\
-        \hline
-        $J(\theta^\star),\;\nabla J(\theta^\star),\;H$ & Calibration objective value, gradient, and Hessian at the calibrated optimum. \\
-        \hline
-        $\mathrm{cond}_{\mathrm{abs}}(H)$ & Hessian condition number computed from absolute eigenvalues. \\
-        \hline
-        $\mathcal{D}_{\mathrm{hard}}$ & Hard short-maturity ATM region used in the ACV diagnostic. \\
-        \hline
-        $p_{99}$ & Ninety-ninth percentile of the reported error distribution. \\
-        \hline
-        \multicolumn{2}{l}{Source: Author's elaboration}
-    \end{tabular}}
-\end{table}
+All experiments were implemented in Python. The final neural workflows use PyTorch as the main deep-learning framework, together with NumPy, SciPy, pandas, scikit-learn, and matplotlib for numerical computation, data handling, evaluation, and figure generation. PyTorch is especially useful in this project because the same automatic differentiation engine supports both standard network training and derivative-based diagnostics. In the ANN branch, it is used to train the supervised implied-volatility surrogate and to compute derivatives of the learned surface when Greeks are evaluated. In the PINN branch, it is also used to differentiate the learned price surface with respect to the PDE variables and to build the residual terms that define the physics-informed loss.
 
-\begin{table}[H]
-    \ttabbox[\FBwidth]
-    {\caption{Global notation glossary: transform, COS, and IV notation}}
-    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
-        \hline
-        \textbf{Symbol} & \textbf{Meaning} \\
-        \hline
-        $\phi_X(u)$ & Characteristic function of random variable $X$. \\
-        \hline
-        $\mathcal M_X(u),\;\zeta_X(u),\;\zeta_k$ & Moment generating function, cumulant characteristic function, and $k$-th cumulant. \\
-        \hline
-        $u,\;u_k,\;i$ & Fourier variable, COS frequency $u_k=k\pi/(b-a)$, and imaginary unit. \\
-        \hline
-        $[a,b],\;L,\;N,\;k$ & COS truncation interval, truncation scaling parameter, number of terms, and series index. \\
-        \hline
-        $\bar F_k,\;H_k,\;U_k$ & COS density, payoff, and Heston-COS payoff coefficients. \\
-        \hline
-        $\hat V_T(u),\;V_N^{\mathrm{COS}}$ & Fourier transform of the maturity payoff and $N$-term COS price approximation. \\
-        \hline
-        $\varphi_H,\;C,\;D,\;d,\;g$ & Heston characteristic function and its affine auxiliary functions. \\
-        \hline
-        $\chi_k,\;\psi_k$ & Closed-form payoff integrals used in COS coefficients. \\
-        \hline
-        $\sigma_{imp}$ & Implied volatility obtained from numerical inversion. \\
-        \hline
-        $F(\sigma),\;\varepsilon_{\text{price}},\;\varepsilon_\sigma,\;n_{\max}$ & IV root function, price tolerance, volatility tolerance, and maximum number of solver iterations. \\
-        \hline
-        $\hat z_i,\;z_i^{\mathrm{ref}}$ & Model and reference values for a generic benchmark target at evaluation point $i$. \\
-        \hline
-        $\mathrm{MSE},\;\mathrm{RMSE},\;\mathrm{MAPE}$ & Mean squared error, root mean squared error, and mean absolute percentage error used for benchmark reporting. \\
-        \hline
-        $\Pi_j,\;\Psi_j$ & Heston call-pricing probability terms and their Fourier integrands. \\
-        \hline
-        $\begin{gathered}\mathrm{Delta},\;\mathrm{Gamma},\;\mathrm{Vega}\\ \mathrm{Rho},\;\mathrm{Theta}\end{gathered}$ & Standard option Greeks: spot first derivative, spot second derivative, variance/volatility sensitivity, interest-rate sensitivity, and time sensitivity. \\
-        \hline
-        \multicolumn{2}{l}{Source: Author's elaboration}
-    \end{tabular}}
-\end{table}
+The experiments were developed on Apple Silicon hardware with an Apple M4 Max chip, 36 GB of unified memory, and macOS 26.6. PyTorch device selection was handled automatically in the training scripts, using the Apple Metal backend (\texttt{mps}) when available and falling back to CPU otherwise. Numerical reference calculations and benchmark metrics that require double precision were evaluated on CPU when the selected backend did not support the required dtype.
+
+The implementation follows the methodological split used in the thesis. The ANN/CaNN branch is supervised and works mainly in implied-volatility space: synthetic labels are generated through the Heston-COS and Brent pipeline, the ANN surrogate is trained on those labels, and the frozen surrogate is then reused as a fast evaluator in the calibration problem. The PINN branch is implemented separately and works in price space: the baseline model is trained from the Heston PDE residual, terminal condition, and boundary conditions, while the Sobolev and Sobolev+ACV variants add derivative-aware corrections or analytic structure without turning the method into the ANN calibration pipeline.
+
+\section{Code Excerpts}
+
+Only short source-code fragments are included here, because the relevant methodological definitions are already given in Chapters~\ref{ch:ann_surrogate} and~\ref{ch:pinn_greeks}. The objective of these excerpts is to show where the mathematical operations described in the thesis enter the implementation.
+
+\begin{lstlisting}[language=Python, caption={Sobolev derivative loss used in the ANN implied-volatility surrogate. The network is differentiated with respect to its normalized inputs and the resulting gradients are converted back to raw derivative units before comparison with the reference derivative targets.}, label={lst:ann_sobolev_derivative_loss}]
+x_req = x_model.detach().clone().requires_grad_(True)
+y_model = model(x_req)
+
+grad_model = torch.autograd.grad(
+    outputs=y_model,
+    inputs=x_req,
+    grad_outputs=torch.ones_like(y_model),
+    create_graph=True,
+    retain_graph=True,
+)[0]
+
+idx = torch.as_tensor(
+    derivative_indices,
+    dtype=torch.long,
+    device=x_model.device,
+)
+x_std_t = torch.as_tensor(x_std, dtype=x_model.dtype, device=x_model.device)
+y_std_t = torch.as_tensor(y_std, dtype=x_model.dtype, device=x_model.device)
+
+raw_scale = y_std_t / torch.clamp(x_std_t[idx], min=1.0e-12)
+pred_derivatives_raw = (
+    grad_model.index_select(dim=1, index=idx)
+    * raw_scale.reshape(1, -1)
+)
+
+target = target_derivatives_raw.to(dtype=x_model.dtype, device=x_model.device)
+scales = torch.clamp(derivative_scales.reshape(1, -1), min=1.0e-12)
+loss = torch.mean(
+    ((pred_derivatives_raw - target) / scales) ** 2
+)
+\end{lstlisting}
+
+Listing~\ref{lst:ann_sobolev_derivative_loss} corresponds to the Sobolev term used by the ANN implied-volatility surrogate. The important implementation point is the change of units: if the network receives normalized inputs and, possibly, a normalized output, the derivative returned by automatic differentiation is not yet the physical derivative used in the loss. The factor \(y_{\mathrm{std}}/x_{\mathrm{std},j}\) converts the derivative with respect to the model input back to the raw derivative direction \(j\), after which each derivative component is normalized by its robust scale.
+
+\begin{lstlisting}[language=Python, caption={Construction of the Heston PDE residual used by the baseline PINN. The code shows the moneyness-coordinate version used in the price-space PINN loss, omitting input checks and optional residual normalization for clarity.}, label={lst:pinn_heston_pde_residual}]
+x_interior = x_interior.requires_grad_(True)
+x_net = apply_input_affine(x_interior, input_affine)
+u = model(x_net)
+
+grads = gradient(y=u, x=x_interior)
+u_tau = grads[:, 0:1]
+u_m = grads[:, 1:2]
+u_v = grads[:, 2:3]
+
+grad_u_m = gradient(y=u_m, x=x_interior)
+grad_u_v = gradient(y=u_v, x=x_interior)
+u_mm = grad_u_m[:, 1:2]
+u_mv = grad_u_m[:, 2:3]
+u_vv = grad_u_v[:, 2:3]
+
+m = x_interior[:, 1:2]
+v = x_interior[:, 2:3]
+rho = x_interior[:, 3:4]
+kappa = x_interior[:, 4:5]
+gamma = x_interior[:, 5:6]
+bar_v = x_interior[:, 6:7]
+r = x_interior[:, 7:8]
+
+diffusion_m = 0.5 * v * (m**2) * u_mm
+mixed = rho * gamma * v * m * u_mv
+diffusion_v = 0.5 * (gamma**2) * v * u_vv
+drift_m = r * m * u_m
+drift_v = kappa * (bar_v - v) * u_v
+discount = r * u
+
+residual = (
+    u_tau
+    - diffusion_m
+    - mixed
+    - diffusion_v
+    - drift_m
+    - drift_v
+    + discount
+)
+loss_pde = torch.mean(residual**2)
+\end{lstlisting}
+
+Listing~\ref{lst:pinn_heston_pde_residual} shows the corresponding construction for the baseline PINN. The tensor \(x_{\mathrm{interior}}\) contains interior collocation points ordered as \((\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\). The derivatives of the neural price surface are obtained with nested calls to automatic differentiation, and the residual is then assembled term by term according to the Heston PDE written in the moneyness coordinate. In the actual training code, this residual can also be scaled locally before computing the mean-square PDE loss, but the baseline mathematical structure is the one shown above.
+
+\section{Repository}
+
+The code used to generate datasets, train the neural models, run CaNN calibration experiments, evaluate Greeks, and reproduce the figures was maintained in a version-controlled repository during the development of the thesis. The repository contains the reusable modules, experiment scripts, configuration files, trained-run metadata, and plotting utilities associated with the reported benchmarks. The public repository is currently available at \url{https://github.com/jenriquezafra/TFM}.

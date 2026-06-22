@@ -1,18 +1,18 @@
 \chapter{Physics-Informed Neural Pricing under the Heston Model}
 \label{ch:pinn_greeks}
 
-\todos{actualizar el capitulo para presentar los tres modelos finales: pinn baseline, pinn sobolev y pinn sobolev+acv.}
-This chapter reformulates vanilla option pricing under the Heston model as a PDE-constrained learning problem. In contrast to the supervised ANN surrogate of Chapter~\ref{ch:ann_surrogate}, the objective is no longer to emulate precomputed numerical labels, but to approximate directly the option-price function through an unsupervised Physics-Informed Neural Network (PINN). The methodology follows the general PINN philosophy and is inspired by the Heston-specific formulation proposed in \cite{hainaut2024pinn}, while adapting the state representation and notation to the conventions used in the present work. Recent physics-informed operator-learning evidence for Heston points to a limitation that is central for this chapter: pricing accuracy alone may coexist with noisy autodiff Delta and Gamma near the at-the-money region \cite{malandain2025deepsvm}. For this reason, the PINN block is evaluated not only as a pricer, but also as a differentiable sensitivity engine.
+This chapter develops the physics-informed branch of the thesis for Heston option pricing. Unlike the supervised ANN branch of Chapter~\ref{ch:ann_surrogate}, which learns the implied-volatility surface from numerical labels and is later reused inside the CaNN calibration workflow, the PINN branch works directly in price space. Its baseline version approximates the option-price function by enforcing the Heston pricing PDE, terminal payoff, and boundary conditions, without using precomputed price or implied-volatility labels during training. The methodology follows the general PINN philosophy and is inspired by the Heston-specific formulation proposed in \cite{hainaut2024pinn}, while adapting the state representation and notation to the conventions used in the present work.
+
+This gives a different methodological object: the PINN is not an extension of the ANN--CaNN pipeline, but a separate PDE-based pricer whose main strength is direct price-surface approximation. Since recent physics-informed operator-learning evidence for Heston suggests that accurate pricing can still coexist with noisy autodiff Delta and Gamma near the at-the-money region \cite{malandain2025deepsvm}, the chapter then introduces two derivative-aware variants: a Sobolev PINN and a Sobolev PINN with an analytical control variate (ACV) correction. The purpose of these variants is to improve the Greek diagnostics of the baseline PINN, while keeping explicit the trade-off between pricing accuracy and sensitivity regularity.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Problem formulation}
 
-In this chapter, European option pricing under Heston is posed as the approximation of the solution of the pricing PDE rather than as a supervised regression problem. The neural network outputs the option price itself, and the training objective is to enforce that this output satisfies the Heston valuation equation together with its terminal and boundary conditions. Consequently, the core information driving the optimization is not a set of external labels, but the analytical structure of the model under the risk-neutral measure.
-\todos{reforzar que la pinn baseline es el modelo no supervisado puro y que aprende precio, no iv; esto explica la comparacion con la ann.}
+In this section, we make the distinction introduced above operational by specifying the price function, the state variables, and the parameter dependence used by the PINN. The baseline formulation remains limited to the unsupervised price-surface problem: the network represents \(V_\phi\), is trained on collocation points, and does not use implied-volatility labels. The Sobolev and ACV components are introduced later as derivative-oriented variants in Sections~\ref{sec:pinn_sobolev_training} and~\ref{sec:pinn_acv_correction}, so they should not be read as part of the baseline PINN.
 
-To avoid a notational clash between the price function and the variance state, the option value will be denoted by $u$, while the instantaneous variance state will be denoted by $v$. This distinction is important because the Heston model contains both a variance process and a pricing function, and using the same symbol for both would make the PDE formulation unnecessarily confusing. The unknown function approximated by the PINN is therefore written as
+To keep the price function visually separate from the variance state, the option value will be denoted by $V$, while the instantaneous variance state will be denoted by $v$. This distinction is useful because the Heston model contains both a variance process and a pricing function, and the PDE notation should make clear which object is being differentiated. The unknown function approximated by the PINN is therefore written as
 \[
-u_\phi(\tau,m,v,\Theta,r),
+V_\phi(\tau,m,v,\Theta,r),
 \]
 where $\phi$ denotes the trainable weights of the network, $m=S/K$ is moneyness, $\tau=T-t$ is time-to-maturity, $v$ is the current instantaneous variance, and $\Theta$ collects the structural Heston parameters.
 
@@ -22,87 +22,81 @@ More precisely, the calibrated tuple obtained in the previous chapter is
 \]
 However, the role of $v_0$ must be distinguished from that of the other parameters. The quantities $\rho$, $\kappa$, $\gamma$ and $\bar v$ define the operator of the Heston PDE, whereas $v_0$ is the initial condition of the variance process. In the PDE formulation, the state variable is the generic variance level $v$, not the fixed initial value $v_0$. Therefore, the parametric PINN is constructed to learn a family of Heston pricing solutions indexed by the structural parameters $(\rho,\kappa,\gamma,\bar v,r)$, while the current variance $v_0$ is used only when evaluating the trained network at the present market state. The calibrated market valuation is thus recovered through
 \[
-u_\phi(\tau,m,v_0,\rho^*,\kappa^*,\gamma^*,\bar v^*,r).
+V_\phi(\tau,m,v_0,\rho^*,\kappa^*,\gamma^*,\bar v^*,r).
 \]
 This point is conceptually important: during training, the PINN learns the solution over a domain in $(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)$, whereas at inference time the current market valuation is recovered by fixing the variance coordinate to the calibrated value $v_0^*$ and the structural parameters to the calibrated tuple $\Theta^*$.
 
 The network is trained on collocation points sampled in the interior and on the relevant boundaries of the pricing domain. These points are not generated by simulating full paths of the Heston variance process. Instead, they are drawn directly from a bounded domain of admissible states, for instance using Latin Hypercube Sampling (LHS), and used to evaluate the PDE residual. In that sense, the method is unsupervised: the learning signal comes from the Heston structure itself, not from externally computed price labels. This is the main methodological difference with respect to the ANN surrogate developed in Chapter~\ref{ch:ann_surrogate}.
 
-At a high level, the proposed workflow is the following. First, a parametric PINN is defined to approximate the price surface over a range of maturities, moneyness levels, variance states, and Heston parameters. Second, the PINN is trained by minimizing the residual of the Heston pricing PDE together with terminal and boundary mismatches. Third, once the network is trained, the price of a contract for a calibrated market configuration is obtained by evaluating the network at the corresponding $(\tau,m,v_0^*,\Theta^*,r)$. This preserves the link with the calibration pipeline while replacing label-based supervision with model-consistent unsupervised training. In this sense, the CaNN stage remains essential: it provides the market-specific parameter tuple that is consumed by the parametric PINN at inference time, without requiring a retraining of the pricing network for each new calibration.
-\todos{ajustar el workflow para incluir explicitamente pinn sobolev y pinn sobolev+acv como variantes posteriores, no como parte de la pinn baseline.}
+At a high level, the PINN workflow is organized in three variants. The baseline PINN learns a price surface from the Heston PDE, terminal payoff, and boundary constraints, and is later evaluated at $(\tau,m,v_0^*,\Theta^*,r)$ for a calibrated market configuration. The calibrated tuple may come from the supervised calibration block of Chapter~\ref{ch:ann_surrogate}, but it is only an external input for PINN inference. The Sobolev PINN then adds derivative information, while the Sobolev+ACV variant adds a local analytical correction near the short-maturity at-the-money region; these extensions are introduced in Sections~\ref{sec:pinn_sobolev_training} and~\ref{sec:pinn_acv_correction}.
 
 \subsection{PINN Theoretical Framework}
 
-A PINN can be viewed as a parametric approximation of the solution of a differential equation. In the present setting, the network $u_\phi$ is required to satisfy the Heston pricing PDE in the interior of the domain and to match the contractual conditions at expiry and on selected boundaries. If $\mathcal{N}$ denotes the Heston differential operator, the target problem can be summarized abstractly as
+A PINN can be viewed as a parametric approximation of the solution of a differential equation. In the present setting, the network $V_\phi$ is required to satisfy the Heston pricing PDE in the interior of the domain and to match the contractual conditions at expiry and on selected boundaries. If $\mathcal{N}$ denotes the Heston differential operator, the target problem can be summarized abstractly as
 \[
-\mathcal{N}[u]=0 \quad \text{in the interior domain}, \qquad
-\mathcal{B}[u]=0 \quad \text{on the boundaries},
+\mathcal{N}[V]=0 \quad \text{in the interior domain}, \qquad
+\mathcal{B}[V]=0 \quad \text{on the boundaries},
 \]
 where $\mathcal{B}$ denotes the set of terminal and boundary constraints.
 
-The PINN replaces the unknown analytical solution by a neural approximation $u_\phi$ and defines a residual function
+The PINN replaces the unknown analytical solution by a neural approximation $V_\phi$ and defines a residual function
 \[
-\mathcal{R}_\phi = \mathcal{N}[u_\phi].
+\mathcal{R}_\phi = \mathcal{N}[V_\phi].
 \]
-Training then consists of minimizing a composite loss built from three sources of error: the interior PDE residual, the mismatch with the terminal payoff, and the mismatch with the selected boundary conditions. In a compact notation, the loss takes the form
-\[
+Training then consists of minimizing a composite loss built from three sources of error:
+\begin{equation}
 \mathcal{L}_{\mathrm{PINN}}(\phi)=
 \mathcal{L}_{\mathrm{PDE}}(\phi)+
 \mathcal{L}_{\mathrm{term}}(\phi)+
 \mathcal{L}_{\mathrm{bc}}(\phi).
-\]
+\label{eq:pinn_framework_loss}
+\end{equation}
+Here, \(\mathcal{L}_{\mathrm{PDE}}\) penalizes violations of the Heston equation in the interior of the domain, \(\mathcal{L}_{\mathrm{term}}\) enforces the payoff at expiry, and \(\mathcal{L}_{\mathrm{bc}}\) imposes the selected boundary conditions.
 This decomposition is standard in the PINN literature and matches the structure adopted in \cite{hainaut2024pinn}.
 
 An essential ingredient of this approach is automatic differentiation. Since the Heston PDE contains first- and second-order derivatives with respect to the state variables, the network output must remain differentiable with respect to its inputs. The required quantities are obtained by differentiating the computational graph of the network rather than by using finite-difference approximations. This is particularly convenient in the present case because the same differentiable surrogate can later be reused for the computation of Greeks.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Heston Pricing PDE}
 
-Starting from the Heston dynamics introduced in Chapter~\ref{ch:background} (Equation~\ref{eq:heston_dynamics}), the risk-neutral version used for pricing is
-\begin{align}
-    dS_t &= rS_t\,dt + \sqrt{v_t}\,S_t\,dW_t^{(1)}, \\
-    dv_t &= \kappa(\bar v-v_t)\,dt + \gamma\sqrt{v_t}\,dW_t^{(2)},
-\end{align}
-with instantaneous correlation
-\[
-d\langle W^{(1)},W^{(2)}\rangle_t = \rho\,dt.
-\]
-Here $r$ is the risk-free rate, $\kappa$ is the mean-reversion speed of the variance process, $\bar v$ is the long-run variance level, $\gamma$ is the volatility of variance, and $\rho$ controls the correlation between returns and variance shocks. The current variance level at valuation time is denoted by $v_0$, so that $v_t$ evolves from the initial condition $v(0)=v_0$.
-
-Let $u(t,S,v)$ denote the price of a European vanilla option. By the Feynman--Kac representation introduced in Equation~\eqref{eq:feynman_kac_generic}, $u$ satisfies the Heston pricing PDE \cite{heston}
+Starting from the risk-neutral Heston dynamics fixed in Section~\ref{sec:heston_model}, Equation~\eqref{eq:heston_dynamics}, we now write the pricing equation that will be enforced by the PINN. We keep the implementation notation \(v\) for the variance state, corresponding to \(\nu\) in Chapter~\ref{ch:background}, and denote the option value by \(V\). By the Feynman--Kac representation introduced in Equation~\eqref{eq:feynman_kac_generic}, \(V(t,S,v)\) satisfies the Heston pricing PDE \cite{heston}
 \begin{equation}
-u_t
-+\frac{1}{2}vS^2u_{SS}
-+\rho\gamma vS u_{Sv}
-+\frac{1}{2}\gamma^2 v u_{vv}
-+rS u_S
-+\kappa(\bar v-v)u_v
--ru = 0.
+V_t
++\frac{1}{2}vS^2V_{SS}
++\rho\gamma vS V_{Sv}
++\frac{1}{2}\gamma^2 v V_{vv}
++rS V_S
++\kappa(\bar v-v)V_v
+-rV = 0.
 \end{equation}
-This is the continuous-time constraint that will be enforced by the PINN at interior collocation points. In the present chapter, the price function is denoted by $u$ precisely to keep it separate from the variance state $v$.
+This is the continuous-time constraint that will be enforced by the PINN at interior collocation points. In the present chapter, the price function is denoted by $V$ precisely to keep it separate from the variance state $v$.
 
 For implementation purposes, it is more convenient to work with time-to-maturity $\tau=T-t$ and moneyness $m=S/K$ instead of calendar time $t$ and spot $S$. Since the synthetic and market pipelines of this project use a fixed strike normalization $K=1$, the pricing problem can be rewritten in terms of the state variables $(\tau,m,v)$. Defining the same pricing function in transformed coordinates, the PDE becomes
 \begin{equation}
-u_\tau
-=\frac{1}{2}vm^2u_{mm}
-+\rho\gamma vm u_{mv}
-+\frac{1}{2}\gamma^2 v u_{vv}
-+rm u_m
-+\kappa(\bar v-v)u_v
--ru.
+V_\tau
+=\frac{1}{2}vm^2V_{mm}
++\rho\gamma vm V_{mv}
++\frac{1}{2}\gamma^2 v V_{vv}
++rm V_m
++\kappa(\bar v-v)V_v
+-rV.
 \end{equation}
 This is the formulation that will be used to define the PDE residual in the training loss. It remains fully equivalent to the original Heston pricing equation, but it is better aligned with the representation used in the rest of the thesis.
 
-For a European put option with normalized strike $K=1$, the terminal condition at expiry is
+The PINN is trained on a bounded computational domain
+\[
+\mathcal{D}=[0,\tau_{\max}]\times[m_{\min},m_{\max}]\times[v_{\min},v_{\max}],
+\]
+for fixed or sampled values of the Heston parameters. On this domain, the baseline loss enforces the PDE in the interior, the put payoff at \(\tau=0\), and the lower-moneyness boundary at \(m=0\). The upper-moneyness and variance boundaries are not imposed as separate hard constraints in the baseline implementation; their effect is controlled through the bounded sampling domain and the interior residual. This choice keeps the baseline PINN close to the minimal Heston-PINN formulation used in \cite{hainaut2024pinn}, while leaving additional boundary constraints as possible extensions.
+
+For a European put option with normalized strike $K=1$, the terminal condition at expiry follows directly from the payoff in Equation~\eqref{eq:european_put_payoff} and is
 \begin{equation}
-u(0,m,v) = (1-m)^+.
+V(0,m,v) = (1-m)^+.
 \end{equation}
 The payoff does not depend explicitly on the variance state, which means that the terminal condition is imposed uniformly over the $v$-dimension of the domain. In addition, a natural lower boundary condition is obtained at zero underlying value:
 \begin{equation}
-u(\tau,0,v)=e^{-r\tau}.
+V(\tau,0,v)=e^{-r\tau}.
 \end{equation}
-For a general strike $K$, this condition would read $u(\tau,0,v)=Ke^{-r\tau}$. In a first PINN specification, these two constraints are sufficient to reproduce the structure used in \cite{hainaut2024pinn}: one term of the loss is attached to the interior PDE residual, one to the terminal payoff, and one to the lower boundary.
-
-The far-field behavior as $m\to\infty$ for a put, namely $u(\tau,m,v)\to 0$, can also be incorporated if needed. However, to keep the initial implementation simple, the first version of the model will explicitly enforce only the terminal condition and the lower boundary, while controlling the remaining behavior through the bounded sampling domain in $(\tau,m,v)$ and the interior residual. This choice is consistent with the objective of building a minimal but coherent unsupervised PINN before adding more elaborate constraints.
+For a general strike $K$, this condition would read $V(\tau,0,v)=Ke^{-r\tau}$. The far-field behavior as $m\to\infty$ for a put, namely $V(\tau,m,v)\to 0$, can also be incorporated if a stricter boundary specification is required.
 
 
 
@@ -113,9 +107,9 @@ The far-field behavior as $m\to\infty$ for a put, namely $u(\tau,m,v)\to 0$, can
 
 The pricing PINN is implemented as a fully connected feed-forward neural network (MLP) that approximates the mapping
 \[
-u_\phi:\mathbb{R}^8\to\mathbb{R},
+V_\phi:\mathbb{R}^8\to\mathbb{R},
 \qquad
-x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\mapsto u_\phi(x),
+x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\mapsto V_\phi(x),
 \]
 where the scalar output is the option price. This architecture is appropriate for the present setting because all inputs are continuous tabular variables and no spatial or sequential inductive bias is required.
 This is also the standard architectural choice in many PINN implementations, where a smooth MLP acts as the differentiable trial function for the PDE solution \cite{hainaut2024pinn,urban_2025}.
@@ -133,7 +127,7 @@ with \texttt{tanh} activation in hidden layers and linear activation in the outp
 \[
 h^{(1)}=\varphi(W^{(1)}x+b^{(1)}),\ \dots,\
 h^{(4)}=\varphi(W^{(4)}h^{(3)}+b^{(4)}),\quad
-u_\phi=W^{(5)}h^{(4)}+b^{(5)},
+V_\phi=W^{(5)}h^{(4)}+b^{(5)},
 \]
 with $\varphi=\tanh$.
 
@@ -144,33 +138,30 @@ Weights are initialized with Xavier uniform initialization and biases are initia
     \resizebox{0.96\textwidth}{!}{
     \begin{tikzpicture}[
         >=Latex,
-        block/.style={draw,rounded corners=2pt,align=center,minimum height=1.05cm,inner sep=4pt,line width=0.4pt,font=\small},
-        inputblock/.style={block,fill=gray!10,minimum width=2.6cm},
-        hiddenblock/.style={block,fill=blue!6,minimum width=2.55cm},
-        outputblock/.style={block,fill=green!8,minimum width=2.1cm},
-        lossblock/.style={block,fill=orange!10,minimum width=4.2cm},
-        arrow/.style={->,line width=0.55pt,shorten >=2pt,shorten <=2pt}
+        block/.style={draw,rounded corners=2pt,align=center,minimum height=1.0cm,inner sep=5pt,line width=0.4pt,font=\small},
+        inputblock/.style={block,fill=gray!10,minimum width=3.0cm},
+        modelblock/.style={block,fill=blue!6,minimum width=3.3cm},
+        outputblock/.style={block,fill=green!8,minimum width=2.2cm},
+        lossblock/.style={block,fill=orange!10,minimum width=3.4cm},
+        diagblock/.style={block,fill=purple!7,minimum width=3.0cm},
+        arrow/.style={->,line width=0.55pt,shorten >=2pt,shorten <=2pt},
+        dashedarrow/.style={->,dashed,line width=0.55pt,shorten >=2pt,shorten <=2pt}
     ]
         \node[inputblock] (inputs) {Inputs\\[-1mm]\(\tau,m,v,\rho,\kappa,\gamma,\bar v,r\)};
-        \node[hiddenblock,right=0.75cm of inputs] (h1) {Hidden 1\\256 \texttt{tanh}};
-        \node[hiddenblock,right=0.55cm of h1] (h2) {Hidden 2\\256 \texttt{tanh}};
-        \node[hiddenblock,right=0.55cm of h2] (h3) {Hidden 3\\256 \texttt{tanh}};
-        \node[hiddenblock,right=0.55cm of h3] (h4) {Hidden 4\\256 \texttt{tanh}};
-        \node[outputblock,right=0.75cm of h4] (output) {Linear output\\\(u_\phi\)};
+        \node[modelblock,right=1.0cm of inputs] (mlp) {MLP\\\(4\times256\), \texttt{tanh}};
+        \node[outputblock,right=1.0cm of mlp] (price) {Price\\\(V_\phi\)};
 
-        \draw[arrow] (inputs) -- (h1);
-        \draw[arrow] (h1) -- (h2);
-        \draw[arrow] (h2) -- (h3);
-        \draw[arrow] (h3) -- (h4);
-        \draw[arrow] (h4) -- (output);
+        \node[lossblock,above right=0.65cm and 0.85cm of price] (pde) {PDE residual\\\(\mathcal{L}_{\mathrm{PDE}}\)};
+        \node[lossblock,right=0.85cm of price] (bc) {Terminal/boundary\\\(\mathcal{L}_{\mathrm{term}}+\mathcal{L}_{\mathrm{bc}}\)};
+        \node[diagblock,below right=0.65cm and 0.85cm of price] (greeks) {Autodiff\\Greeks};
 
-        \node[lossblock,below=1.25cm of h2] (ad) {Autodiff derivatives\\\(u_\tau,u_m,u_{mm},u_v,u_{vv},u_{mv}\)};
-        \node[lossblock,below=1.25cm of h4] (loss) {Training objective\\\(\mathcal{L}_{\mathrm{PDE}}+\mathcal{L}_{\mathrm{term}}+\mathcal{L}_{\mathrm{bc}}\)};
-
-        \draw[arrow,dashed] (output.south) |- (ad.east);
-        \draw[arrow,dashed] (ad) -- (loss);
+        \draw[arrow] (inputs) -- (mlp);
+        \draw[arrow] (mlp) -- (price);
+        \draw[dashedarrow] (price) -- (pde);
+        \draw[dashedarrow] (price) -- (bc);
+        \draw[dashedarrow] (price) -- (greeks);
     \end{tikzpicture}}
-    \caption{PINN architecture used for Heston pricing. The network maps the eight state and parameter inputs to a scalar option price; automatic differentiation of the same graph provides the derivatives required by the PDE residual and by Greek computation.}
+    \caption{PINN architecture used for Heston pricing. The central MLP block represents the four hidden layers of width 256 with \texttt{tanh} activation, followed by a linear output layer. It maps the eight-dimensional input \((\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\) to the scalar price \(V_\phi\). The right-hand branches show how this same output is used during training and evaluation: automatic differentiation gives the derivatives entering the PDE residual, direct evaluation at terminal and boundary points gives the contractual losses, and automatic differentiation of the trained price surface gives the Greeks.}
     \label{fig:pinn_architecture_tikz}
 \end{figure}
 
@@ -213,12 +204,12 @@ x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r),
 \]
 where \((\tau,m,v)\) are state variables, \(r\) is the risk-free rate, and \((\rho,\kappa,\gamma,\bar v)\) are the structural Heston parameters that define the PDE operator.
 
-The network output is a scalar price \(u_\phi(x)\), corresponding to the normalized-strike vanilla contract considered in this chapter (\(K=1\)). This output choice is consistent with the PDE-constrained formulation: the PINN directly approximates the pricing function rather than an implied-volatility transformation.
-\todos{anadir el matiz narrativo: aprender precio puede ser mas irregular que aprender iv, sobre todo cerca del payoff kink y en maturities cortas.}
+The network output is a scalar price \(V_\phi(x)\), corresponding to the normalized-strike vanilla contract considered in this chapter (\(K=1\)). This output choice is consistent with the PDE-constrained formulation: the PINN directly approximates the pricing function rather than an implied-volatility transformation.
+The trade-off is that prices are less homogeneous than implied volatility, because they retain contract-scale effects more directly. This makes the learned surface more delicate near short maturities, and especially around the payoff kink at \(m\approx1\), which later motivates the local ACV correction.
 At inference time, the CaNN calibration block supplies the market-specific values of \((\rho,\kappa,\gamma,\bar v,v_0)\); the PINN then evaluates the contract by fixing \(v=v_0\) and varying the contract coordinates \((\tau,m)\) and the market rate \(r\).
 
-In the current experimental setup, collocation generation is run in a fixed-parameter regime for \((\rho,\kappa,\gamma,\bar v)\), while \((\tau,m,v,r)\) vary across points. This means the model remains formally 8-dimensional, but some coordinates may be constant in a given run due to calibration-conditioned sampling.
-This is the baseline fixed-\(\Theta\) benchmark used in the reported experiments; the same input convention leaves the fully parametric variant available as a direct extension.
+In the current experimental setup, collocation generation is run with fixed values of \((\rho,\kappa,\gamma,\bar v)\), while \((\tau,m,v,r)\) vary across points. This means the model remains formally eight dimensional, but some coordinates may be constant in a given run due to calibration conditioned sampling.
+This is the baseline fixed \(\Theta\) benchmark used in the reported experiments; the same input convention leaves the fully parametric variant available as a direct extension.
 
 \subsubsection*{Input Scaling}
 
@@ -248,16 +239,16 @@ The PDE residual is still defined in physical variables and differentiated by au
 
 \subsection{Loss Function}
 
-The PINN is trained by minimizing a composite loss that enforces the pricing PDE in the interior of the domain together with the terminal payoff and the lower boundary condition. Let $u_\phi(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)$ denote the output of the neural network. From the transformed Heston PDE introduced above, the residual at an interior point is defined as
+The PINN is trained by minimizing a composite loss that enforces the pricing PDE in the interior of the domain together with the terminal payoff and the lower boundary condition. Let $V_\phi(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)$ denote the output of the neural network. From the transformed Heston PDE introduced above, the residual at an interior point is defined as
 \begin{equation}
 \mathcal{R}_\phi =
-u_{\tau}
--\frac{1}{2}vm^2u_{mm}
--\rho\gamma vm u_{mv}
--\frac{1}{2}\gamma^2 v u_{vv}
--rm u_m
--\kappa(\bar v-v)u_v
-+ru,
+V_{\tau}
+-\frac{1}{2}vm^2V_{mm}
+-\rho\gamma vm V_{mv}
+-\frac{1}{2}\gamma^2 v V_{vv}
+-rm V_m
+-\kappa(\bar v-v)V_v
++rV,
 \end{equation}
 where all derivatives are evaluated by automatic differentiation on the computational graph of the network. In the ideal case, the exact pricing function would satisfy $\mathcal{R}_\phi=0$ for every admissible interior point.
 
@@ -273,7 +264,7 @@ The interior loss is the mean squared residual
 
 On the terminal set $\mathcal{S}_T=\{z_k^T\}_{k=1}^{N_T}$, where $\tau=0$, the network must match the payoff of the European put. The corresponding error is
 \begin{equation}
-e_k^{T}(\phi)=u_\phi(0,m_k,v_k,\rho_k,\kappa_k,\gamma_k,\bar v_k,r_k)-(1-m_k)^+,
+e_k^{T}(\phi)=V_\phi(0,m_k,v_k,\rho_k,\kappa_k,\gamma_k,\bar v_k,r_k)-(1-m_k)^+,
 \end{equation}
 and the terminal loss is defined by
 \begin{equation}
@@ -284,7 +275,7 @@ and the terminal loss is defined by
 On the lower boundary set $\mathcal{S}_{\mathrm{low}}=\{z_l^{\mathrm{low}}\}_{l=1}^{N_{\mathrm{low}}}$, where $m=0$, the exact put price is the discounted strike. Since the implementation uses the normalized strike $K=1$, the lower-boundary error is
 \begin{equation}
 e_l^{\mathrm{low}}(\phi)=
-u_\phi(\tau_l,0,v_l,\rho_l,\kappa_l,\gamma_l,\bar v_l,r_l)-e^{-r_l\tau_l},
+V_\phi(\tau_l,0,v_l,\rho_l,\kappa_l,\gamma_l,\bar v_l,r_l)-e^{-r_l\tau_l},
 \end{equation}
 and the associated loss is
 \begin{equation}
@@ -304,83 +295,80 @@ For implementation, it is convenient to keep an explicit weighted form,
 \mathcal{L}_{\mathrm{PINN}}(\phi)=
 \lambda_{\mathrm{PDE}}\mathcal{L}_{\mathrm{PDE}}(\phi)+
 \lambda_{\mathrm{term}}\mathcal{L}_{\mathrm{term}}(\phi)+
-\lambda_{\mathrm{low}}\mathcal{L}_{\mathrm{bc}}(\phi),
+\lambda_{\mathrm{bc}}\mathcal{L}_{\mathrm{bc}}(\phi),
 \end{equation}
-with non-negative coefficients $(\lambda_{\mathrm{PDE}},\lambda_{\mathrm{term}},\lambda_{\mathrm{low}})$ that can be tuned if one component dominates the optimization. In the baseline specification of this thesis, all three weights are initialized to one, i.e. $(1,1,1)$, following the simplest formulation in \cite{hainaut2024pinn}.
+with non-negative coefficients $(\lambda_{\mathrm{PDE}},\lambda_{\mathrm{term}},\lambda_{\mathrm{bc}})$ that can be tuned if one component dominates the optimization. In the baseline specification of this thesis, all three weights are initialized to one, i.e. $(1,1,1)$, following the simplest formulation in \cite{hainaut2024pinn}.
 
-A practical point is that the PDE term requires second-order derivatives with respect to inputs. Therefore, the automatic-differentiation graph must be kept when computing first derivatives, so that mixed and second derivatives such as $u_{mv}$ and $u_{vv}$ can be obtained consistently in the same computational graph. This is the key implementation detail that enables direct optimization of the PDE residual without finite-difference approximations.
+A practical point is that the PDE term requires second-order derivatives with respect to inputs. Therefore, the automatic-differentiation graph must be kept when computing first derivatives, so that mixed and second derivatives such as $V_{mv}$ and $V_{vv}$ can be obtained consistently in the same computational graph. This is the key implementation detail that enables direct optimization of the PDE residual without finite-difference approximations. A cleaned implementation excerpt of the baseline PDE residual construction is given in Appendix~\ref{app:software_implementation}.
 
 \subsection{Optimizer and Hyperparameters}
 
-The optimization follows a two-stage strategy that is common in PINN practice: an initial stochastic phase with Adam, followed by a quasi-Newton refinement with L-BFGS. In this work, this strategy is implemented as a mixed schedule in which Adam is used during the first part of training and L-BFGS in the second part, while a pure Adam or pure L-BFGS run remains available as an ablation.
+The optimization follows a two-stage strategy that is common in PINN practice: an initial stochastic phase with Adam, followed by a quasi-Newton refinement with L-BFGS. In this work, this strategy is implemented as a mixed schedule in which Adam is used during the first part of training and L-BFGS in the second part, while a pure Adam or pure L-BFGS run remains available as an ablation. In the retained baseline run, this corresponds to the \texttt{mix\_half} mode: Adam is used for epochs \(1\)--\(2000\), and full-batch L-BFGS is used from epoch \(2001\) to epoch \(4000\).
 
-Since the three loss terms are evaluated on different sample sets, each epoch uses three mini-batches: one from $\mathcal{S}_D$ (interior), one from $\mathcal{S}_T$ (terminal), and one from $\mathcal{S}_{\mathrm{low}}$ (lower boundary). This allows different batch sizes for interior and boundary constraints and keeps the training loop aligned with the composite objective.
+During the Adam phase, the three loss terms are evaluated on separate mini-batches: one from $\mathcal{S}_D$ (interior), one from $\mathcal{S}_T$ (terminal), and one from $\mathcal{S}_{\mathrm{low}}$ (lower boundary). This allows different batch sizes for interior and boundary constraints and keeps the training loop aligned with the composite objective. During the L-BFGS refinement, the same loss components are kept, but the retained configuration uses full-batch evaluation.
 
-The reference hyperparameter block for the first implementation includes: learning rates and optimizer-specific settings, the Adam-to-L-BFGS switching epoch in mixed mode, batch sizes for interior and boundary sets, and the triplet of loss weights $(\lambda_{\mathrm{PDE}},\lambda_{\mathrm{term}},\lambda_{\mathrm{low}})$.
+The reference hyperparameter block for the first implementation includes: learning rates and optimizer-specific settings, the Adam-to-L-BFGS switching epoch in mixed mode, batch sizes for interior and boundary sets, and the triplet of loss weights $(\lambda_{\mathrm{PDE}},\lambda_{\mathrm{term}},\lambda_{\mathrm{bc}})$.
 
 For diagnostics, the training run stores epoch-wise train/validation curves for the total weighted loss and for each component separately. In addition, a two-dimensional error map over $(m,\tau)$ is produced from validation interior points by averaging $|\mathcal{R}_\phi|$ in bins. This map helps identify whether specific regions of the contract domain remain systematically underfitted even when the global loss decreases.
 
 \subsection{Sampling strategy}
 
-Training requires three different sample sets, each associated with one component of the loss. As in the general PINN methodology, these sets are not built from labeled prices but from points drawn directly in the state-parameter domain. The first set corresponds to the interior of the PDE domain, the second to the terminal boundary at expiry, and the third to the lower boundary at zero underlying value.
+Training uses three collocation sets, one for each component of the baseline loss. These sets are not built from labeled prices; they are points drawn directly in the state and parameter domain where the PDE, terminal condition, or boundary condition is evaluated. Interior points are used for the PDE residual, terminal points lie on \(\tau=0\) and impose the payoff, and lower boundary points lie on \(m=0\) and impose the discounted strike condition.
 
-The interior domain is defined over bounded intervals for the state variables and for the Heston parameters:
+The retained baseline uses a fixed \(\Theta\) sampling regime. The structural Heston parameters \((\rho,\kappa,\gamma,\bar v)\) are fixed to the calibrated tuple used in the benchmark, while the sampled coordinates are \((\tau,m,v,r)\). Therefore, although the network input remains eight dimensional, the effective computational domain explored by the baseline run is
 \[
-\tau \in [0,\tau_{\max}],\qquad
-m \in [m_{\min},m_{\max}],\qquad
-v \in [v_{\min},v_{\max}],
+\tau \in [0,3],\qquad
+m \in [0,2],\qquad
+v \in [0.01,0.5],\qquad
+r \in [0,0.05],
 \]
-combined with admissible ranges for $(\rho,\kappa,\gamma,\bar v,r)$. These parameter intervals should remain consistent with the calibration regime studied in Chapter~\ref{ch:ann_surrogate}, since the purpose of the parametric PINN is precisely to generalize over the family of Heston configurations that may be produced by the CaNN stage. In particular, the $v$-dimension is sampled explicitly as a state coordinate of the PDE. This is a crucial point: the PINN is trained on generic variance states $v$, whereas the calibrated initial variance $v_0$ is only used later, when evaluating the trained network at the current market state.
+with \((\rho,\kappa,\gamma,\bar v)\) kept constant. The $v$-dimension is still sampled explicitly as a state coordinate of the PDE. This is a crucial point: the PINN is trained on generic variance states $v$, whereas the calibrated initial variance $v_0$ is only used later, when evaluating the trained network at the current market state.
 
-To obtain a representative coverage of this multidimensional domain with a controlled number of points, the baseline sampling method will be Latin Hypercube Sampling (LHS). Compared with naive Monte Carlo sampling, LHS provides a more regular coverage of each marginal dimension and reduces the risk of leaving large regions of the domain underexplored. In the present setting, this is particularly useful because the PINN must generalize simultaneously over state variables and model parameters.
+To obtain a representative coverage of this domain with a controlled number of points, the retained baseline uses the same LHS principle introduced in Section~\ref{sec:ann_synthetic_dataset}, but applied here to the PINN collocation sets rather than to supervised pairs. In the present setting, this is useful because the PINN must cover maturity, moneyness, variance state, and interest rate levels under the fixed calibrated Heston configuration.
 
-For the interior set $\mathcal{S}_D$, each sampled point has the form
+For the interior collocation set $\mathcal{S}_D$, each point has the form
 \[
 z_j=(\tau_j,m_j,v_j,\rho_j,\kappa_j,\gamma_j,\bar v_j,r_j),
 \qquad j=1,\dots,N_D.
 \]
-These are the collocation points at which the PDE residual is evaluated. For the terminal set $\mathcal{S}_T$, points are sampled in the subdomain
+The structural parameter entries are kept constant across these points in the retained fixed \(\Theta\) run. For the terminal collocation set $\mathcal{S}_T$, points are sampled in the subdomain
 \[
 \tau=0,\qquad
-m \in [m_{\min},m_{\max}],\qquad
-v \in [v_{\min},v_{\max}],
+m \in [0,2],\qquad
+v \in [0.01,0.5],
 \]
-again jointly with the Heston parameters. This set is used to impose the payoff condition. For the lower-boundary set $\mathcal{S}_{\mathrm{low}}$, the sampled points satisfy
+again with variable \(r\) and fixed \((\rho,\kappa,\gamma,\bar v)\). For the lower boundary collocation set $\mathcal{S}_{\mathrm{low}}$, points satisfy
 \[
 m=0,\qquad
-\tau \in [0,\tau_{\max}],\qquad
-v \in [v_{\min},v_{\max}],
+\tau \in [0,3],\qquad
+v \in [0.01,0.5],
 \]
-with the same parameter ranges, and are used to enforce the discounted-strike boundary condition.
+again with variable \(r\) and the same fixed Heston parameter tuple.
 
-From an implementation viewpoint, the three sets can be regenerated dynamically during training or precomputed once and reused across epochs. A dynamic resampling strategy may improve coverage of the domain and reduce overfitting to a fixed cloud of collocation points, whereas a static design simplifies reproducibility and debugging. The initial implementation will prioritize simplicity and reproducibility; therefore, the first reference version will rely on fixed sample sets generated before the training loop. Dynamic resampling can later be evaluated as an extension if it leads to more stable convergence.
+In the retained baseline, the three collocation sets are precomputed once and reused across training. This static design simplifies reproducibility and keeps the comparison with the Sobolev refinement stage controlled. Dynamic resampling may improve coverage of the domain and reduce overfitting to a fixed cloud of collocation points, but it is not part of the reported baseline.
 
-This sampling strategy preserves the fully unsupervised nature of the method. No prices from COS, FFT, or Monte Carlo are required to build the training objective. Numerical pricing methods remain useful for ex-post validation and benchmarking, but not as a source of labels for fitting the PINN itself.
-\todos{mantener esta afirmacion solo para la pinn baseline; despues matizar que pinn sobolev y pinn sobolev+acv introducen informacion derivativa/analitica adicional.}
+This sampling strategy preserves the fully unsupervised nature of the method. No prices from COS, FFT, or Monte Carlo are required to build the training objective. Numerical pricing methods remain useful for ex post validation and benchmarking, but not as a source of labels for fitting the PINN itself.
+This statement applies to the baseline PINN. The Sobolev variant later adds semi analytical Greek targets, and the Sobolev+ACV variant adds a local analytical correction; these additions are not part of the baseline training objective.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Sobolev-Enhanced Training for Greek Accuracy}
 \label{sec:pinn_sobolev_training}
 
-\todos{revisar esta seccion para que defina pinn sobolev como segunda variante final, no como la mejora principal de toda la tesis.}
-The baseline PINN objective in this chapter is designed to recover prices by enforcing the Heston PDE and boundary/terminal conditions. However, accurate prices do not automatically imply accurate first- and second-order sensitivities. In particular, \(\mathrm{Gamma}\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. This issue is also observed in recent physics-informed Heston operator learning, where autodiff Greeks become noisy even when price errors are small \cite{malandain2025deepsvm}. To address this limitation, we enrich training with derivative-aware terms inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient-enhanced PINN formulations \cite{yu2022gpinn}. The formulation below is an application-specific hybrid: it follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.
+The second PINN variant retained in the final benchmark is the Sobolev PINN. It starts from the baseline price space PINN of the previous section and adds derivative supervision on Greek anchor points. The purpose is not to redefine the pricing problem or to present a uniformly better pricer, but to test whether explicit sensitivity information can make the PINN Greek estimates more reliable.
 
-The Sobolev variant keeps the original physics objective and adds supervised derivative terms on a dedicated set of Greek-anchor points. Let
+This extension should therefore be read as a derivative oriented correction. Accurate prices do not automatically imply accurate first and second order sensitivities: \(\mathrm{Gamma}\) and variance/rate sensitivities may show larger local errors because they depend on curvature properties of the learned surface. This issue is also observed in recent physics informed Heston operator learning, where autodiff Greeks become noisy even when price errors are small \cite{malandain2025deepsvm}. Sobolev training can reduce Greek errors relative to the baseline PINN, but it also introduces an additional loss balancing problem and may affect the price/PDE fit. For this reason, the benchmark later evaluates pricing and Greeks separately.
+
+The formulation below is an application specific hybrid inspired by Sobolev training \cite{czarnecki2017sobolev} and gradient enhanced PINN (gPINN) formulations \cite{yu2022gpinn}. It follows Sobolev Training in matching target derivatives, but unlike gPINN it does not penalize gradients of the PDE residual directly.
+
+The Sobolev variant keeps the original physics objective and adds supervised derivative terms on a dedicated set of Greek anchor points. Let
 \[
 \mathcal{L}_{\mathrm{base}}
 =
-\lambda_{\mathrm{pde}}\mathcal{L}_{\mathrm{pde}}
+\lambda_{\mathrm{PDE}}\mathcal{L}_{\mathrm{PDE}}
 +\lambda_{\mathrm{term}}\mathcal{L}_{\mathrm{term}}
-+\lambda_{\mathrm{low}}\mathcal{L}_{\mathrm{low}},
++\lambda_{\mathrm{bc}}\mathcal{L}_{\mathrm{bc}},
 \]
-and let \(\mathcal{S}_{\mathrm{g}}\) be a set of anchor points in the same input space
-\[
-x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
-\]
-For each \(x\in\mathcal{S}_{\mathrm{g}}\), reference sensitivities
-\(\mathcal{G}^{\star}(x)\) are obtained from the semi-analytical Heston characteristic-function map (Section~\ref{sec:heston_cf_greeks}), while \(\mathcal{G}_{\phi}(x)\) are computed from autodiff on the PINN output.
-
-To prevent scale dominance across Greeks, we use normalized residuals and split supervision into two blocks:
+The two Greek losses below are adapted from Sobolev training \cite{czarnecki2017sobolev} and derivative enriched PINN objectives such as gPINNs \cite{yu2022gpinn}. What we add here is the use of semi analytical Heston Greeks as derivative targets, together with a normalized split between first order Greeks and Gamma:
 \begin{align}
 \mathcal{L}_{\mathrm{g},1}
 &=
@@ -389,8 +377,7 @@ To prevent scale dominance across Greeks, we use normalized residuals and split 
 \sum_{q\in\mathcal{Q}_1}
 \left(
 \frac{q_{\phi}(x)-q^{\star}(x)}{s_q+\varepsilon}
-\right)^2,\qquad
-\mathcal{Q}_1=\{\mathrm{Delta},\mathrm{Vega}_{v},\mathrm{Theta},\mathrm{Rho}\},\\
+\right)^2,\\
 \mathcal{L}_{\mathrm{g},2}
 &=
 \frac{1}{|\mathcal{S}_{\mathrm{g}}|}
@@ -399,18 +386,18 @@ To prevent scale dominance across Greeks, we use normalized residuals and split 
 \frac{\mathrm{Gamma}_{\phi}(x)-\mathrm{Gamma}^{\star}(x)}{s_{\mathrm{Gamma}}+\varepsilon}
 \right)^2,
 \end{align}
-where \(s_q\) are fixed scale factors (e.g., robust quantiles of \(|q^\star|\) on \(\mathcal{S}_{\mathrm{g}}\)) and \(\varepsilon>0\) avoids numerical singularities near zero. The separation of \(\mathcal{L}_{\mathrm{g},2}\) for \(\mathrm{Gamma}\) gives independent control of curvature supervision, which is typically more unstable than first-order terms.
+where \(\mathcal{L}_{\mathrm{g},1}\) and \(\mathcal{L}_{\mathrm{g},2}\) are normalized Sobolev derivative matching losses, \(\mathcal{S}_{\mathrm{g}}\) is the Greek anchor set, \(x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\) is a PINN input point, and \(\mathcal{Q}_1=\{\mathrm{Delta},\mathrm{Vega}_{v},\mathrm{Theta},\mathrm{Rho}\}\) collects the first order Greeks supervised in \(\mathcal{L}_{\mathrm{g},1}\). For each \(q\in\mathcal{Q}_1\), \(q_{\phi}(x)\) is obtained by automatic differentiation of the PINN price surface \(V_\phi\), while \(q^{\star}(x)\) is the corresponding semi analytical Heston Greek computed from the characteristic function, as described in Section~\ref{sec:heston_cf_greeks}. The constants \(s_q\) and \(s_{\mathrm{Gamma}}\) are fixed scale factors, for example robust quantiles of the reference Greek magnitudes on \(\mathcal{S}_{\mathrm{g}}\), and \(\varepsilon>0\) prevents division by values close to zero. The Gamma term is kept separate because it is a second order sensitivity and is typically more unstable than the first order Greeks grouped in \(\mathcal{Q}_1\).
 
-The prototype objective is then
+The Sobolev PINN objective is then
 \begin{equation}
-\mathcal{L}_{\mathrm{proto}}
+\mathcal{L}_{\mathrm{Sob}}
 =
 \mathcal{L}_{\mathrm{base}}
 +\lambda_{\mathrm{g},1}\mathcal{L}_{\mathrm{g},1}
 +\lambda_{\mathrm{g},2}\mathcal{L}_{\mathrm{g},2}.
 \end{equation}
 
-From an optimization viewpoint, this formulation introduces additional multi-term imbalance risks, already documented in the PINN literature \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}. Therefore, the intended training strategy is two-stage: first, train the baseline PINN to a stable price solution; second, apply a short fine-tuning phase with gradually increased \((\lambda_{\mathrm{g},1},\lambda_{\mathrm{g},2})\), while monitoring possible regressions in price/PDE metrics.
+From an optimization viewpoint, this formulation introduces additional imbalance risks between loss terms, already documented in the PINN literature \cite{wang2021gradientpath,wang2022pinnntk,urban_2025}. The retained implementation therefore uses the trained baseline PINN as initialization and then applies a Sobolev refinement phase with Greek anchor losses, while monitoring possible regressions in price/PDE metrics.
 
 A stricter physics-informed alternative would be to differentiate the Heston PDE itself with respect to the state variables and penalize the residuals of the PDEs satisfied by the sensitivities. This is the type of Sobolev or sensitivity-equation route suggested in \cite{malandain2025deepsvm}. It has the advantage of reducing the dependence on external Greek labels, but it also introduces higher-order derivatives and additional loss-balancing difficulties. The experiment in this thesis therefore uses semi-analytical Heston Greeks as derivative targets: this makes the diagnostic controlled and directly comparable with the reference engine, while leaving sensitivity-PDE training as a natural extension.
 
@@ -418,30 +405,39 @@ A stricter physics-informed alternative would be to differentiate the Heston PDE
 \section{Analytical Control Variate Correction}
 \label{sec:pinn_acv_correction}
 
-The Sobolev variant of Section~\ref{sec:pinn_sobolev_training} reduces the derivative error of the PINN by adding explicit Greek information to the training objective. However, the most difficult region for the learned price surface remains structurally tied to the payoff itself. For a put option, the terminal condition introduced in Equation~\eqref{eq:european_put_payoff} has a kink at \(m=1\) and \(\tau=0\), as illustrated in Figure~\ref{fig:put_payoff}. The short-maturity at-the-money layer therefore contains a sharp curvature profile. Since second-order sensitivities such as Gamma are obtained by differentiating the learned surface, small price irregularities in this layer can generate disproportionately large Greek errors. This motivates a third variant, denoted PINN Sobolev+ACV, in which the Sobolev PINN is kept as the global model and an analytical control variate is activated only near the kink. Control variates are most commonly introduced as variance-reduction devices in Monte Carlo methods \cite{glasserman2004montecarlo}; here we use the same general principle in a deterministic neural setting, replacing a fragile local component of the learned surface by an analytical approximation. \todos{Revisar bibliografia: no esta claro si la combinacion PINN+Sobolev+ACV para Heston es original o si existe algun antecedente directo.} In Heston pricing, related control-variate ideas have also been used to stabilize numerical integrals in characteristic-function methods \cite{guterding_boenkost_2018}.
+The Sobolev variant of Section~\ref{sec:pinn_sobolev_training} reduces the derivative error of the PINN by adding explicit Greek information to the training objective. 
+However, the most difficult region for the learned price surface remains structurally tied to the payoff itself. 
+For a put option, the terminal condition introduced in Equation~\eqref{eq:european_put_payoff} has a kink at \(m=1\) and \(\tau=0\), as illustrated in Figure~\ref{fig:put_payoff}. 
+
+The short-maturity at-the-money layer therefore contains a sharp curvature profile. 
+Since second-order sensitivities such as Gamma are obtained by differentiating the learned surface, small price irregularities in this layer can generate disproportionately large Greek errors. 
+This motivates a third variant, denoted PINN Sobolev+ACV, in which the Sobolev PINN is kept as the global model and an analytical control variate is activated only near the kink. Control variates are most commonly introduced as variance-reduction devices in Monte Carlo methods \cite{glasserman2004montecarlo}, and related ideas have also been used in Heston pricing to stabilize characteristic-function based numerical procedures \cite{guterding_boenkost_2018}. 
+
+Here the control variate is used in a different way: not to stabilize a numerical integral, but to patch locally the part of the Sobolev PINN surface where autodiff Greeks are most fragile. 
+Thus, Sobolev+ACV is a hybrid correction for this benchmark, combining global Sobolev supervision with a local analytical correction near the short-maturity at-the-money kink.
 
 The correction is written in log-moneyness coordinates
 \[
 x=\log m,
 \]
-because the singular layer around the strike is naturally centered at \(x=0\). Let \(u_{\mathrm{Sob}}(z)\) be the price produced by the Sobolev PINN at
+because the singular layer around the strike is naturally centered at \(x=0\). This is the same log-moneyness convention used in the Heston-COS formulation of Section~\ref{sec:fourier_cos_method}, but here it is introduced only to center the local correction around the strike. Let \(V_{\mathrm{Sob}}(z)\) be the price produced by the Sobolev PINN at the input vector
 \[
 z=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
 \]
-The ACV model combines this global price with a local Black--Scholes put approximation \(u_{\mathrm{BS}}^{\mathrm{put}}\), following the pricing convention fixed in Section~\ref{sec:black_scholes_model} and using the instantaneous variance \(v\) as the local variance level \cite{black_scholes_1973}:
+The vector \(z\) contains the time to maturity, moneyness, current variance state, structural Heston parameters, and risk-free rate at which the global Sobolev surface is evaluated. Following the standard control-variate decomposition \cite{glasserman2004montecarlo}, the ACV model combines this global price with a local Black--Scholes put approximation \(V_{\mathrm{BS}}^{\mathrm{put}}\), using the pricing convention fixed in Section~\ref{sec:black_scholes_model} and the instantaneous variance \(v\) as the local variance level \cite{black_scholes_1973}:
 \begin{equation}
-u_{\mathrm{ACV}}(z)
+V_{\mathrm{ACV}}(z)
 =
-\left(1-\chi(\tau,x)\right)u_{\mathrm{Sob}}(z)
+\left(1-\chi(\tau,x)\right)V_{\mathrm{Sob}}(z)
 +\chi(\tau,x)
-\left(u_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r)+\tau R_{\eta}(z)\right).
+V_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r).
 \label{eq:pinn_acv_decomposition}
 \end{equation}
-Here \(R_{\eta}\) is a residual network that could learn the remaining Heston correction inside the patch. In the final diagnostic used in this thesis, this residual is initialized at zero and is not trained. Therefore, the reported Sobolev+ACV experiment isolates the effect of the analytical control variate and of the local blending mechanism, rather than adding another supervised Greek-fitting stage.
+In this expression, \(V_{\mathrm{ACV}}\) is the corrected price surface, \(\chi(\tau,x)\in[0,1]\) is the localization gate, \(V_{\mathrm{Sob}}\) is the global Sobolev PINN price, and \(V_{\mathrm{BS}}^{\mathrm{put}}\) is the analytical local component. Therefore, the reported Sobolev+ACV experiment isolates the effect of the analytical control variate and of the local blending mechanism, rather than adding another supervised Greek-fitting stage.
 
-Using the normalized-strike convention of Chapter~\ref{ch:background}, the Black--Scholes control variate is
+Using the normalized-strike convention of Chapter~\ref{ch:background}, the Black--Scholes control variate is obtained from the put formula in Equation~\eqref{eq:bs_put_formula} by setting \(K=1\), \(S=e^x\), and \(\sigma^2=v\):
 \begin{equation}
-u_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r)
+V_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r)
 =
 e^{-r\tau}\Phi(-d_2)-e^x\Phi(-d_1),
 \end{equation}
@@ -451,9 +447,9 @@ d_1=\frac{x+(r+\frac{1}{2}v)\tau}{\sqrt{v\tau+\varepsilon_{\mathrm{BS}}}},
 \qquad
 d_2=d_1-\sqrt{v\tau+\varepsilon_{\mathrm{BS}}},
 \end{equation}
-where \(\Phi\) is the standard normal cumulative distribution function and \(\varepsilon_{\mathrm{BS}}>0\) is a numerical floor; compare with Equations~\eqref{eq:bs_put_formula}--\eqref{eq:bs_d1_d2}. This expression is not used as a global replacement for the Heston price. It is only a local analytical component whose role is to encode the leading short-maturity payoff geometry around the strike.
+which is the same \(d_1,d_2\) construction as in Equations~\eqref{eq:bs_put_formula}--\eqref{eq:bs_d1_d2}, with the additional numerical floor \(\varepsilon_{\mathrm{BS}}>0\) to avoid division by zero when \(v\tau\) is very small. This expression is not used as a global replacement for the Heston price. It is only a local analytical component whose role is to encode the leading short-maturity payoff geometry around the strike.
 
-The localization is controlled by a smooth gate
+Following the standard use of sigmoidal functions as smooth approximations to step-like transitions \cite{cybenko1989}, the localization is controlled by the gate
 \begin{equation}
 \chi(\tau,x)
 =
@@ -461,7 +457,7 @@ The localization is controlled by a smooth gate
 \sigma\!\left(\frac{\tau_c-\tau}{\delta_\tau}\right),
 \label{eq:pinn_acv_gate}
 \end{equation}
-where \(\sigma\) is the logistic function. Thus \(\chi\) is close to one near short maturities and near \(x=0\), and it decays smoothly toward zero outside the patch. This avoids a discontinuous transition between the analytical approximation and the global Sobolev PINN.
+where \(\sigma\) is the logistic function, \(x_c\) and \(\tau_c\) set the half-width of the active region in log-moneyness and maturity, and \(\delta_x,\delta_\tau>0\) control how smooth the transition is. Thus \(\chi\) is close to one near short maturities and near \(x=0\), and it decays smoothly toward zero outside the patch. This avoids a discontinuous transition between the analytical approximation and the global Sobolev PINN.
 
 For evaluation, the hard region is defined as
 \begin{equation}
@@ -470,72 +466,29 @@ For evaluation, the hard region is defined as
 \left\{(m,\tau):|\log(m)|<0.03,\ \tau<0.05\right\}.
 \label{eq:pinn_acv_hard_region}
 \end{equation}
-This region is not a new training domain for the baseline PINN; it is a diagnostic set designed to measure whether the control variate reduces the outlier contribution generated by the payoff-kink layer. The broader PINN surface is still provided by \(u_{\mathrm{Sob}}\), and reference Greeks for the evaluation are computed with the characteristic-function machinery summarized in Section~\ref{sec:heston_cf_greeks}. The empirical effect of ACV is therefore assessed separately in Chapter~\ref{ch:performance_benchmarks}, where the local hard-region reading is compared with the global error metrics.
+The thresholds in Equation~\eqref{eq:pinn_acv_hard_region} select the short-maturity at-the-money neighborhood where the payoff kink dominates the derivative error: \(|\log(m)|<0.03\) keeps the grid close to the strike, and \(\tau<0.05\) restricts the diagnostic to very short maturities. This region is not a new training domain for the baseline PINN; it is a diagnostic set designed to measure whether the control variate reduces the outlier contribution generated by the payoff-kink layer. The broader PINN surface is still provided by \(V_{\mathrm{Sob}}\), and reference Greeks for the evaluation are computed with the characteristic-function machinery summarized in Section~\ref{sec:heston_cf_greeks}. The empirical effect of ACV is therefore assessed separately in Chapter~\ref{ch:performance_benchmarks}, where the local hard-region reading is compared with the global error metrics.
 
 \section{Greeks Computation}
 
-\subsection{Definition of Greeks from the PINN Output}
-
-Once the PINN has been trained, the network output is a differentiable approximation of the vanilla option price:
-\[
-u_\phi(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
-\]
-Therefore, sensitivities can be obtained directly as partial derivatives of this function, evaluated at a chosen market point. Let
-\[
-x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
-\]
-The first-order and second-order derivatives with respect to the input coordinates are denoted by
-\[
-\nabla_x u_\phi(x),\qquad \nabla_x^2 u_\phi(x).
-\]
-From these objects, standard trading Greeks are extracted as follows:
-\begin{align}
-\mathrm{Delta} &= \frac{\partial u_\phi}{\partial S},\\
-\mathrm{Gamma} &= \frac{\partial^2 u_\phi}{\partial S^2},\\
-\mathrm{Theta} &= \frac{\partial u_\phi}{\partial t}=-\frac{\partial u_\phi}{\partial \tau},\\
-\mathrm{Rho} &= \frac{\partial u_\phi}{\partial r}.
-\end{align}
+The Greek definitions used in this thesis were fixed in Section~\ref{sec:heston_model}, and the semi-analytical Heston references used for validation were summarized in Section~\ref{sec:heston_cf_greeks}. In the PINN branch, the additional point is computational: once the trained network represents the price surface \(V_\phi(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\), the required sensitivities are obtained by automatic differentiation of this learned surface.
 
 In this work, the spatial coordinate is moneyness \(m=S/K\), not spot directly. Hence a chain-rule conversion is required:
 \begin{align}
-\frac{\partial u_\phi}{\partial S} &= \frac{\partial u_\phi}{\partial m}\frac{\partial m}{\partial S}
-=\frac{1}{K}\frac{\partial u_\phi}{\partial m},\\
-\frac{\partial^2 u_\phi}{\partial S^2} &= \frac{1}{K^2}\frac{\partial^2 u_\phi}{\partial m^2}.
+\frac{\partial V_\phi}{\partial S} &= \frac{\partial V_\phi}{\partial m}\frac{\partial m}{\partial S}
+=\frac{1}{K}\frac{\partial V_\phi}{\partial m},\\
+\frac{\partial^2 V_\phi}{\partial S^2} &= \frac{1}{K^2}\frac{\partial^2 V_\phi}{\partial m^2}.
 \end{align}
 For the normalized-strike setup used in the thesis (\(K=1\)), both coordinate systems coincide numerically.
 
-Since the PINN state includes instantaneous variance \(v\), a natural model-consistent volatility sensitivity is
+The derivative computation is based on automatic differentiation over the computational graph of the trained network. For a single input point
 \[
-\mathrm{Vega}_{v}:=\frac{\partial u_\phi}{\partial v}.
+x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r),
 \]
-If needed, this can be transformed to a sensitivity with respect to volatility level \(\sigma_v=\sqrt{v}\):
+we compute
 \[
-\frac{\partial u_\phi}{\partial \sigma_v}=2\sqrt{v}\,\frac{\partial u_\phi}{\partial v}.
+V_\phi(x),\qquad J(x)=\nabla_x V_\phi(x),\qquad H(x)=\nabla_x^2 V_\phi(x).
 \]
-In addition, the parametric PINN provides direct structural sensitivities
-\[
-\frac{\partial u_\phi}{\partial \rho},\quad
-\frac{\partial u_\phi}{\partial \kappa},\quad
-\frac{\partial u_\phi}{\partial \gamma},\quad
-\frac{\partial u_\phi}{\partial \bar v},
-\]
-which are useful for risk decomposition and calibration diagnostics beyond classical desk Greeks.
+Because the model is differentiable end-to-end, these quantities are exact derivatives of the neural surrogate, up to floating-point precision, and not finite-difference approximations. This exactness is internal to the trained network: automatic differentiation differentiates \(V_\phi\), not the exact Heston price function. Therefore, the resulting Greeks are reliable only to the extent that the learned surface reproduces the local geometry of the Heston reference solution. This distinction is precisely what motivates the Sobolev and ACV variants introduced in Sections~\ref{sec:pinn_sobolev_training} and~\ref{sec:pinn_acv_correction}.
 
-\subsection{Automatic Differentiation of the PINN}
-
-The derivative computation is based on automatic differentiation over the computational graph of the trained network. For a single input point \(x\), we compute:
-\[
-u_\phi(x),\qquad J(x)=\nabla_x u_\phi(x),\qquad H(x)=\nabla_x^2 u_\phi(x).
-\]
-Because the model is differentiable end-to-end, these quantities are exact derivatives of the neural surrogate (up to floating-point precision), not finite-difference approximations.
-\todos{matizar que autodiff da derivadas exactas del surrogate, pero no garantiza griegas exactas del modelo heston; esto justifica sobolev y acv.}
-
-Compared with bump-and-reprice finite differences, this approach has three practical advantages in the PINN context:
-\begin{itemize}
-    \item it avoids step-size tuning and the associated truncation/cancellation trade-off;
-    \item it provides first- and second-order sensitivities in a single coherent graph;
-    \item it scales efficiently to batched inputs through vectorized Jacobian/Hessian evaluation.
-\end{itemize}
-
-From a financial perspective, the interpretation remains standard: each Greek is the local slope or curvature of the price surface produced by the PINN around the evaluation point. The quality of those sensitivities therefore depends on both the local smoothness of the trained network and the fidelity of the learned price function in that region.
+Compared with bump-and-reprice finite differences, this avoids choosing artificial perturbation sizes and removes the associated truncation/cancellation trade-off. It also keeps first- and second-order sensitivities within the same computational graph, which is useful when the evaluation is performed on batches of \((m,\tau)\) points. From a financial perspective, the interpretation remains standard: each Greek is the local slope or curvature of the price surface produced by the PINN around the evaluation point. The quality of those sensitivities therefore depends on both the local smoothness of the trained network and the fidelity of the learned price function in that region.
 This closes the link with the Heston dynamics introduced in Chapter~\ref{ch:background}: the PINN price surface is trained through the PDE implied by Equation~\ref{eq:heston_dynamics}, and the Greeks are then derivatives of that model-consistent learned surface.
