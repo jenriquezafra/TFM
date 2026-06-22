@@ -1,17 +1,53 @@
-\chapter{PINN Pricing Benchmark Setup}
+\chapter{PINN Benchmark Protocol}
 \label{app:pinn_pricing_benchmark_setup}
 
-\todos{Revisar si este apendice queda como setup de PINN baseline o si debe ampliarse para PINN Sobolev y PINN Sobolev+ACV.}
-The pricing benchmark compares a baseline parametric PINN against the COS/Heston reference under a common evaluation protocol and shared numerical conventions.
+This appendix records the evaluation protocol used for the PINN results in Chapter~\ref{ch:performance_benchmarks}. The methodological definitions of the baseline PINN, the Sobolev extension, and the analytical control variate are given in Chapter~\ref{ch:pinn_greeks}; here we only fix the conventions needed to reproduce the reported benchmarks.
 
-The evaluated model is the baseline parametric PINN without Sobolev terms. Inputs follow the 8-dimensional convention
+\section{Evaluated Runs}
+
+The final PINN comparison uses three stored runs:
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Final PINN artefacts used in the benchmark}\label{tab:pinn_final_artifacts}}
+    {\begin{tabular}{|P{3.0cm}|P{4.2cm}|P{4.2cm}|}
+        \hline
+        \textbf{Variant} & \textbf{Directory} & \textbf{Run name} \\
+        \hline
+        PINN baseline & \texttt{outputs/pinn} & \texttt{PINN\_mix\_scaled}\newline\texttt{fixed\_theta} \\
+        \hline
+        PINN Sobolev & \texttt{outputs/protos}\newline\texttt{sobolev\_mix}\newline\texttt{fixed\_theta} & \texttt{PINN\_mix\_scaled}\newline\texttt{fixed\_theta}\newline\texttt{20260420\_225517} \\
+        \hline
+        PINN Sobolev+ACV & \texttt{outputs/pinn} & \texttt{acv\_hard\_patch}\newline\texttt{sobolev\_control}\newline\texttt{variate\_best\_gate}\newline\texttt{tau\_floor\_5e4} \\
+        \hline
+        \multicolumn{3}{p{11.4cm}}{Source: Author's elaboration from stored experiment artefacts}
+    \end{tabular}}
+\end{table}
+These artefacts are evaluated without retraining. The baseline and Sobolev PINNs are compared on the common full-grid protocol, while the Sobolev+ACV variant is used for the localized hard-region diagnostic defined in Section~\ref{sec:pinn_acv_correction}.
+
+\section{Input And Reference Conventions}
+
+All PINN evaluations use the 8-dimensional input convention
 \[
 \left[\tau, m, v, \rho, \kappa, \gamma, \bar v, r\right],
 \]
-with affine standardization fitted on training statistics. Concretely, each feature \(x_j\) is transformed as
+where \(v\) is the current variance state. When the benchmark is evaluated at the calibrated market configuration, this coordinate is fixed to the calibrated value \(v_0^*\), while \((\rho^*,\kappa^*,\gamma^*,\bar v^*)\) define the Heston operator used by the trained model. Each input feature \(x_j\) is standardized with the affine map
 \[
 \tilde{x}_j=\frac{x_j-\mu_j^{\mathrm{train}}}{\sigma_j^{\mathrm{train}}},
 \]
-where \(\mu_j^{\mathrm{train}}\) and \(\sigma_j^{\mathrm{train}}\) are computed only on the training split and then reused unchanged in validation, test, and benchmark evaluation. This keeps features on comparable scales and stabilizes training and gradient computation, which is especially important in PINN settings; it also avoids data leakage from evaluation sets.
+using the training statistics stored with each run. These statistics are not refitted on the benchmark grids.
 
-The evaluation sample contains \(1.0\cdot10^4\) candidates, with \(9.996\cdot10^3\) valid comparisons after numerical filtering. COS pricing is computed with \(N=1500\), \(L=50\), and fallback \(L=80\), under European put convention (\(K=1\)) and no-arbitrage tolerance \(10^{-8}\). All reported metrics are computed in double precision on CPU.
+The numerical reference is the Heston--COS engine introduced in Section~\ref{sec:fourier_cos_method}, under the European put convention with normalized strike \(K=1\). The COS configuration uses \(N=1500\), \(L=50\), and fallback \(L=80\) in the same stability cases described in Appendix~\ref{app:cos_error}. Reference Greeks are computed from the Heston characteristic-function formulas of Section~\ref{sec:heston_cf_greeks}. All reported benchmark quantities are evaluated in double precision on CPU.
+
+\section{Benchmark Grids And Metrics}
+
+The full-grid PINN benchmark contains \(25\,921\) valid points over
+\[
+m\in[0.8,1.2],\qquad \tau\in[0.05,2.0].
+\]
+This grid is used for the baseline and Sobolev pricing comparison and for the full-grid Greek ablation in Section~\ref{sec:pinn_greeks_performance}. Metrics follow the definitions in Section~\ref{sec:benchmark_error_metrics}; the appendix does not repeat the formulas, since the same MSE, RMSE, and MAPE conventions are used throughout Chapter~\ref{ch:performance_benchmarks}.
+
+The Sobolev+ACV diagnostic is evaluated on the local short-maturity at-the-money region
+\[
+m\in[0.9704,1.0305],\qquad \tau\in[0.005,0.05].
+\]
+This separate grid is used only to test the hard-region correction. It is therefore not treated as a replacement for the full-grid Sobolev benchmark, but as a focused diagnostic for the remaining kink-driven Greek errors.

@@ -36,7 +36,7 @@ The experiments we are going to perform require repeated pricing calls, implied-
 This repetition can make the numerical experiment considerably more expensive, because the reference pricer is called many times across contract grids, calibration routines, and sensitivity diagnostics. 
 This repeated-use setting is where neural approximations become attractive.
 
-\fix{In this project, neural approximations enter the workflow through two different routes. One route learns the implied-volatility representation produced by the numerical reference from generated training examples, which gives the supervised ANN setting. The other route learns the option price surface more directly, using the structure of the Heston pricing problem during training, which gives the PINN setting. This distinction matters because the two models are trained in different output spaces and their errors must be interpreted differently.}
+In this project, neural approximations enter the workflow through two different routes. One route learns the implied-volatility representation produced by the numerical reference from generated training examples, which gives the supervised ANN setting. The other route learns the option price surface more directly, using the structure of the Heston pricing problem during training, which gives the PINN setting. This distinction matters because the two models are trained in different output spaces and their errors must be interpreted differently.
 
 A neural network can be trained to approximate a numerical pricing routine and then evaluated very quickly. 
 The idea is to pay the cost of generating accurate reference data once, and then train a model that can be evaluated much faster inside calibration or sensitivity workflows. 

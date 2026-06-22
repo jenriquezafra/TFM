@@ -942,7 +942,7 @@ def parse_args() -> argparse.Namespace:
         "--pinn-acv-csv",
         type=Path,
         default=Path(
-            "outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4/"
+            "outputs/pinn/PINN_Sobolev_ACV_final/"
             "diagnostics_fixed_theta_final/surface_diagnostics.csv"
         ),
     )

@@ -44,7 +44,7 @@ Los resultados finales de la memoria se apoyan en los siguientes runs y evaluaci
 | ANN supervisada | Evaluación de Greeks de la ANN Sobolev con parámetros de la PINN | `outputs/ann_iv_greeks/ANN_IV_Sobolev_v01_pinn_params_grid161` |
 | PINN no supervisada | PINN baseline | `outputs/pinn/PINN_mix_scaled_fixed_theta` |
 | PINN no supervisada | PINN Sobolev | `outputs/protos/sobolev_mix_fixed_theta/PINN_mix_scaled_fixed_theta_20260420_225517` |
-| PINN no supervisada | PINN Sobolev + ACV | `outputs/pinn/acv_hard_patch_sobolev_control_variate_best_gate_tau_floor_5e4` |
+| PINN no supervisada | PINN Sobolev + ACV | `outputs/pinn/PINN_Sobolev_ACV_final` |
 
 En los runs ANN, los checkpoints principales están en `checkpoints/model_best.pt` y las métricas en `metrics/`. En los runs PINN, los checkpoints y diagnósticos dependen de la variante: la PINN baseline guarda el entrenamiento en `train/`, mientras que las variantes Sobolev y Sobolev+ACV incluyen sus métricas y diagnósticos en `benchmark/`, `diagnostics*/` o `metrics/` según el caso.
 
