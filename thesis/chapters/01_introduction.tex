@@ -2,22 +2,23 @@
 \label{ch:introduction}
 
 \section{Motivation}
-Financial derivatives are financial contracts whose value is linked to the behaviour of an underlying market variable, such as an asset price, an interest rate, an index level, or an exchange rate \cite{hull_options}. 
+
+In the daily activity of financial markets, traders are not limited to buying and selling stocks. A substantial part of modern trading involves more sophisticated financial products, such as financial derivatives which are financial contracts whose value is linked to the behaviour of an underlying market variable \cite{hull_options}. 
 The payoff of the contract is then determined by how that underlying variable evolves up to the relevant exercise or maturity date.
 Options are one of the most common examples: they give the holder the right, but not the obligation, to buy or sell the underlying asset at a fixed strike price \(K\), with the contract ending at a specified maturity date \(T\). 
 A European option can only be exercised at that maturity date, which makes it simple to study in a controlled way but still rich enough to show the main numerical difficulties of derivative pricing.
 
-At a high level, derivative pricing is inherently a stochastic problem because the underlying assets are modelled as stochastic processes.
+Once the contract has been specified, the next step is to describe the uncertainty of the market variable on which it depends. At a high level, derivative pricing is inherently a stochastic problem because the underlying assets are modelled as stochastic processes.
 The uncertainty in future asset prices is therefore built directly into the mathematical framework used for valuation. 
 While the formal machinery of stochastic calculus is introduced in Chapter~\ref{ch:background}, the key point for now is that randomness is an intrinsic feature of the pricing model rather than an external source of noise.
 
 
-In practice, option pricing is not only a question of computing one price. 
+In practice, this modelling step matters because the same calculation is rarely done only once. 
 The same pricing model is often used many times: to generate prices for different strikes and maturities, to fit model parameters to quoted option prices, and to measure how sensitive the price is to change in the inputs. 
 These sensitivities, commonly referred to as Greeks, play a crucial role in the financial industry by enabling analysts to measure and manage the risks to which their portfolios are exposed. 
 Greeks also help identify and monitor pricing errors that may become increasingly significant in calibration or risk-management applications.
 
-A classical reference point is the Black-Scholes model \cite{black_scholes_1973}. It gives an explicit formula for European option prices in a simplified setting where volatility is assumed to be fixed. 
+The usual starting point is a simple model that can be computed explicitly. A classical reference point is the Black-Scholes model \cite{black_scholes_1973}. It gives an explicit formula for European option prices in a simplified setting where volatility is assumed to be fixed. 
 Here, volatility can be understood as the parameter that controls the intensity of the asset price fluctuations in the model.
 The model is still central because it provides a common reference for comparing option prices across strikes and maturities. In later chapters, this idea will also be connected to the market convention of expressing option prices through an equivalent volatility level.
 The limitation of Black-Scholes is that a single fixed volatility is usually not flexible enough to represent option prices across different strikes and maturities.
@@ -80,6 +81,7 @@ This makes it possible to evaluate neural methods under explicit numerical condi
 Using this reference as the common benchmark, we study two families of neural network approaches. 
 The first is a supervised artificial neural network (ANN) surrogate trained to approximate the implied-volatility surface generated from the Heston reference. 
 This branch contains the ANN baseline and its Sobolev-augmented version.
+Here, Sobolev augmentation means that the network is trained not only to match target values, but also to use derivative information related to Greeks, so that the learned surface has a more reliable local shape.
 This surrogate is then used inside a calibration routine, where the objective is to recover model parameters efficiently from option quotes. 
 The second approach is a physics-informed neural network (PINN) trained without direct price labels and used to approximate the option price surface directly from the Heston pricing equation. 
 Since this learned price surface is differentiable, it can also be used to compute Greeks through automatic differentiation \cite{baydin2018autodiff}. 
