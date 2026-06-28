@@ -260,11 +260,11 @@ hmargin=3cm
 \setcounter{page}{3}
 	Neural methods offer a way to accelerate Heston option analytics, but their usefulness depends on whether they remain reliable when pricing, calibration, and Greek estimation are treated as connected tasks. Previous work has shown that neural surrogates can approximate option prices or implied-volatility surfaces efficiently. However, small pricing errors do not necessarily imply stable calibration or accurate sensitivities, especially near short maturities and at-the-money contracts, where the pricing surface changes rapidly.
 
-	This thesis studies European put options under the Heston model through a controlled synthetic benchmark. We first build a deterministic numerical reference for prices, implied volatilities, and Greeks, and then use it to evaluate two neural branches: a supervised ANN branch for implied-volatility learning and calibration, and a physics-informed PINN branch for direct price-surface approximation.
+	This thesis studies European put options under the Heston model through a controlled synthetic benchmark. We first build a deterministic numerical reference for prices, implied volatilities, and Greeks, and then use it to evaluate two neural branches: a supervised artificial neural network (ANN) branch for implied-volatility learning and calibration, and a physics-informed neural network (PINN) branch for direct price-surface approximation.
 
-	The results show that the supervised ANN branch gives the strongest performance for calibration and Greek estimation: Sobolev training substantially improves derivative accuracy, and the Sobolev-based CaNN provides the best calibration fit on the replicated benchmark. The PINN branch has the advantage of learning without price labels and provides a fast differentiable pricing surface, but its Greek estimates are more fragile; Sobolev and analytic control variate corrections reduce this weakness, especially in difficult short-maturity at-the-money regions.
+	The results show that the supervised ANN branch gives the strongest performance for calibration and Greek estimation: Sobolev training substantially improves derivative accuracy, and the Sobolev-based calibration neural network (CaNN) provides the best calibration fit on the replicated benchmark. The PINN branch has the advantage of learning without price labels and provides a fast differentiable pricing surface, but its Greek estimates are more fragile; Sobolev and analytic control variate corrections reduce this weakness, especially in difficult short-maturity at-the-money regions.
 	
-		\textbf{Keywords:} Heston model; derivative pricing; calibration; neural networks ;physics-informed neural networks; Greeks; Sobolev training
+		\textbf{Keywords:} Heston model; derivative pricing; calibration; neural networks; physics-informed neural networks; Greeks; Sobolev training
 	
 	\vfill
 \end{abstract}

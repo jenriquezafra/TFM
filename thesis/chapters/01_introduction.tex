@@ -9,7 +9,7 @@ A European option can only be exercised at that maturity date, which makes it si
 
 At a high level, derivative pricing is inherently a stochastic problem because the underlying assets are modelled as stochastic processes.
 The uncertainty in future asset prices is therefore built directly into the mathematical framework used for valuation. 
-While the formal machinery of stochastic calculus is introduced in Chapter \ref{ch:background}, the key point for now is that randomness is an intrinsic feature of the pricing model rather than an external source of noise.
+While the formal machinery of stochastic calculus is introduced in Chapter~\ref{ch:background}, the key point for now is that randomness is an intrinsic feature of the pricing model rather than an external source of noise.
 
 
 In practice, option pricing is not only a question of computing one price. 
@@ -24,15 +24,17 @@ The limitation of Black-Scholes is that a single fixed volatility is usually not
 
 
 This work uses the Heston model \cite{heston} because it relaxes this constant-volatility assumption while keeping the problem numerically tractable. In Heston, the variance of the asset is itself modelled as a random process.
-This allows the model to represent richer price patterns than Black-Scholes, especially when prices vary across strikes and maturities. At the same time, Heston keeps enough mathematical structure to be priced numerically by the Fourier-COS method introduced in Chapter \ref{ch:background}.
+This allows the model to represent richer price patterns than Black-Scholes, especially when prices vary across strikes and maturities. At the same time, Heston keeps enough mathematical structure to be priced numerically by the Fourier-COS method introduced in Chapter~\ref{ch:background}.
 This extra flexibility also makes calibration more difficult. In this context, calibration means choosing the model parameters so that the model reproduces a given set of option quotes. Under Black-Scholes, the main volatility input is much simpler to handle; under Heston, several interacting parameters must be fitted at the same time.
 
-A standard way to compute the price of derivatives when no analytical solution or other numerical methods are available are  Monte Carlo methods \cite{boyle1977montecarlo}. The idea is to simulate many possible future paths of the underlying asset and average the resulting discounted payoffs.
-This approach is flexible because it can be adapted to many payoff structures and model dynamics. However, the probabilistic nature of Monte Carlo methods leads to statistical errors that can only be reduced through a large number of simulations \cite{glasserman2004montecarlo}, making these methods computationally expensive in repeated-use settings.
+A standard way to compute the price of derivatives when no analytical solution or other numerical methods are available is to use Monte Carlo methods \cite{boyle1977montecarlo}. 
+The idea is to simulate many possible future paths of the underlying asset and average the resulting discounted payoffs under the risk-neutral measure.
+This approach is flexible because it can be adapted to many payoff structures and model dynamics. 
+However, the probabilistic nature of Monte Carlo methods leads to statistical errors that can only be reduced through a large number of simulations \cite{glasserman2004montecarlo}, making these methods computationally expensive in repeated-use settings.
 
 Explicit pricing formulas suitable for deterministic methods such as COS are available only in restricted cases. 
-This thesis deals with one of those favored cases: European put options, where  deterministic Heston-COS reference is more appropriate. 
-The experiments we are going to perform require repeated pricing calls, implied-volatility generation, calibration tests, and Greek benchmarks
+This thesis deals with one of those favored cases: European put options, where a deterministic Heston-COS reference is more appropriate. 
+The experiments we are going to perform require repeated pricing calls, implied-volatility generation, calibration tests, and Greek benchmarks.
 This repetition can make the numerical experiment considerably more expensive, because the reference pricer is called many times across contract grids, calibration routines, and sensitivity diagnostics. 
 This repeated-use setting is where neural approximations become attractive.
 
@@ -45,7 +47,7 @@ This is the motivation behind neural pricing and calibration approaches such as 
 However, speed alone is not sufficient in a financial workflow. 
 A learned component is useful only if its errors can be measured, if its weak regions can be detected and if its outputs remain reliable when used in calibration or sensitivity analysis.
 The question this thesis aims to answer is not whether neural networks can be fast, but whether they can be assessed in a way that is meaningful for a pricing workflow. 
-The next section makes this context precise by defining the benchmark problem, the role of the Heston model, and the downstream task used to evaluate reliability
+The next section makes this context precise by defining the benchmark problem, the role of the Heston model, and the downstream task used to evaluate reliability.
 
 
 \section{Problem Setting}
@@ -82,7 +84,7 @@ This surrogate is then used inside a calibration routine, where the objective is
 The second approach is a physics-informed neural network (PINN) trained without direct price labels and used to approximate the option price surface directly from the Heston pricing equation. 
 Since this learned price surface is differentiable, it can also be used to compute Greeks through automatic differentiation \cite{baydin2018autodiff}. 
 In this branch, we compare the PINN baseline with a Sobolev-augmented PINN and with a further analytic control variate (ACV) correction, which uses an analytic reference component to improve the stability of the learned sensitivities.
-The complete structure of this benchmarked workflow is summarized in Figure \ref{fig:intro_pipeline}.
+The complete structure of this benchmarked workflow is summarized in Figure~\ref{fig:intro_pipeline}.
 
 
 \begin{figure}[H]
@@ -166,7 +168,7 @@ The Greek analysis is treated as a separate problem because automatic differenti
 
 \section{State of the Art}
 
-The literature relevant to this thesis sits at the intersection of numerical option pricing, model calibration, and neural approximation. Classical model-based pricing provides the financial foundation. The Black--Scholes model gives a closed-form benchmark under constant volatility \cite{black_scholes_1973}, while the Heston model extends this framework by introducing stochastic variance and semi-analytical pricing formulas \cite{heston}. Simulation-based approaches, especially Monte Carlo methods, are also a central reference in derivative pricing because of their flexibility across payoffs and dynamics \cite{boyle1977montecarlo}. Their main drawback in the present setting is that repeated simulation can be expensive and introduces sampling noise, which is inconvenient when the objective is to build deterministic benchmarks for calibration and Greek diagnostics.
+The literature relevant to this thesis sits at the intersection of numerical option pricing, model calibration, and neural approximation. Classical model-based pricing provides the financial foundation. The Black-Scholes model gives a closed-form benchmark under constant volatility \cite{black_scholes_1973}, while the Heston model extends this framework by introducing stochastic variance and semi-analytical pricing formulas \cite{heston}. Simulation-based approaches, especially Monte Carlo methods, are also a central reference in derivative pricing because of their flexibility across payoffs and dynamics \cite{boyle1977montecarlo}. Their main drawback in the present setting is that repeated simulation can be expensive and introduces sampling noise, which is inconvenient when the objective is to build deterministic benchmarks for calibration and Greek diagnostics.
 
 Fourier and spectral methods provide another important line of work.
 When the characteristic function of the model is available, transform methods can price options accurately without simulating paths. 
@@ -187,7 +189,7 @@ Table~\ref{tab:state_of_art_blocks} summarizes these methodological blocks and c
         \hline
         \textbf{Block} & \textbf{Representative methods} & \textbf{Role in this thesis} & \textbf{Main limitations} \\
         \hline
-        Numerical reference & Black--Scholes, Heston, COS pricing \cite{black_scholes_1973,heston,fang_oosterlee_2009} & Deterministic prices, implied-volatility labels, and Greek references & Requires careful numerical setup and stable inversion \\
+        Numerical reference & Black-Scholes, Heston, COS pricing \cite{black_scholes_1973,heston,fang_oosterlee_2009} & Deterministic prices, implied-volatility labels, and Greek references & Requires careful numerical setup and stable inversion \\
         \hline
         ANN surrogate family & ANN baseline, ANN Sobolev, CaNN calibration \cite{liu,czarnecki2017sobolev} & Supervised implied-volatility surrogate and calibration block & Depends on labelled synthetic data and interpolation-domain validity \\
         \hline

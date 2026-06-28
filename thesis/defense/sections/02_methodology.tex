@@ -1,25 +1,25 @@
 \section{Methodology}
 
-\begin{frame}{Methodological pipeline}
-  \begin{enumerate}
-    \item Generate or collect option data under the selected volatility model.
-    \item Price options with the numerical benchmark.
-    \item Train surrogate models on controlled parameter domains.
-    \item Evaluate prices, implied volatilities, calibration, and Greeks.
-  \end{enumerate}
+\begin{frame}{Supervised branch: ANN/CaNN}
+  \centering
+  \workflowdiagram{1}{0.23}
+
+  \vspace{4mm}
+  \begin{itemize}
+    \item The ANN learns the Heston implied-volatility surface from COS/Brent labels.
+    \item Sobolev augmentation adds derivative information to improve the local geometry of the learned IV surface.
+    \item CaNN uses the frozen ANN as a fast evaluator inside the inverse calibration problem.
+  \end{itemize}
 \end{frame}
 
-\begin{frame}{Models and algorithms}
-  \begin{columns}[T,onlytextwidth]
-    \begin{column}{0.48\textwidth}
-      \begin{block}{Numerical benchmark}
-        Placeholder for COS method \cite{fang_oosterlee_2009}, Black-Scholes utilities, and implied volatility inversion.
-      \end{block}
-    \end{column}
-    \begin{column}{0.48\textwidth}
-      \begin{block}{Learning-based components}
-        Placeholder for ANN surrogate, CaNN calibration \cite{liu}, PINN losses, and Greek adapters.
-      \end{block}
-    \end{column}
-  \end{columns}
+\begin{frame}{Physics-informed branch: PINN}
+  \centering
+  \workflowdiagram{0.23}{1}
+
+  \vspace{4mm}
+  \begin{itemize}
+    \item The baseline PINN learns the put price surface from the Heston PDE, terminal payoff, and boundary conditions.
+    \item Sobolev PINN adds Greek targets and is interpreted through a pricing--Greek trade-off.
+    \item Sobolev+ACV is a local analytical correction for the short-maturity ATM region.
+  \end{itemize}
 \end{frame}

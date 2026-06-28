@@ -1,8 +1,8 @@
 \chapter{Global Notation Glossary}
 \label{app:global_glossary}
 
-This appendix contains a global glossary of symbols used throughout the thesis.
-It is intended as a living reference and can be expanded as additional notation appears in later revisions.
+This appendix contains a global glossary of the main symbols used throughout the thesis.
+Its purpose is to keep the notation consistent across the analytical background, the supervised ANN branch, the PINN branch, and the benchmark appendices.
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
@@ -11,11 +11,9 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         \textbf{Symbol} & \textbf{Meaning} \\
         \hline
-        $(\Omega,\mathcal F,(\mathcal F_t),\mathbb P)$ & Filtered probability space: outcomes, measurable events, information available over time, and original probability measure. \\
-        \hline
         $t,\;T,\;\tau$ & Valuation time, maturity, and time to maturity ($\tau=T-t$). \\
         \hline
-        $S_t,\;K,\;m$ & Spot price, strike, and moneyness ($m=S_0/K$ for quote grids, $m=S/K$ as a PDE coordinate). \\
+        $S_t,\;K,\;m_0,\;m,\;x$ & Spot price, strike, fixed-date moneyness \(m_0=S_0/K\), PDE moneyness \(m=S/K\), and log-moneyness \(x=\log m\). \\
         \hline
         $r$ & Constant risk-free interest rate. \\
         \hline
@@ -25,21 +23,15 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         $V(t_0,x)$ & Option value at valuation time $t_0$ when the state variable is $x$. \\
         \hline
-        $V_{BS},\;V_{\text{target}}$ & Black--Scholes option value and target option value used in IV inversion. \\
+        $V_{BS},\;V_{\text{target}}$ & Black-Scholes option value and target option value used in IV inversion. \\
         \hline
         $\Psi,\;\Psi_{\mathrm{put}}$ & Option payoff function at maturity; for the thesis pricing target, $\Psi_{\mathrm{put}}=(K-S_T)^+$. \\
         \hline
-        $X_t,\;x,\;y$ & State variable and its initial/terminal values, typically $x=X(t_0)$ and $y=X(T)$. \\
-        \hline
-        $F_X,\;f_X$ & Cumulative distribution function and probability density function of $X$. \\
-        \hline
         $\theta$ & Generic model-parameter vector. \\
         \hline
-        $\mu$ & Generic drift under the original probability measure. \\
-        \hline
-        $W_t^{(S)},\;W_t^{(\nu)}$ & Brownian motions driving the spot and variance processes. \\
-        \hline
         $\kappa,\;\bar\nu,\;\gamma,\;\rho,\;\nu_0$ & Heston parameters: mean reversion, long-run variance, vol-of-vol, correlation, and initial variance. Later chapters also use $\bar v$ and $v_0$ for the variance parameters. \\
+        \hline
+        $\nu_t,\;v,\;\bar v,\;v_0$ & Variance process and implementation notation for the PINN/ANN chapters: current variance state, long-run variance, and initial variance. \\
         \hline
         \multicolumn{2}{l}{Source: Author's elaboration}
     \end{tabular}}
@@ -47,7 +39,30 @@ It is intended as a living reference and can be expanded as additional notation 
 
 \begin{table}[H]
     \ttabbox[\FBwidth]
-    {\caption{Global notation glossary: neural benchmark notation}}
+    {\caption{Global notation glossary: probability and stochastic-calculus notation}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
+        \hline
+        \textbf{Symbol} & \textbf{Meaning} \\
+        \hline
+        $(\Omega,\mathcal F,(\mathcal F_t),\mathbb P)$ & Filtered probability space: outcomes, measurable events, information available over time, and original probability measure. \\
+        \hline
+        $X_t,\;x,\;y$ & State variable and its initial/terminal values, typically \(x=X(t_0)\) and \(y=X(T)\). \\
+        \hline
+        $F_X,\;f_X$ & Cumulative distribution function and probability density function of \(X\). \\
+        \hline
+        $\mu$ & Generic drift under the original probability measure. \\
+        \hline
+        $W_t^{(S)},\;W_t^{(\nu)}$ & Brownian motions driving the spot and variance processes. \\
+        \hline
+        $\mathcal{L}$ & Infinitesimal generator of a diffusion, used in the Feynman--Kac pricing equation. \\
+        \hline
+        \multicolumn{2}{l}{Source: Author's elaboration}
+    \end{tabular}}
+\end{table}
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Global notation glossary: ANN and CaNN notation}}
     {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
         \hline
         \textbf{Symbol} & \textbf{Meaning} \\
@@ -58,7 +73,7 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         $f_{NN},\;\mathbf{x},\;\mathbf{w},\;\hat\sigma_{\mathrm{imp}}$ & ANN implied-volatility map, input vector, trainable weights and biases, and predicted implied volatility. In Chapter~\ref{ch:ann_surrogate}, \(\mathbf{x}=(\rho,\kappa,\gamma,\bar v,v_0,m,\tau,r)\). \\
         \hline
-        $\hat V_{\mathrm{ANN}},\;\mathrm{Greek}_{\mathrm{ANN}}(q)$ & Price and sensitivity obtained from the ANN predicted implied volatility by composing it with the Black--Scholes pricing convention and differentiating with respect to input direction \(q\). \\
+        $\hat V_{\mathrm{ANN}},\;\mathrm{Greek}_{\mathrm{ANN}}(q)$ & Price and sensitivity obtained by substituting the ANN predicted implied volatility into the Black-Scholes formula and differentiating the resulting price with respect to input direction \(q\). \\
         \hline
         $\mathcal{L}_{\mathrm{MSE}}$ & Baseline ANN mean-squared-error loss in implied-volatility space. \\
         \hline
@@ -68,19 +83,16 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         $B,\;B_{\mathrm{Sob}},\;\lambda_{\mathrm{Sob}}$ & Baseline mini-batch size, Sobolev mini-batch size, and weight of the Sobolev derivative loss in the ANN Sobolev objective. \\
         \hline
-        PINN baseline, PINN Sobolev, PINN Sobolev+ACV & Physics-informed price-surface variants. The baseline PINN is the PDE-trained pricing model; the Sobolev variant adds derivative targets; the ACV variant adds an analytic control-variate correction for the hard short-maturity ATM region. \\
+        \multicolumn{2}{l}{Source: Author's elaboration}
+    \end{tabular}}
+\end{table}
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Global notation glossary: calibration diagnostics}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
         \hline
-        $u_\phi$ & Neural price surface produced by the PINN, with trainable parameters $\phi$. \\
-        \hline
-        $\mathcal{R}_\phi$ & Heston PDE residual evaluated on the PINN output. \\
-        \hline
-        $\mathcal{L}_{\mathrm{PDE}},\;\mathcal{L}_{\mathrm{term}},\;\mathcal{L}_{\mathrm{low}}$ & Baseline PINN loss terms for the interior PDE residual, terminal payoff, and lower-boundary condition. \\
-        \hline
-        $\mathcal{G}^{\star}(x),\;\mathcal{G}_{\phi}(x)$ & Reference Greek vector and PINN autodiff Greek vector at input point $x$. \\
-        \hline
-        $\mathcal{L}_{\mathrm{g},1},\;\mathcal{L}_{\mathrm{g},2}$ & Sobolev Greek loss terms for first-order sensitivities and Gamma supervision. \\
-        \hline
-        $\lambda_{\mathrm{PDE}},\;\lambda_{\mathrm{term}},\;\lambda_{\mathrm{low}},\;\lambda_{\mathrm{g},1},\;\lambda_{\mathrm{g},2}$ & Loss weights for the PINN baseline terms and the Sobolev derivative terms. \\
+        \textbf{Symbol} & \textbf{Meaning} \\
         \hline
         $\Theta,\;\Theta^\star$ & Heston parameter tuple and calibrated parameter tuple used when evaluating trained models. \\
         \hline
@@ -88,9 +100,75 @@ It is intended as a living reference and can be expanded as additional notation 
         \hline
         $\mathrm{cond}_{\mathrm{abs}}(H)$ & Hessian condition number computed from absolute eigenvalues. \\
         \hline
-        $\mathcal{D}_{\mathrm{hard}}$ & Hard short-maturity ATM region used in the ACV diagnostic. \\
+        \multicolumn{2}{l}{Source: Author's elaboration}
+    \end{tabular}}
+\end{table}
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Global notation glossary: PINN notation}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
         \hline
-        $p_{99}$ & Ninety-ninth percentile of the reported error distribution. \\
+        \textbf{Symbol} & \textbf{Meaning} \\
+        \hline
+        PINN baseline, PINN Sobolev, PINN Sobolev+ACV & Physics-informed price-surface variants. The baseline PINN is the PDE-trained pricing model; the Sobolev variant adds derivative targets; the ACV variant adds an analytic control-variate correction for the hard short-maturity ATM region. \\
+        \hline
+        $u_\phi,\;V_\phi$ & Neural price surface produced by the PINN, with trainable parameters $\phi$. \\
+        \hline
+        $\mathcal{R}_\phi$ & Heston PDE residual evaluated on the PINN output. \\
+        \hline
+        $\mathcal{S}_D,\;\mathcal{S}_T,\;\mathcal{S}_{\mathrm{low}}$ & Interior, terminal, and lower-boundary collocation sets used in baseline PINN training. \\
+        \hline
+        $\mathcal{L}_{\mathrm{PDE}},\;\mathcal{L}_{\mathrm{term}},\;\mathcal{L}_{\mathrm{bc}}$ & Baseline PINN loss terms for the interior PDE residual, terminal payoff, and boundary condition. \\
+        \hline
+        $\mathcal{L}_{\mathrm{PINN}},\;\mathcal{L}_{\mathrm{base}},\;\mathcal{L}_{\mathrm{Sob}}$ & Total baseline PINN objective, weighted baseline objective used in Sobolev refinement, and total Sobolev PINN objective. \\
+        \hline
+        $\mathcal{G}^{\star}(x),\;\mathcal{G}_{\phi}(x)$ & Reference Greek vector and PINN autodiff Greek vector at input point $x$. \\
+        \hline
+        $\mathcal{S}_{\mathrm{g}},\;\mathcal{Q}_1$ & Greek anchor set and set of first-order Greek directions used in the Sobolev PINN loss. \\
+        \hline
+        $q_{\phi}(x),\;q^{\star}(x)$ & PINN autodiff sensitivity and semi-analytical Heston reference sensitivity for Greek direction \(q\). \\
+        \hline
+        $\mathcal{L}_{\mathrm{g},1},\;\mathcal{L}_{\mathrm{g},2}$ & Sobolev Greek loss terms for first-order sensitivities and Gamma supervision. \\
+        \hline
+        $s_q,\;s_{\mathrm{Gamma}},\;\varepsilon$ & Scale factors used to normalize Sobolev Greek errors and numerical stabilizer used in the denominator. \\
+        \hline
+        $\begin{gathered}\lambda_{\mathrm{PDE}},\;\lambda_{\mathrm{term}},\;\lambda_{\mathrm{bc}}\\ \lambda_{\mathrm{g},1},\;\lambda_{\mathrm{g},2}\end{gathered}$ & Loss weights for the PINN baseline terms and the Sobolev derivative terms. \\
+        \hline
+        $V_{\mathrm{PINN}},\;V_{\mathrm{ref}}$ & PINN price and numerical reference price used in pricing benchmark residuals. \\
+        \hline
+        $p_{\alpha}$ & Empirical \(\alpha\)-quantile of a reported error distribution; for example, \(p_{95}\) and \(p_{99}\). \\
+        \hline
+        \multicolumn{2}{l}{Source: Author's elaboration}
+    \end{tabular}}
+\end{table}
+
+\begin{table}[H]
+    \ttabbox[\FBwidth]
+    {\caption{Global notation glossary: analytical control variate notation}}
+    {\begin{tabular}{|P{4.0cm}|P{7.8cm}|}
+        \hline
+        \textbf{Symbol} & \textbf{Meaning} \\
+        \hline
+        $z$ & PINN input vector, usually \(z=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r)\). \\
+        \hline
+        $V_{\mathrm{Sob}}(z)$ & Price produced by the Sobolev PINN before the analytical control-variate correction. \\
+        \hline
+        $V_{\mathrm{ACV}}(z)$ & Corrected price surface obtained by blending the Sobolev PINN with a local analytical component. \\
+        \hline
+        $V_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r)$ & Local Black-Scholes put component used inside the ACV correction, with \(x=\log m\) and local variance level \(v\). \\
+        \hline
+        $\chi(\tau,x)$ & Smooth localization gate that activates the analytical correction near the short-maturity at-the-money region. \\
+        \hline
+        $\sigma(\cdot)$ & Logistic function used to build the ACV localization gate. \\
+        \hline
+        $x_c,\;\tau_c$ & Half-width parameters controlling the active log-moneyness and maturity region of the ACV gate. \\
+        \hline
+        $\delta_x,\;\delta_\tau$ & Smoothness parameters controlling the transition of the ACV gate in log-moneyness and maturity. \\
+        \hline
+        $\varepsilon_{\mathrm{BS}}$ & Numerical floor used in the local Black-Scholes component to avoid division by zero when \(v\tau\) is very small. \\
+        \hline
+        $\mathcal{D}_{\mathrm{hard}}$ & Short-maturity at-the-money diagnostic region used to evaluate the ACV correction. \\
         \hline
         \multicolumn{2}{l}{Source: Author's elaboration}
     \end{tabular}}

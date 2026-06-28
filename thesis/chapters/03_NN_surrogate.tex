@@ -2,7 +2,7 @@
 \label{ch:ann_surrogate}
 \label{ch:cann}
 
-The main objective of this chapter is to construct the supervised neural block used in the thesis for Heston pricing, calibration, and sensitivity analysis. After the Black--Scholes implied-volatility convention (Section~\ref{sec:black_scholes_model}), the Heston dynamics (Section~\ref{sec:heston_model}), and the COS reference solver (Section~\ref{sec:fourier_cos_method}) have been fixed in Chapter~\ref{ch:background}, we now move from the numerical pricing layer to its supervised neural approximation. Within this block, we distinguish two final ANN pricers. The first one is the baseline ANN, which learns the Heston implied-volatility surface as a supervised regression problem and approximates the forward map
+The main objective of this chapter is to construct the supervised neural block used in the thesis for Heston pricing, calibration, and sensitivity analysis. After the Black-Scholes implied-volatility convention (Section~\ref{sec:black_scholes_model}), the Heston dynamics (Section~\ref{sec:heston_model}), and the COS reference solver (Section~\ref{sec:fourier_cos_method}) have been fixed in Chapter~\ref{ch:background}, we now move from the numerical pricing layer to its supervised neural approximation. Within this block, we distinguish two final ANN pricers. The first one is the baseline ANN, which learns the Heston implied-volatility surface as a supervised regression problem and approximates the forward map
 \[
 (\Theta,m,\tau,r)\mapsto \sigma_{imp}.
 \]
@@ -101,7 +101,7 @@ In the baseline configuration, no explicit feature or target normalization is ap
 Data quality control is integrated in the synthesis pipeline through explicit flags, not hard row deletion by default. In particular, we track Brent inversion status and the absolute price reconstruction residual associated with the IV inversion of Section~\ref{sec:iv_numerical_inversion}. Keeping these quantities in the table makes the filtering rule auditable: a later experiment can state exactly whether it used all rows, only successful IV inversions, only Feller-admissible rows, or a stricter residual threshold. For storage efficiency, output tables are persisted in \texttt{float32}, whereas COS pricing and Brent inversion are computed internally in \texttt{float64}.
 
 \subsection{Numerical Label Generation (COS + Brent)}
-Each label is produced in two deterministic numerical steps already defined in the background chapter. First, the target option value is computed with the Heston-COS solver for the sampled feature vector. Second, that value is converted to implied volatility using the Brent inversion routine from Section~\ref{sec:iv_numerical_inversion}. Thus, the ANN target is a Heston-consistent implied volatility, not an independently assumed Black--Scholes volatility.
+Each label is produced in two deterministic numerical steps already defined in the background chapter. First, the target option value is computed with the Heston-COS solver for the sampled feature vector. Second, that value is converted to implied volatility using the Brent inversion routine from Section~\ref{sec:iv_numerical_inversion}. Thus, the ANN target is a Heston-consistent implied volatility, not an independently assumed Black-Scholes volatility.
 
 In our implementation, Brent is configured with strict numerical controls (absolute tolerance $10^{-8}$, bounded search interval, and iteration cap). Additionally, when the inferred volatility hits the lower IV floor, an adaptive COS fallback can be triggered by widening the truncation interval before retrying inversion. This is the same numerical-error concern discussed in Appendix~\ref{app:cos_error}: COS labels must be stable because they are later treated as supervised targets.
 
@@ -128,7 +128,7 @@ with trainable parameters $\mathbf{w}$.
 
 Once $\mathbf{w}$ is fixed after training, inference is deterministic: for the same input $\mathbf{x}$, the network always returns the same prediction $\hat \sigma_{imp}$. This property is important for downstream calibration and sensitivity analysis, where numerical consistency across repeated calls is required.
 
-The FCNN acts as a surrogate only at inference time. Target labels are still generated with the numerical pipeline (Heston COS pricing followed by implied-volatility inversion), so the network learns to emulate that reference solver on the sampled domain.
+The FCNN acts as a surrogate only at inference time. Target labels are still generated with the numerical pipeline (Heston-COS pricing followed by implied-volatility inversion), so the network learns to emulate that reference solver on the sampled domain.
 
 \subsection{Architecture Details}
 The selected architecture used in the final pipeline is
@@ -252,7 +252,7 @@ the price implied by the ANN output is obtained as
 \hat V_{\mathrm{ANN}} =
 V_{BS}(m,\tau,r,\hat\sigma_{\mathrm{imp}}).
 \]
-Greeks are then computed by differentiating this composed map with respect to the relevant input variable \(q\):
+Greeks are then computed by applying the Black-Scholes formula with the ANN-implied volatility and differentiating the resulting price with respect to the relevant input variable \(q\):
 \begin{equation}
 \label{eq:ann_greek_composed_map}
 \mathrm{Greek}_{\mathrm{ANN}}(q)
@@ -434,8 +434,8 @@ The calibration configuration is kept inside the interpolation domain of the ANN
 
 The selected solution is assessed at two levels. First, quote-level residuals check whether the implied-volatility surface is reproduced. Second, parameter diagnostics check whether the selected optimum is locally stable. Around a low-residual optimum, the residual data term can be read through the Gauss--Newton approximation
 \[
-H(\theta^\star)\approx 2J_e(\theta^\star)^\top WJ_e(\theta^\star),
+H(\theta^\star)\approx 2D_\theta e(\theta^\star)^\top W D_\theta e(\theta^\star),
 \]
-where \(J_e(\theta^\star)\) is the Jacobian of quote residuals with respect to \(\theta\), and \(W\) is the diagonal matrix of quote weights. Large curvature indicates directions where the quote surface reacts strongly to parameter changes; small curvature indicates flatter, less identified directions.
+where \(D_\theta e(\theta^\star)\) is the Jacobian of the quote residual vector with respect to \(\theta\), and \(W\) is the diagonal matrix of quote weights. Large curvature indicates directions where the quote surface reacts strongly to parameter changes; small curvature indicates flatter, less identified directions.
 
 These diagnostics are not interpreted here as results; they define the checks used later to decide whether a calibration is both low-residual and locally stable. The numerical recovery, residual metrics, and parameter-error tables are reported in Chapter~\ref{ch:performance_benchmarks}.

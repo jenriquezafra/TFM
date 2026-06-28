@@ -3,8 +3,178 @@
 \begin{frame}[plain]
   \centering
   \vfill
-  {\Huge EXTRAS}
+  {\Huge Extras}
   \vfill
+\end{frame}
+
+\begin{frame}{Heston dynamics}
+  \[
+  \begin{aligned}
+    dS_t &= rS_t\,dt+\sqrt{v_t}S_t\,dW_t^{S},\\
+    dv_t &= \kappa(\bar v-v_t)\,dt+\gamma\sqrt{v_t}\,dW_t^{v},\\
+    d\langle W^{S},W^{v}\rangle_t &= \rho\,dt.
+  \end{aligned}
+  \]
+
+  \begin{itemize}
+    \item Parameters: \(\rho\) correlation, \(\kappa\) mean reversion, \(\gamma\) vol-of-vol, \(\bar v\) long-run variance, \(v_0\) initial variance.
+    \item The stochastic variance component generates non-flat implied-volatility surfaces.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Heston pricing PDE}
+  \[
+  \frac{\partial V}{\partial t}
+  + rS\frac{\partial V}{\partial S}
+  + \kappa(\bar v-v)\frac{\partial V}{\partial v}
+  + \frac{1}{2}vS^2\frac{\partial^2 V}{\partial S^2}
+  + \rho\gamma vS\frac{\partial^2 V}{\partial S\partial v}
+  + \frac{1}{2}\gamma^2v\frac{\partial^2 V}{\partial v^2}
+  - rV = 0.
+  \]
+
+  \begin{itemize}
+    \item The PINN branch enforces this equation in the transformed pricing variables.
+    \item Terminal payoff and boundary terms complete the baseline loss.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{COS and IV inversion}
+  \begin{itemize}
+    \item COS pricing uses the Heston characteristic function on a finite truncation interval.
+    \item Main reference configuration: \(N=1500\), \(L=50\), fallback \(L=80\) when stability checks require it.
+    \item Implied volatility is recovered with Brent inversion, tolerance \(10^{-8}\), and bounded search.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{ANN Sobolev objective}
+  \[
+    \mathcal{L}_{\mathrm{ANN}}
+      =
+      \frac{1}{n}\sum_i
+      \left|\hat\sigma_{\mathrm{IV}}(x_i)-\sigma_{\mathrm{IV}}^{\mathrm{ref}}(x_i)\right|^2
+      +
+      \lambda_{\mathrm{S}}
+      \frac{1}{n}\sum_i
+      \left\|\nabla_x\hat\sigma_{\mathrm{IV}}(x_i)
+      - \nabla_x\sigma_{\mathrm{IV}}^{\mathrm{ref}}(x_i)\right\|^2.
+  \]
+
+  \begin{itemize}
+    \item The baseline learns pointwise IV labels.
+    \item The Sobolev variant also constrains the local derivative structure of the IV surface.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{CaNN inverse problem}
+  \[
+    \theta^\star
+    =
+    \arg\min_{\theta\in\Theta}
+    \frac{1}{N_q}\sum_{j=1}^{N_q}
+    \left(
+      \hat\sigma_{\mathrm{IV}}(m_j,\tau_j,r_j;\theta)
+      -
+      \sigma^{\mathrm{mkt}}_{\mathrm{IV},j}
+    \right)^2.
+  \]
+
+  \begin{itemize}
+    \item \(N_q=35\) quotes on a \(5\times7\) moneyness--maturity grid.
+    \item The forward evaluator is the frozen ANN baseline or ANN Sobolev surrogate.
+    \item Search uses Differential Evolution with local polishing.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{CaNN parameter recovery}
+  \centering
+  \scriptsize
+  \begin{tabular}{lccc}
+    \toprule
+    Metric & CaNN ANN baseline & CaNN ANN Sobolev & Liu et al. \\
+    \midrule
+    Weighted MSE & \(7.43\cdot10^{-10}\) & \(3.69\cdot10^{-11}\) & \(\sim10^{-8}\) \\
+    \(|\rho-\rho^\star|\) & \(8.05\cdot10^{-3}\) & \(1.79\cdot10^{-3}\) & \(4.84\cdot10^{-2}\) \\
+    \(|\kappa-\kappa^\star|\) & \(8.48\cdot10^{-4}\) & \(8.36\cdot10^{-3}\) & \(4.88\cdot10^{-2}\) \\
+    \(|\gamma-\gamma^\star|\) & \(6.57\cdot10^{-3}\) & \(2.40\cdot10^{-3}\) & \(3.28\cdot10^{-2}\) \\
+    \(|\bar v-\bar v^\star|\) & \(1.02\cdot10^{-4}\) & \(3.08\cdot10^{-5}\) & \(4.54\cdot10^{-3}\) \\
+    \(|v_0-v_0^\star|\) & \(1.83\cdot10^{-4}\) & \(8.03\cdot10^{-5}\) & \(4.39\cdot10^{-4}\) \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{PINN loss decomposition}
+  \[
+    \mathcal{L}_{\mathrm{PINN}}
+    =
+    \lambda_D\mathcal{L}_{D}
+    +
+    \lambda_T\mathcal{L}_{T}
+    +
+    \lambda_B\mathcal{L}_{B}.
+  \]
+
+  \begin{itemize}
+    \item \(\mathcal{L}_D\): Heston PDE residual on interior collocation points.
+    \item \(\mathcal{L}_T\): terminal payoff condition.
+    \item \(\mathcal{L}_B\): boundary constraints.
+    \item Sobolev PINN adds supervised derivative terms for Greek accuracy.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Analytical control variate}
+  \[
+    V_{\mathrm{ACV}}(x)
+    =
+    g(x)V_{\mathrm{BS}}(x)
+    +
+    \bigl(1-g(x)\bigr)V_{\mathrm{PINN}}(x).
+  \]
+
+  \begin{itemize}
+    \item \(g(x)\) is a smooth gate concentrated near short maturities and \(m\approx1\).
+    \item The diagnostic isolates the contribution of the analytical component in the hard region.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Hard-region RMSE}
+  \centering
+  \scriptsize
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Model & Price & Delta & Gamma & Vega & Theta & Rho \\
+    \midrule
+    Baseline & \(1.15\cdot10^{-3}\) & \(1.84\cdot10^{-2}\) & \(7.32\cdot10^{-1}\) & \(1.65\cdot10^{-3}\) & \(1.53\cdot10^{-1}\) & \(5.67\cdot10^{-2}\) \\
+    Sobolev & \(1.09\cdot10^{-3}\) & \(1.60\cdot10^{-2}\) & \(8.63\cdot10^{-1}\) & \(3.11\cdot10^{-3}\) & \(1.56\cdot10^{-1}\) & \(1.36\cdot10^{-2}\) \\
+    Sobolev+ACV & \(1.10\cdot10^{-4}\) & \(4.99\cdot10^{-3}\) & \(5.29\cdot10^{-2}\) & \(1.20\cdot10^{-3}\) & \(3.03\cdot10^{-3}\) & \(2.60\cdot10^{-4}\) \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{Final RMSE summary}
+  \centering
+  \tiny
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Model & Price & Delta & Gamma & Vega & Theta & Rho \\
+    \midrule
+    ANN baseline & \(2.05\cdot10^{-5}\) & \(1.60\cdot10^{-4}\) & \(1.91\cdot10^{-3}\) & \(3.29\cdot10^{-4}\) & \(1.02\cdot10^{-4}\) & \(7.92\cdot10^{-4}\) \\
+    ANN Sobolev & \(1.95\cdot10^{-5}\) & \(2.29\cdot10^{-5}\) & \(1.50\cdot10^{-4}\) & \(1.47\cdot10^{-4}\) & \(2.05\cdot10^{-5}\) & \(3.81\cdot10^{-5}\) \\
+    PINN baseline & \(3.07\cdot10^{-4}\) & \(1.58\cdot10^{-3}\) & \(1.65\cdot10^{-2}\) & \(1.15\cdot10^{-3}\) & \(1.65\cdot10^{-3}\) & \(1.34\cdot10^{-2}\) \\
+    PINN Sobolev & \(2.31\cdot10^{-4}\) & \(1.72\cdot10^{-4}\) & \(1.90\cdot10^{-3}\) & \(1.91\cdot10^{-4}\) & \(2.73\cdot10^{-4}\) & \(8.58\cdot10^{-4}\) \\
+    PINN Sobolev+ACV & \(2.31\cdot10^{-4}\) & \(9.93\cdot10^{-4}\) & \(4.79\cdot10^{-2}\) & \(3.96\cdot10^{-4}\) & \(7.26\cdot10^{-4}\) & \(7.86\cdot10^{-4}\) \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{Original ANN Greek maps}
+  \centering
+  \includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{nn/ann_iv_baseline_vs_sobolev_rel_error_maps_10panel.png}
+\end{frame}
+
+\begin{frame}{Original PINN Greek maps}
+  \centering
+  \includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{pinn/greeks/pinn_baseline_sobolev_greek_rel_error_maps_10panel.png}
 \end{frame}
 
 \begin{frame}{ANN Sobolev value surfaces}
@@ -15,4 +185,9 @@
 \begin{frame}{Kink-region value surfaces}
   \centering
   \includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{pinn/greeks/pinn_sobolev_acv_kink_price_greek_value_surfaces_3d.png}
+\end{frame}
+
+\begin{frame}[allowframebreaks]{References}
+  \nocite{heston,liu,hainaut2024pinn,czarnecki2017sobolev,fang_oosterlee_2009,black_scholes_1973,glasserman2004montecarlo,baydin2018autodiff}
+  \printbibliography
 \end{frame}

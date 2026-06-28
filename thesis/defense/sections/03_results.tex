@@ -1,31 +1,162 @@
 \section{Results}
 
-\begin{frame}{Pricing performance}
-  \begin{block}{Placeholder headline}
-    Summarize the main accuracy and speed trade-off in one sentence.
-  \end{block}
-
-  \begin{itemize}
-    \item Add global error metrics.
-    \item Add regional error analysis.
-    \item Add runtime comparison against the numerical benchmark.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Calibration and Greeks}
-  \begin{itemize}
-    \item Placeholder for calibration quality and stability.
-    \item Placeholder for Greek consistency checks.
-    \item Placeholder for failure modes and boundary cases.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Figure placeholder}
-  \centering
-  \fbox{
-    \begin{minipage}[c][0.55\textheight][c]{0.82\linewidth}
+\begin{frame}{ANN baseline: IV surrogate}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.67\textwidth}
       \centering
-      Replace this box with a selected final figure from the experiments.
-    \end{minipage}
-  }
+      \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{nn/sensitivity_grid_3x2_log.png}
+    \end{column}
+    \begin{column}{0.29\textwidth}
+      \begin{itemize}
+        \item Test IV RMSE:
+        \[
+          1.86\cdot 10^{-3}.
+        \]
+        \item Stable behaviour in the interpolation core.
+        \item Error increases near boundary and extrapolation regions.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{ANN Sobolev: Greek error distributions}
+  \centering
+  \includegraphics[width=\linewidth,height=0.73\textheight,keepaspectratio]{nn/ann_iv_baseline_vs_sobolev_error_hist_overlay_logy_5greeks.png}
+
+  \vspace{1mm}
+  \begin{itemize}
+    \item Sobolev training narrows the error distributions for Delta, Gamma, Theta, and Rho.
+    \item Vega also improves, although with a smaller separation between variants.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{ANN Sobolev: Greek error maps}
+  \centering
+  \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{ann_sobolev_greek_rel_error_maps_landscape.png}
+
+  \vspace{1mm}
+  \begin{center}
+    \scriptsize
+    Greek RMSE ratios: Delta \(7.0\times\), Gamma \(12.7\times\), Vega \(2.2\times\), Theta \(5.0\times\), Rho \(20.8\times\).
+  \end{center}
+\end{frame}
+
+\begin{frame}{CaNN calibration}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.50\textwidth}
+      \centering
+      \includegraphics[width=\linewidth,height=0.67\textheight,keepaspectratio]{cann/cann_residual_heatmap_m_tau_l2_reg_smooth.png}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \centering
+      \resizebox{\linewidth}{!}{%
+      \begin{tabular}{lccc}
+        \toprule
+        Forward model & MSE & RMSE & \(\max |e|\) \\
+        \midrule
+        ANN baseline & \(7.43\cdot10^{-10}\) & \(2.73\cdot10^{-5}\) & \(6.79\cdot10^{-5}\) \\
+        ANN Sobolev & \(3.69\cdot10^{-11}\) & \(6.08\cdot10^{-6}\) & \(1.36\cdot10^{-5}\) \\
+        Liu et al. & \(\sim10^{-8}\) & -- & -- \\
+        \bottomrule
+      \end{tabular}}
+
+      \vspace{6mm}
+      \begin{itemize}
+        \item Calibration is performed on the replicated \(35\)-quote Liu grid.
+        \item The Sobolev forward surrogate gives the tightest IV residuals.
+        \item Parameter recovery improves for four of the five Heston parameters relative to the baseline CaNN.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{PINN baseline pricing}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \centering
+      \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{pinn/pricing/pricing_benchmark_composite.png}
+    \end{column}
+    \begin{column}{0.26\textwidth}
+      \begin{itemize}
+        \item Fixed grid:
+        \[
+          n=25{,}921.
+        \]
+        \item Price RMSE:
+        \[
+          3.07\cdot10^{-4}.
+        \]
+        \item MAPE:
+        \[
+          0.28\%.
+        \]
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{PINN Sobolev: pricing--Greek trade-off}
+  \centering
+  \small
+  \begin{tabular}{lccc}
+    \toprule
+    Greek & PINN baseline RMSE & PINN Sobolev RMSE & Ratio \\
+    \midrule
+    Delta & \(3.33\cdot10^{-2}\) & \(3.51\cdot10^{-4}\) & \(94.9\times\) \\
+    Gamma & \(3.85\cdot10^{-1}\) & \(8.94\cdot10^{-3}\) & \(43.1\times\) \\
+    Vega  & \(6.55\cdot10^{-2}\) & \(3.17\cdot10^{-3}\) & \(20.7\times\) \\
+    Theta & \(4.82\cdot10^{-3}\) & \(5.30\cdot10^{-4}\) & \(9.1\times\) \\
+    Rho   & \(8.37\cdot10^{-2}\) & \(1.43\cdot10^{-3}\) & \(58.5\times\) \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{6mm}
+  \begin{itemize}
+    \item Sobolev terms strongly improve full-grid Greek diagnostics.
+    \item The interpretation is not a uniform model improvement: derivative labels change the information regime.
+    \item Greek throughput changes from \(9.48\cdot10^3\) to \(8.60\cdot10^3\) points/s.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{PINN Sobolev: Greek error maps}
+  \centering
+  \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{pinn_sobolev_greek_rel_error_maps_landscape.png}
+
+  \vspace{1mm}
+  \begin{itemize}
+    \item Sobolev reduces global errors, but the short-maturity region remains structured.
+    \item This motivates a separate local diagnostic around the payoff kink.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Sobolev+ACV: local hard-region correction}
+  \centering
+  \includegraphics[width=\linewidth,height=0.77\textheight,keepaspectratio]{pinn_sobolev_acv_greek_rel_error_maps_landscape.png}
+
+  \vspace{1mm}
+  \begin{center}
+    \scriptsize
+    Hard-region grid: \(m\in[0.9704,1.0305]\), \(\tau\in[0.005,0.05]\).
+  \end{center}
+\end{frame}
+
+\begin{frame}{Evaluations per second}
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    Component & Throughput & Unit \\
+    \midrule
+    ANN evaluator & \(8.43\cdot10^{5}\) & IV evaluations/s \\
+    PINN pricing & \(4.91\cdot10^{5}\) & price points/s \\
+    COS repeated pricing & \(8.736\cdot10^{1}\) & price points/s \\
+    PINN Greek baseline & \(9.48\cdot10^{3}\) & Greek points/s \\
+    PINN Greek Sobolev & \(8.60\cdot10^{3}\) & Greek points/s \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{7mm}
+  \begin{itemize}
+    \item The speed advantage appears after training, in repeated evaluation mode.
+    \item The comparison is not used to rank all models globally; it quantifies the computational role of each branch.
+  \end{itemize}
 \end{frame}

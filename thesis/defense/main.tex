@@ -1,68 +1,124 @@
 \documentclass[aspectratio=169,10pt]{beamer}
 
-\usetheme{Madrid}
-\usecolortheme{default}
+\usetheme{default}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage[english]{babel}
 \usepackage{amsmath,amssymb,amsfonts}
+\usepackage{array}
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{appendixnumberbeamer}
 \usepackage[babel,english=american]{csquotes}
 \usepackage[backend=biber,style=ieee,isbn=false,sortcites,maxbibnames=6,minbibnames=1]{biblatex}
 
 \definecolor{azulUC3M}{RGB}{0,0,102}
+\definecolor{uc3mLight}{RGB}{232,236,247}
+\definecolor{annGreen}{RGB}{22,119,84}
+\definecolor{pinnOrange}{RGB}{191,91,36}
+\definecolor{refBlue}{RGB}{35,80,150}
 \definecolor{gray45}{gray}{.45}
 \definecolor{gray95}{gray}{.95}
 
+\setbeamersize{text margin left=8mm,text margin right=8mm}
 \setbeamercolor{structure}{fg=azulUC3M}
 \setbeamercolor{title}{fg=azulUC3M}
 \setbeamercolor{frametitle}{fg=azulUC3M}
+\setbeamerfont{frametitle}{size=\Large,series=\bfseries}
+\setbeamerfont{title}{size=\Large,series=\bfseries}
+\setbeamerfont{subtitle}{size=\normalsize}
 \setbeamercolor{section in toc}{fg=azulUC3M}
 \setbeamercolor{block title}{bg=azulUC3M,fg=white}
 \setbeamercolor{block body}{bg=gray95,fg=black}
+\setbeamertemplate{itemize item}{\color{azulUC3M}\small$\blacktriangleright$}
+\setbeamertemplate{itemize subitem}{\color{azulUC3M}\scriptsize$\bullet$}
 \setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{headline}{}
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+    \begin{beamercolorbox}[wd=.72\paperwidth,ht=2.5ex,dp=1.2ex,leftskip=8mm]{author in head/foot}%
+      \color{gray45}\insertshorttitle
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.28\paperwidth,ht=2.5ex,dp=1.2ex,rightskip=8mm plus1fil]{date in head/foot}%
+      \hfill\color{gray45}\insertframenumber/\inserttotalframenumber
+    \end{beamercolorbox}}%
+  \vskip0pt%
+}
 
 \graphicspath{{figures/}{../figures/}}
 \addbibresource{../references.bib}
 
-\title[TFM Defense]{Computational algorithms for pricing financial derivatives under local volatility models}
+\title[TFM Defense]{Physics-Informed and Data-Driven Neural Networks for Option Pricing, Calibration, and Greeks Estimation under the Heston Model}
 \subtitle{Master Thesis Defense}
 \author[J. E. Zafra Mena]{Jose Enrique Zafra Mena}
-\institute[UC3M]{Master Degree in Applied and Computational Mathematics\\Universidad Carlos III de Madrid}
+\institute[UC3M]{Master Degree in Applied and Computational Mathematics\\Universidad Carlos III de Madrid\\[2mm]Tutors: Jorge Morón Vidal and Francisco Manuel Bernal Martínez}
 \date{Madrid, 2026}
 
-\AtBeginSection[]
-{
-  \begin{frame}{Roadmap}
-    \tableofcontents[currentsection]
-  \end{frame}
+\newcommand{\metric}[2]{\begin{tabular}{@{}c@{}}{\Large\bfseries #1}\\[-1mm]{\scriptsize #2}\end{tabular}}
+
+\newcommand{\workflowdiagram}[2]{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=0.62cm, text width=1.55cm, inner sep=2.5pt, line width=0.35pt},
+  refbox/.style={box, fill=refBlue!10, draw=refBlue!75},
+  nnbox/.style={box, fill=annGreen!11, draw=annGreen!75, opacity=#1, text opacity=#1},
+  pinnbox/.style={box, fill=pinnOrange!13, draw=pinnOrange!80, opacity=#2, text opacity=#2},
+  outbox/.style={box, fill=gray95, draw=gray45!60},
+  arrow/.style={-{Latex[length=2.1mm,width=1.5mm]}, line width=0.45pt, draw=black!70},
+  annarrow/.style={arrow, draw=annGreen!80, opacity=#1},
+  pinnarrow/.style={arrow, draw=pinnOrange!80, opacity=#2},
+  greekline/.style={line width=0.55pt, dash pattern=on 2.5pt off 1.8pt, draw=azulUC3M!70}
+]
+  \node[refbox] (setup) at (0.0,0.0) {Heston\\contracts};
+  \node[refbox] (cos) at (2.2,0.0) {COS\\pricing};
+  \node[refbox] (iv) at (4.4,0.0) {IV\\inversion};
+  \node[refbox] (refs) at (6.6,0.0) {Reference\\Greeks};
+
+  \node[nnbox] (annbase) at (2.2,-1.35) {ANN\\baseline};
+  \node[nnbox] (annsobo) at (4.4,-1.35) {ANN\\Sobolev};
+  \node[nnbox] (cann) at (6.6,-1.35) {CaNN\\calibration};
+  \node[outbox, opacity=#1, text opacity=#1] (anngreeks) at (8.9,-1.35) {ANN/CaNN\\diagnostics};
+
+  \node[pinnbox] (pinnbase) at (2.2,-2.85) {PINN\\baseline};
+  \node[pinnbox] (pinnsobo) at (4.4,-2.85) {PINN\\Sobolev};
+  \node[pinnbox] (pinnacv) at (6.6,-2.85) {PINN Sobolev\\+ ACV};
+  \node[outbox, opacity=#2, text opacity=#2] (pinngreeks) at (8.9,-2.85) {Pricing / Greek\\diagnostics};
+
+  \draw[arrow] (setup) -- (cos);
+  \draw[arrow] (cos) -- (iv);
+  \draw[arrow] (iv) -- (refs);
+  \draw[annarrow] (iv.south) -- ++(0,-0.37) -| (annbase.north);
+  \draw[annarrow] (annbase) -- (annsobo);
+  \draw[annarrow] (annsobo) -- (cann);
+  \draw[annarrow] (cann) -- (anngreeks);
+  \draw[pinnarrow] (setup.south) |- (pinnbase.west);
+  \draw[pinnarrow] (pinnbase) -- (pinnsobo);
+  \draw[pinnarrow] (pinnsobo) -- (pinnacv);
+  \draw[pinnarrow] (pinnacv) -- (pinngreeks);
+  \draw[greekline] (refs.south) -- (6.0,-0.78);
+  \draw[greekline, -{Latex[length=2.1mm,width=1.5mm]}, opacity=#1] (6.0,-0.78) -- (annsobo.north);
+  \draw[greekline, opacity=#2] (6.0,-0.78) -- (6.0,-2.28);
+  \draw[greekline, -{Latex[length=2.1mm,width=1.5mm]}, opacity=#2] (6.0,-2.28) -- (pinnsobo.north);
+\end{tikzpicture}%
 }
 
 \begin{document}
 
-\begin{frame}
+\begin{frame}[plain]
   \titlepage
-  \vfill
+  \vspace{-4mm}
   \centering
-  \includegraphics[width=0.42\linewidth]{logo_UC3M.png}
-\end{frame}
-
-\begin{frame}{Roadmap}
-  \tableofcontents
+  \includegraphics[width=0.28\linewidth]{logo_UC3M.png}
 \end{frame}
 
 \input{sections/01_context}
 \input{sections/02_methodology}
 \input{sections/03_results}
 \input{sections/04_conclusions}
-
-\begin{frame}[allowframebreaks]{References}
-  \printbibliography
-\end{frame}
 
 \input{sections/05_extras}
 

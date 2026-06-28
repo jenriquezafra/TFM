@@ -371,6 +371,59 @@ def save_ann_pair_map(*, baseline: pd.DataFrame, sobolev: pd.DataFrame, out_path
     plt.close(fig)
 
 
+def save_ann_pair_map_landscape(*, baseline: pd.DataFrame, sobolev: pd.DataFrame, out_path: Path) -> None:
+    labels = ("Baseline ANN", "Sobolev ANN")
+    prepared = (baseline, sobolev)
+    all_grids = [
+        [_grid(df, f"rel_abs_error_{greek}") for greek in GREEKS]
+        for df in prepared
+    ]
+    norm = _log_norm([matrix for row in all_grids for matrix, _, _ in row])
+    cmap = plt.get_cmap("magma_r").copy()
+    cmap.set_bad(color="#f2f2f2")
+
+    fig, axes = plt.subplots(2, len(GREEKS), figsize=(22.0, 7.6), sharex=True, sharey=True)
+    fig.subplots_adjust(left=0.055, right=0.985, bottom=0.12, top=0.78, wspace=0.17, hspace=0.18)
+
+    image = None
+    for col_idx, greek in enumerate(GREEKS):
+        axes[0, col_idx].set_title(GREEK_LABELS[greek], fontsize=TITLE_SIZE)
+        for row_idx, label in enumerate(labels):
+            matrix, tau, m = all_grids[row_idx][col_idx]
+            ax = axes[row_idx, col_idx]
+            image = ax.imshow(
+                _plot_matrix(matrix, norm),
+                origin="lower",
+                aspect="auto",
+                extent=[float(tau.min()), float(tau.max()), float(m.min()), float(m.max())],
+                cmap=cmap,
+                norm=norm,
+                interpolation="bicubic",
+            )
+            if col_idx == 0:
+                ax.set_ylabel(f"{label}\n$m$", fontsize=LABEL_SIZE)
+            if row_idx == 1:
+                ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE)
+            _style_axis(ax)
+
+    if image is not None:
+        cbar = fig.colorbar(
+            image,
+            ax=axes.ravel().tolist(),
+            orientation="horizontal",
+            location="top",
+            fraction=0.075,
+            pad=0.12,
+        )
+        cbar.set_label("Relative Absolute Error", fontsize=LABEL_SIZE)
+        cbar.ax.tick_params(labelsize=max(TICK_SIZE - 2, 10))
+        _apply_log_ticks(cbar, norm)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=350, bbox_inches="tight")
+    plt.close(fig)
+
+
 def save_ann_pair_hist(
     *,
     baseline: pd.DataFrame,
@@ -619,6 +672,118 @@ def save_pinn_greeks_pair(*, variants: list[pd.DataFrame], out_path: Path) -> No
     plt.close(fig)
 
 
+def save_pinn_greeks_pair_landscape(*, variants: list[pd.DataFrame], out_path: Path) -> None:
+    labels = PINN_VARIANT_LABELS[:2]
+    prepared = [_prepare_pinn_errors(df) for df in variants[:2]]
+    all_grids = [
+        [
+            _regular_or_binned_grid(df, f"rel_abs_error_{greek}", n_bins=181)
+            for greek in GREEKS
+        ]
+        for df in prepared
+    ]
+    norm = _log_norm([matrix for row in all_grids for matrix, _, _ in row])
+    cmap = plt.get_cmap("magma_r").copy()
+    cmap.set_bad(color="#f2f2f2")
+
+    fig, axes = plt.subplots(2, len(GREEKS), figsize=(22.0, 7.6), sharex=True, sharey=True)
+    fig.subplots_adjust(left=0.055, right=0.985, bottom=0.12, top=0.78, wspace=0.17, hspace=0.18)
+
+    image = None
+    for col_idx, greek in enumerate(GREEKS):
+        axes[0, col_idx].set_title(GREEK_LABELS[greek], fontsize=TITLE_SIZE)
+        for row_idx, label in enumerate(labels):
+            matrix, tau, m = all_grids[row_idx][col_idx]
+            ax = axes[row_idx, col_idx]
+            image = ax.imshow(
+                _plot_matrix(matrix, norm),
+                origin="lower",
+                aspect="auto",
+                extent=[float(tau.min()), float(tau.max()), float(m.min()), float(m.max())],
+                cmap=cmap,
+                norm=norm,
+                interpolation="bicubic",
+            )
+            if col_idx == 0:
+                ax.set_ylabel(f"{label}\n$m$", fontsize=LABEL_SIZE)
+            if row_idx == 1:
+                ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE)
+            _style_axis(ax)
+
+    if image is not None:
+        cbar = fig.colorbar(
+            image,
+            ax=axes.ravel().tolist(),
+            orientation="horizontal",
+            location="top",
+            fraction=0.075,
+            pad=0.12,
+        )
+        cbar.set_label("Relative Absolute Error", fontsize=LABEL_SIZE)
+        cbar.ax.tick_params(labelsize=max(TICK_SIZE - 2, 10))
+        _apply_log_ticks(cbar, norm)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=350, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_pinn_greeks_triptych_landscape(*, variants: list[pd.DataFrame], out_path: Path) -> None:
+    labels = PINN_VARIANT_LABELS
+    prepared = [_prepare_pinn_errors(df) for df in variants[:3]]
+    all_grids = [
+        [
+            _regular_or_binned_grid(df, f"rel_abs_error_{greek}", n_bins=181)
+            for greek in GREEKS
+        ]
+        for df in prepared
+    ]
+    norm = _log_norm([matrix for row in all_grids for matrix, _, _ in row])
+    cmap = plt.get_cmap("magma_r").copy()
+    cmap.set_bad(color="#f2f2f2")
+
+    fig, axes = plt.subplots(3, len(GREEKS), figsize=(22.0, 10.6), sharex=True, sharey=True)
+    fig.subplots_adjust(left=0.055, right=0.985, bottom=0.10, top=0.80, wspace=0.17, hspace=0.18)
+
+    image = None
+    for col_idx, greek in enumerate(GREEKS):
+        axes[0, col_idx].set_title(GREEK_LABELS[greek], fontsize=TITLE_SIZE)
+        for row_idx, label in enumerate(labels):
+            matrix, tau, m = all_grids[row_idx][col_idx]
+            ax = axes[row_idx, col_idx]
+            image = ax.imshow(
+                _plot_matrix(matrix, norm),
+                origin="lower",
+                aspect="auto",
+                extent=[float(tau.min()), float(tau.max()), float(m.min()), float(m.max())],
+                cmap=cmap,
+                norm=norm,
+                interpolation="bicubic",
+            )
+            if col_idx == 0:
+                ax.set_ylabel(f"{label}\n$m$", fontsize=LABEL_SIZE)
+            if row_idx == len(labels) - 1:
+                ax.set_xlabel(r"$\tau$", fontsize=LABEL_SIZE)
+            _style_axis(ax)
+
+    if image is not None:
+        cbar = fig.colorbar(
+            image,
+            ax=axes.ravel().tolist(),
+            orientation="horizontal",
+            location="top",
+            fraction=0.060,
+            pad=0.11,
+        )
+        cbar.set_label("Relative Absolute Error", fontsize=LABEL_SIZE)
+        cbar.ax.tick_params(labelsize=max(TICK_SIZE - 2, 10))
+        _apply_log_ticks(cbar, norm)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=350, bbox_inches="tight")
+    plt.close(fig)
+
+
 def save_pinn_price_greek_value_pair(*, variants: list[pd.DataFrame], out_path: Path) -> None:
     labels = PINN_VARIANT_LABELS[:2]
     prepared = [_prepare_pinn_values(df) for df in variants[:2]]
@@ -858,6 +1023,7 @@ def build_all(
     ann_out_dir: Path,
     pricing_out_dir: Path,
     greeks_out_dir: Path,
+    defense_figures_dir: Path | None = None,
 ) -> None:
     baseline = _normalize_ann_iv(pd.read_csv(ann_baseline_csv))
     sobolev = _normalize_ann_iv(pd.read_csv(ann_sobolev_csv))
@@ -909,6 +1075,20 @@ def build_all(
         variants=pinn_variants,
         out_path=greeks_out_dir / "pinn_baseline_sobolev_price_greek_value_maps_presentation.png",
     )
+    if defense_figures_dir is not None:
+        save_ann_pair_map_landscape(
+            baseline=baseline,
+            sobolev=sobolev,
+            out_path=defense_figures_dir / "ann_sobolev_greek_rel_error_maps_landscape.png",
+        )
+        save_pinn_greeks_pair_landscape(
+            variants=pinn_variants,
+            out_path=defense_figures_dir / "pinn_sobolev_greek_rel_error_maps_landscape.png",
+        )
+        save_pinn_greeks_triptych_landscape(
+            variants=pinn_variants,
+            out_path=defense_figures_dir / "pinn_sobolev_acv_greek_rel_error_maps_landscape.png",
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -949,6 +1129,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ann-out-dir", type=Path, default=Path("thesis/figures/nn"))
     parser.add_argument("--pricing-out-dir", type=Path, default=Path("thesis/figures/pinn/pricing"))
     parser.add_argument("--greeks-out-dir", type=Path, default=Path("thesis/figures/pinn/greeks"))
+    parser.add_argument(
+        "--defense-figures-dir",
+        type=Path,
+        default=None,
+        help="Optional directory for 16:9 presentation-specific composites.",
+    )
     return parser.parse_args()
 
 
@@ -964,10 +1150,13 @@ def main() -> None:
         ann_out_dir=_resolve(args.ann_out_dir),
         pricing_out_dir=_resolve(args.pricing_out_dir),
         greeks_out_dir=_resolve(args.greeks_out_dir),
+        defense_figures_dir=_resolve(args.defense_figures_dir) if args.defense_figures_dir is not None else None,
     )
     print(f"Saved ANN figures to: {_resolve(args.ann_out_dir)}")
     print(f"Saved pricing figures to: {_resolve(args.pricing_out_dir)}")
     print(f"Saved PINN Greek figures to: {_resolve(args.greeks_out_dir)}")
+    if args.defense_figures_dir is not None:
+        print(f"Saved defense figures to: {_resolve(args.defense_figures_dir)}")
 
 
 if __name__ == "__main__":

@@ -1,22 +1,76 @@
-\section{Context and Motivation}
+\section{Benchmark Structure}
 
-\begin{frame}{Problem setting}
-  \begin{block}{Placeholder claim}
-    State why fast and accurate derivative pricing matters for calibration, risk, and model analysis under stochastic volatility models such as Heston \cite{heston}.
-  \end{block}
+\begin{frame}{Benchmark workflow}
+  \centering
+  \workflowdiagram{1}{1}
 
+  \vspace{4mm}
   \begin{itemize}
-    \item Introduce the target pricing problem and market context.
-    \item Explain the computational bottleneck in repeated option valuation.
-    \item Connect the problem to the thesis scope and evaluation criteria.
+    \item A deterministic Heston--COS layer defines prices, implied-volatility labels, and reference Greeks.
+    \item The supervised ANN/CaNN branch learns the implied-volatility representation.
+    \item The PINN branch learns a price surface from the Heston PDE and is diagnosed through pricing and Greeks.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Research objectives}
-  \begin{itemize}
-    \item Objective 1: describe the baseline numerical pricing method.
-    \item Objective 2: build and evaluate neural surrogate models.
-    \item Objective 3: study calibration and Greek consistency.
-    \item Objective 4: compare accuracy, speed, and robustness.
-  \end{itemize}
+\begin{frame}{Problem: repeated Heston evaluation}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.52\textwidth}
+      \begin{itemize}
+        \item One Heston price is not the main difficulty.
+        \item Calibration and sensitivity analysis require thousands or millions of repeated evaluations.
+        \item Neural approximations are useful only if speed gains are accompanied by diagnostic control.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.43\textwidth}
+      \centering
+      \includegraphics[width=\linewidth,height=0.58\textheight,keepaspectratio]{put_payoff_matplotlib.pdf}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Numerical reference}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.50\textwidth}
+      \begin{itemize}
+        \item Heston stochastic volatility model:
+        \[
+          dS_t = rS_t\,dt+\sqrt{v_t}S_t\,dW_t^{S}.
+        \]
+        \item Fourier--COS pricing provides the deterministic price reference.
+        \item Brent inversion maps prices into implied volatility labels.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{itemize}
+        \item Reference Greeks are computed from Heston characteristic-function formulas.
+        \item COS settings are fixed across experiments: \(N=1500\), \(L=50\), with adaptive fallback when needed.
+        \item This layer is the common benchmark for both neural branches.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Evaluation protocol}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.36\textwidth}
+      \[
+      \mathrm{RMSE} =
+      \sqrt{\frac{1}{n}\sum_{i=1}^{n}(\hat z_i-z_i^{\mathrm{ref}})^2}
+      \]
+      \[
+      \mathrm{MAPE} =
+      \frac{100}{n}\sum_{i=1}^{n}
+      \frac{|\hat z_i-z_i^{\mathrm{ref}}|}
+      {\max(|z_i^{\mathrm{ref}}|,\varepsilon)}
+      \]
+    \end{column}
+    \begin{column}{0.58\textwidth}
+      \begin{itemize}
+        \item Fixed train/validation/test splits for the supervised branch.
+        \item Fixed pricing and Greek benchmark grids for the PINN branch.
+        \item Spatial maps are used to detect localized failures hidden by aggregate metrics.
+        \item Throughput is reported in evaluations or grid points per second.
+      \end{itemize}
+    \end{column}
+  \end{columns}
 \end{frame}

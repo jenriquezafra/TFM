@@ -424,7 +424,7 @@ because the singular layer around the strike is naturally centered at \(x=0\). T
 \[
 z=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r).
 \]
-The vector \(z\) contains the time to maturity, moneyness, current variance state, structural Heston parameters, and risk-free rate at which the global Sobolev surface is evaluated. Following the standard control-variate decomposition \cite{glasserman2004montecarlo}, the ACV model combines this global price with a local Black--Scholes put approximation \(V_{\mathrm{BS}}^{\mathrm{put}}\), using the pricing convention fixed in Section~\ref{sec:black_scholes_model} and the instantaneous variance \(v\) as the local variance level \cite{black_scholes_1973}:
+The vector \(z\) contains the time to maturity, moneyness, current variance state, structural Heston parameters, and risk-free rate at which the global Sobolev surface is evaluated. Following the standard control-variate decomposition \cite{glasserman2004montecarlo}, the ACV model combines this global price with a local Black-Scholes put approximation \(V_{\mathrm{BS}}^{\mathrm{put}}\), using the pricing convention fixed in Section~\ref{sec:black_scholes_model} and the instantaneous variance \(v\) as the local variance level \cite{black_scholes_1973}:
 \begin{equation}
 V_{\mathrm{ACV}}(z)
 =
@@ -435,7 +435,7 @@ V_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r).
 \end{equation}
 In this expression, \(V_{\mathrm{ACV}}\) is the corrected price surface, \(\chi(\tau,x)\in[0,1]\) is the localization gate, \(V_{\mathrm{Sob}}\) is the global Sobolev PINN price, and \(V_{\mathrm{BS}}^{\mathrm{put}}\) is the analytical local component. Therefore, the reported Sobolev+ACV experiment isolates the effect of the analytical control variate and of the local blending mechanism, rather than adding another supervised Greek-fitting stage.
 
-Using the normalized-strike convention of Chapter~\ref{ch:background}, the Black--Scholes control variate is obtained from the put formula in Equation~\eqref{eq:bs_put_formula} by setting \(K=1\), \(S=e^x\), and \(\sigma^2=v\):
+Using the normalized-strike convention of Chapter~\ref{ch:background}, the Black-Scholes control variate is obtained from the put formula in Equation~\eqref{eq:bs_put_formula} by setting \(K=1\), \(S=e^x\), and \(\sigma^2=v\):
 \begin{equation}
 V_{\mathrm{BS}}^{\mathrm{put}}(\tau,x,v,r)
 =
@@ -486,9 +486,9 @@ x=(\tau,m,v,\rho,\kappa,\gamma,\bar v,r),
 \]
 we compute
 \[
-V_\phi(x),\qquad J(x)=\nabla_x V_\phi(x),\qquad H(x)=\nabla_x^2 V_\phi(x).
+V_\phi(x),\qquad \nabla_x V_\phi(x),\qquad \nabla_x^2 V_\phi(x).
 \]
-Because the model is differentiable end-to-end, these quantities are exact derivatives of the neural surrogate, up to floating-point precision, and not finite-difference approximations. This exactness is internal to the trained network: automatic differentiation differentiates \(V_\phi\), not the exact Heston price function. Therefore, the resulting Greeks are reliable only to the extent that the learned surface reproduces the local geometry of the Heston reference solution. This distinction is precisely what motivates the Sobolev and ACV variants introduced in Sections~\ref{sec:pinn_sobolev_training} and~\ref{sec:pinn_acv_correction}.
+Because the model is differentiable end-to-end, these quantities are exact derivatives of the neural surrogate, up to floating-point precision, and not finite-difference approximations. The first derivative is the gradient of the scalar neural price with respect to the input variables \(x\), and the second derivative is the corresponding Hessian. This exactness is internal to the trained network: automatic differentiation differentiates \(V_\phi\), not the exact Heston price function. Therefore, the resulting Greeks are reliable only to the extent that the learned surface reproduces the local geometry of the Heston reference solution. This distinction is precisely what motivates the Sobolev and ACV variants introduced in Sections~\ref{sec:pinn_sobolev_training} and~\ref{sec:pinn_acv_correction}.
 
 Compared with bump-and-reprice finite differences, this avoids choosing artificial perturbation sizes and removes the associated truncation/cancellation trade-off. It also keeps first- and second-order sensitivities within the same computational graph, which is useful when the evaluation is performed on batches of \((m,\tau)\) points. From a financial perspective, the interpretation remains standard: each Greek is the local slope or curvature of the price surface produced by the PINN around the evaluation point. The quality of those sensitivities therefore depends on both the local smoothness of the trained network and the fidelity of the learned price function in that region.
 This closes the link with the Heston dynamics introduced in Chapter~\ref{ch:background}: the PINN price surface is trained through the PDE implied by Equation~\ref{eq:heston_dynamics}, and the Greeks are then derivatives of that model-consistent learned surface.

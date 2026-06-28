@@ -1,27 +1,47 @@
 \section{Conclusions}
 
-\begin{frame}{Main takeaways}
-  \begin{enumerate}
-    \item Placeholder takeaway on numerical accuracy.
-    \item Placeholder takeaway on computational efficiency.
-    \item Placeholder takeaway on calibration usefulness.
-    \item Placeholder takeaway on limitations and robustness.
-  \end{enumerate}
+\begin{frame}{Model roles}
+  \centering
+  \workflowdiagram{1}{1}
+
+  \vspace{4mm}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.32\textwidth}
+      \textbf{ANN/CaNN}
+
+      \smallskip
+      Supervised IV surrogate for calibration and derivative-aware diagnostics.
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \textbf{PINN}
+
+      \smallskip
+      PDE-trained price surface without supervised price labels in the baseline formulation.
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \textbf{Sobolev+ACV}
+
+      \smallskip
+      Local correction for the short-maturity at-the-money region.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{Future work}
+\begin{frame}{Conclusions}
   \begin{itemize}
-    \item Extend the model family or market-data coverage.
-    \item Improve no-arbitrage and Greek consistency constraints.
-    \item Strengthen out-of-domain diagnostics.
-    \item Package the workflow for reproducible pricing and calibration experiments.
+    \item The ANN/CaNN branch is the strongest component for supervised implied-volatility calibration and Greek estimation.
+    \item Sobolev augmentation improves Greek diagnostics in both branches, but its interpretation depends on the information regime.
+    \item The baseline PINN provides a fast PDE-trained pricing surface; its Greeks require additional structure.
+    \item The benchmark separates aggregate accuracy, spatial error structure, hard-region behaviour, and evaluation speed.
   \end{itemize}
 \end{frame}
 
-\begin{frame}
+\begin{frame}[plain]
   \centering
-  {\Huge Thank you}
+  \vfill
+  {\Huge Questions}
 
-  \vspace{1cm}
-  {\Large Questions}
+  \vspace{8mm}
+  {\large Thank you}
+  \vfill
 \end{frame}
