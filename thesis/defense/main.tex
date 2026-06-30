@@ -39,14 +39,25 @@
 \setbeamertemplate{headline}{}
 \setbeamertemplate{footline}{%
   \leavevmode%
-  \hbox{%
-    \begin{beamercolorbox}[wd=.72\paperwidth,ht=2.5ex,dp=1.2ex,leftskip=8mm]{author in head/foot}%
-      \color{gray45}\insertshorttitle
-    \end{beamercolorbox}%
-    \begin{beamercolorbox}[wd=.28\paperwidth,ht=2.5ex,dp=1.2ex,rightskip=8mm plus1fil]{date in head/foot}%
-      \hfill\color{gray45}\insertframenumber/\inserttotalframenumber
-    \end{beamercolorbox}}%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=2.5ex,dp=1.2ex,rightskip=8mm plus1fil]{date in head/foot}%
+    \hfill\color{gray45}\insertframenumber/\inserttotalframenumber
+  \end{beamercolorbox}%
   \vskip0pt%
+}
+
+\setbeamertemplate{title page}{%
+  \vspace{3mm}
+  \begin{flushleft}
+    {\usebeamerfont{title}\usebeamercolor[fg]{title}\inserttitle\par}
+    \vspace{2mm}
+    {\usebeamerfont{subtitle}\insertsubtitle\par}
+    \vspace{7mm}
+    {\usebeamerfont{author}\insertauthor\par}
+    \vspace{3mm}
+    {\usebeamerfont{institute}\insertinstitute\par}
+    \vspace{5mm}
+    {\usebeamerfont{date}\insertdate\par}
+  \end{flushleft}
 }
 
 \graphicspath{{figures/}{../figures/}}
@@ -55,7 +66,7 @@
 \title[TFM Defense]{Physics-Informed and Data-Driven Neural Networks for Option Pricing, Calibration, and Greeks Estimation under the Heston Model}
 \subtitle{Master Thesis Defense}
 \author[J. E. Zafra Mena]{Jose Enrique Zafra Mena}
-\institute[UC3M]{Master Degree in Applied and Computational Mathematics\\Universidad Carlos III de Madrid\\[2mm]Tutors: Jorge Morón Vidal and Francisco Manuel Bernal Martínez}
+\institute[UC3M]{Master Degree in Applied and Computational Mathematics\\Universidad Carlos III de Madrid\\[3mm]\textbf{Supervisors:}\\Jorge Morón Vidal\\Francisco Manuel Bernal Martínez}
 \date{Madrid, 2026}
 
 \newcommand{\metric}[2]{\begin{tabular}{@{}c@{}}{\Large\bfseries #1}\\[-1mm]{\scriptsize #2}\end{tabular}}
@@ -99,10 +110,10 @@
   \draw[pinnarrow] (pinnbase) -- (pinnsobo);
   \draw[pinnarrow] (pinnsobo) -- (pinnacv);
   \draw[pinnarrow] (pinnacv) -- (pinngreeks);
-  \draw[greekline] (refs.south) -- (6.0,-0.78);
-  \draw[greekline, -{Latex[length=2.1mm,width=1.5mm]}, opacity=#1] (6.0,-0.78) -- (annsobo.north);
-  \draw[greekline, opacity=#2] (6.0,-0.78) -- (6.0,-2.28);
-  \draw[greekline, -{Latex[length=2.1mm,width=1.5mm]}, opacity=#2] (6.0,-2.28) -- (pinnsobo.north);
+  \draw[greekline] (refs.south) -- (5.45,-0.78);
+  \draw[greekline, -{Latex[length=2.1mm,width=1.5mm]}, opacity=#1] (5.45,-0.78) -- (annsobo.north);
+  \draw[greekline, opacity=#2] (5.45,-0.78) -- (5.45,-2.28);
+  \draw[greekline, -{Latex[length=2.1mm,width=1.5mm]}, opacity=#2] (5.45,-2.28) -- (pinnsobo.north);
 \end{tikzpicture}%
 }
 

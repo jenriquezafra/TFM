@@ -3,6 +3,22 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Local drafting notes and assistant/editor artifacts
+.DS_Store
+docs/
+drafts/
+prompts/
+scratch/
+.ai/
+.codex/
+.claude/
+.cursor/
+.windsurf/
+*.chat.md
+*.prompt.md
+*.conversation.md
+thesis/defense/guion_defensa.md
+
 # C extensions
 *.so
 

@@ -1,6 +1,6 @@
 \section{Results}
 
-\begin{frame}{ANN baseline: IV surrogate}
+\begin{frame}{The ANN baseline gives a stable IV surrogate}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.67\textwidth}
       \centering
@@ -19,7 +19,7 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{ANN Sobolev: Greek error distributions}
+\begin{frame}{Sobolev training concentrates ANN Greek errors}
   \centering
   \includegraphics[width=\linewidth,height=0.73\textheight,keepaspectratio]{nn/ann_iv_baseline_vs_sobolev_error_hist_overlay_logy_5greeks.png}
 
@@ -30,7 +30,7 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{ANN Sobolev: Greek error maps}
+\begin{frame}{Sobolev improves ANN Greeks across the grid}
   \centering
   \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{ann_sobolev_greek_rel_error_maps_landscape.png}
 
@@ -41,7 +41,7 @@
   \end{center}
 \end{frame}
 
-\begin{frame}{CaNN calibration}
+\begin{frame}{The Sobolev IV surrogate gives tighter CaNN residuals}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.50\textwidth}
       \centering
@@ -70,7 +70,7 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{PINN baseline pricing}
+\begin{frame}{The baseline PINN is strongest as a pricing model}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.70\textwidth}
       \centering
@@ -95,7 +95,7 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{PINN Sobolev: pricing--Greek trade-off}
+\begin{frame}{Sobolev improves PINN Greeks under a different regime}
   \centering
   \small
   \begin{tabular}{lccc}
@@ -118,7 +118,7 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{PINN Sobolev: Greek error maps}
+\begin{frame}{Short maturities remain the hardest PINN region}
   \centering
   \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{pinn_sobolev_greek_rel_error_maps_landscape.png}
 
@@ -129,7 +129,7 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Sobolev+ACV: local hard-region correction}
+\begin{frame}{ACV targets the short-maturity ATM hard region}
   \centering
   \includegraphics[width=\linewidth,height=0.77\textheight,keepaspectratio]{pinn_sobolev_acv_greek_rel_error_maps_landscape.png}
 
@@ -140,7 +140,7 @@
   \end{center}
 \end{frame}
 
-\begin{frame}{Evaluations per second}
+\begin{frame}{Neural evaluators are faster after training}
   \centering
   \begin{tabular}{lrr}
     \toprule
